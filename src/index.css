@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Cairo', 'Tajawal', system-ui, -apple-system, sans-serif;
+  }
+}
+
+.font-amiri {
+  font-family: 'Amiri', serif;
+}
+
+.font-cairo {
+  font-family: 'Cairo', sans-serif;
+}
+
+.font-tajawal {
+  font-family: 'Tajawal', sans-serif;
+}
+
+/* Custom military radar & subtle effects */
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-radar {
+  animation: radar-sweep 4s linear infinite;
+}
+
+/* Dynamic Weather & Atmospheric Lighting Animations */
+@keyframes sun-flare-pulse {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06) rotate(2deg);
+  }
+}
+
+@keyframes fog-drift {
+  0% {
+    transform: translateX(-8%) scaleY(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateX(4%) scaleY(1.08);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateX(-8%) scaleY(1);
+    opacity: 0.7;
+  }
+}
+
+@keyframes sand-haze {
+  0% {
+    transform: translate(-3%, 1%) rotate(0deg);
+  }
+  50% {
+    transform: translate(3%, -1%) rotate(0.5deg);
+  }
+  100% {
+    transform: translate(-3%, 1%) rotate(0deg);
+  }
+}
+
+@keyframes water-shimmer {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-sun-flare {
+  animation: sun-flare-pulse 6s ease-in-out infinite;
+}
+
+.animate-fog-drift {
+  animation: fog-drift 14s ease-in-out infinite;
+}
+
+.animate-sand-haze {
+  animation: sand-haze 8s ease-in-out infinite;
+}
+
+.animate-water-shimmer {
+  animation: water-shimmer 4s ease-in-out infinite;
+}
+
+/* Custom scrollbars for military dossiers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1c1917;
+}
+::-webkit-scrollbar-thumb {
+  background: #44403c;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #78716c;
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Remix ملحمة أكتوبر 1973: ملحمة العبور والنصر",
+  "description": "لعبة استراتيجية وميدانية تجسد نصر حرب أكتوبر 1973 المجيد: الضربة الجوية، عبور قناة السويس، تحطيم خط بارليف بخراطيم المياه، ومعارك الدبابات وتحرير سيناء.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
