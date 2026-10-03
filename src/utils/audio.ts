@@ -763,18 +763,27 @@ class SoundSystem {
     this.initCtx();
     if (!this.ctx) return;
 
+    // Stop clashing background music immediately upon victory!
+    this.stopBackgroundTheme(false);
+
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+
     const now = this.ctx.currentTime;
-    // Patriotic melody notes in harmonic frequencies: C4, E4, G4, C5, G4, C5
+    // Patriotic brass fanfare melody ("الله أكبر بسم الله"): G3, C4, E4, G4, C5, G4, C5
     const notes = [
-      { freq: 261.63, time: 0.0, dur: 0.22 }, // Do
-      { freq: 329.63, time: 0.24, dur: 0.22 }, // Mi
-      { freq: 392.00, time: 0.48, dur: 0.28 }, // Sol
-      { freq: 523.25, time: 0.80, dur: 0.45 }, // High Do (الله أكبر)
-      { freq: 440.00, time: 1.30, dur: 0.25 }, // La
-      { freq: 523.25, time: 1.60, dur: 0.65 }, // High Do
+      { freq: 196.00, time: 0.0, dur: 0.22 }, // Sol 3
+      { freq: 261.63, time: 0.22, dur: 0.22 }, // Do 4
+      { freq: 329.63, time: 0.44, dur: 0.24 }, // Mi 4
+      { freq: 392.00, time: 0.70, dur: 0.35 }, // Sol 4 (الله أكبر)
+      { freq: 329.63, time: 1.10, dur: 0.22 }, // Mi 4
+      { freq: 523.25, time: 1.35, dur: 0.85 }, // High Do 5 (بسم الله)
+      { freq: 659.25, time: 2.25, dur: 0.95 }, // High Mi 5 (نصر أكتوبر)
     ];
 
     notes.forEach((note) => {
+      // Primary brass oscillator
       const osc = this.ctx!.createOscillator();
       const gain = this.ctx!.createGain();
 
@@ -782,14 +791,30 @@ class SoundSystem {
       osc.frequency.setValueAtTime(note.freq, now + note.time);
 
       gain.gain.setValueAtTime(0.0, now + note.time);
-      gain.gain.linearRampToValueAtTime(0.35, now + note.time + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + note.time + note.dur);
+      gain.gain.linearRampToValueAtTime(0.32, now + note.time + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.005, now + note.time + note.dur);
 
       osc.connect(gain);
       gain.connect(this.ctx!.destination);
 
       osc.start(now + note.time);
       osc.stop(now + note.time + note.dur);
+
+      // Harmonic brass overtone
+      const subOsc = this.ctx!.createOscillator();
+      const subGain = this.ctx!.createGain();
+      subOsc.type = 'sawtooth';
+      subOsc.frequency.setValueAtTime(note.freq * 1.5, now + note.time);
+
+      subGain.gain.setValueAtTime(0.0, now + note.time);
+      subGain.gain.linearRampToValueAtTime(0.12, now + note.time + 0.04);
+      subGain.gain.exponentialRampToValueAtTime(0.002, now + note.time + note.dur);
+
+      subOsc.connect(subGain);
+      subGain.connect(this.ctx!.destination);
+
+      subOsc.start(now + note.time);
+      subOsc.stop(now + note.time + note.dur);
     });
   }
 

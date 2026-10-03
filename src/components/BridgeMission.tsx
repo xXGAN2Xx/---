@@ -41,8 +41,18 @@ interface EnemyPlane {
   x: number;
   y: number;
   vx: number;
+  vy?: number;
+  baseY?: number;
   hp: number;
   destroyed: boolean;
+  strafeCooldown?: number;
+  bombDropped?: boolean;
+  bombsLeft?: number;
+  nextBombTime?: number;
+  pattern?: 'carpet_bomb' | 'dive_strafing' | 'artillery_guide' | 'torpedo_skim' | 'high_altitude_cluster';
+  evasionCooldown?: number;
+  badgeShown?: boolean;
+  phase?: number;
 }
 
 interface Shockwave {
@@ -97,6 +107,8 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     crossingTanks: [] as CrossingTank[],
     artilleryShells: [] as ArtilleryShell[],
     enemyPlanes: [] as EnemyPlane[],
+    hostileBullets: [] as { x: number; y: number; vx: number; vy: number }[],
+    hostileBombs: [] as { x: number; y: number; vx: number; vy: number; targetX: number; targetY: number }[],
     shockwaves: [] as Shockwave[],
     particles: [] as Particle[],
     floatingTexts: [] as FloatingText[],
@@ -173,14 +185,37 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
           }
         }
 
-        // Spawn enemy strike plane occasionally
+        // Spawn enemy strike plane occasionally with randomized attack patterns
         if (Math.random() < 0.25 && stateRef.current.enemyPlanes.length < 2) {
+          const patterns: ('carpet_bomb' | 'dive_strafing' | 'artillery_guide' | 'torpedo_skim' | 'high_altitude_cluster')[] = [
+            'carpet_bomb',
+            'dive_strafing',
+            'artillery_guide',
+            'torpedo_skim',
+            'high_altitude_cluster',
+          ];
+          const chosenPattern = patterns[Math.floor(Math.random() * patterns.length)];
+          const spawnY =
+            chosenPattern === 'dive_strafing'
+              ? 140
+              : chosenPattern === 'torpedo_skim'
+              ? 180
+              : chosenPattern === 'high_altitude_cluster'
+              ? 55
+              : 75 + Math.random() * 85;
+
           stateRef.current.enemyPlanes.push({
             x: 1050,
-            y: 80 + Math.random() * 90,
-            vx: -220,
+            y: spawnY,
+            baseY: spawnY,
+            vx: chosenPattern === 'dive_strafing' ? -270 : chosenPattern === 'torpedo_skim' ? -290 : -220,
+            vy: 0,
             hp: 30,
             destroyed: false,
+            pattern: chosenPattern,
+            bombsLeft: chosenPattern === 'carpet_bomb' ? 2 : chosenPattern === 'high_altitude_cluster' ? 3 : 1,
+            nextBombTime: 0,
+            phase: 0,
           });
         }
 
@@ -374,7 +409,9 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     // Check hit on enemy planes
     for (const plane of stateRef.current.enemyPlanes) {
       if (plane.destroyed) continue;
-      if (Math.hypot(plane.x - tx, plane.y - ty) < 70) {
+      const flakDist = Math.hypot(plane.x - tx, plane.y - ty);
+
+      if (flakDist < 70) {
         plane.hp -= 35;
         sound.playHitSound();
         if (plane.hp <= 0) {
@@ -384,6 +421,34 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
           setScore(stateRef.current.score);
           addFloatingText(plane.x, plane.y - 20, '+800 إسقاط طائرة معادية بمدافع م/ط! 🎯', '#38bdf8');
         }
+      } else if (flakDist < 160) {
+        // Reactive evasion juke away from exploding flak
+        plane.y += plane.y > ty ? 45 : -45;
+        plane.y = Math.max(50, Math.min(220, plane.y));
+        stateRef.current.particles.push({
+          x: plane.x + 18,
+          y: plane.y,
+          vx: 35,
+          vy: (Math.random() - 0.5) * 35,
+          color: '#fef08a',
+          life: 1,
+          maxLife: 15,
+          size: 3.5,
+        });
+        addFloatingText(plane.x, plane.y - 20, 'مناورة تفادي معادية! 💨', '#fef08a');
+      }
+    }
+
+    // Check hit on hostile aerial bombs
+    for (let b = stateRef.current.hostileBombs.length - 1; b >= 0; b--) {
+      const bomb = stateRef.current.hostileBombs[b];
+      if (Math.hypot(bomb.x - tx, bomb.y - ty) < 65) {
+        stateRef.current.hostileBombs.splice(b, 1);
+        spawnExplosion(bomb.x, bomb.y, '#f59e0b', 22, true, false);
+        sound.playExplosion(1.0);
+        stateRef.current.score += 350;
+        setScore(stateRef.current.score);
+        addFloatingText(bomb.x, bomb.y - 20, '+350 اعتراض قنبلة جوية! 💥', '#38bdf8');
       }
     }
   };
@@ -494,7 +559,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         }
       }
 
-      // Update Enemy Planes
+      // Update Enemy Planes & Hostile Airstrike AI
       for (let j = state.enemyPlanes.length - 1; j >= 0; j--) {
         const pl = state.enemyPlanes[j];
         if (pl.destroyed) {
@@ -522,7 +587,250 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         }
 
         pl.x += pl.vx * dt;
+
+        // Tactical Airstrike AI: Randomized Attack Patterns & Evasion
+        pl.strafeCooldown = (pl.strafeCooldown ?? (0.8 + Math.random() * 0.6)) - dt;
+        const pattern = pl.pattern ?? 'dive_strafing';
+
+        if (!pl.badgeShown) {
+          pl.badgeShown = true;
+          const badgeMap: Record<string, string> = {
+            carpet_bomb: '⚠️ غارة قصف سجادي متتابع!',
+            dive_strafing: '⚠️ انقضاض رشاشات على الجسر!',
+            artillery_guide: '📡 استطلاع جوي: توجيه مدفعي!',
+            torpedo_skim: '⚠️ غارة كشط مائي منخفض!',
+            high_altitude_cluster: '⚠️ قصف عنقودي عالي الارتفاع!',
+          };
+          addFloatingText(pl.x, pl.y - 25, badgeMap[pattern] || 'غارة جوية معادية!', '#f59e0b');
+        }
+
+        // Reactive Evasion against player anti-air gunsight cursor lock
+        const mouseDist = Math.hypot(state.mousePos.x - pl.x, state.mousePos.y - pl.y);
+        if (mouseDist < 100) {
+          pl.y += (pl.y > state.mousePos.y ? 90 : -90) * dt;
+          pl.y = Math.max(45, Math.min(230, pl.y));
+        }
+
+        if (pattern === 'dive_strafing') {
+          // Low diving pass with rapid strafe
+          if (pl.x > 400 && pl.x < 780) {
+            pl.y += (135 - pl.y) * 3.0 * dt;
+          } else {
+            pl.y += (75 - pl.y) * 2.5 * dt;
+          }
+        } else if (pattern === 'torpedo_skim') {
+          // Water-skimming torpedo run
+          if (pl.x > 420 && pl.x < 800) {
+            pl.y += (170 - pl.y) * 3.5 * dt;
+          } else if (pl.x <= 420) {
+            // Zoom climb escape
+            pl.y += (60 - pl.y) * 3.0 * dt;
+          }
+        } else if (pattern === 'high_altitude_cluster') {
+          // Hug top altitude
+          pl.y += (55 - pl.y) * 2.5 * dt;
+        }
+
+        if (pl.x > 200 && pl.x < 850) {
+          // 1. Strafing Run: target crossing tanks or bridge deck
+          if (pl.strafeCooldown <= 0) {
+            pl.strafeCooldown = pattern === 'dive_strafing' ? 0.55 : 0.85 + Math.random() * 0.7;
+            sound.playGunshot();
+
+            const targetTank = state.crossingTanks.find((t) => !t.crossingComplete);
+            const targetX = targetTank ? targetTank.x + 15 : pl.x - 120;
+            const targetY = 300;
+
+            const tdx = targetX - (pl.x - 20);
+            const tdy = targetY - pl.y;
+            const tdist = Math.hypot(tdx, tdy) || 1;
+            const bSpeed = 490;
+
+            state.hostileBullets.push({
+              x: pl.x - 20,
+              y: pl.y + 6,
+              vx: (tdx / tdist) * bSpeed,
+              vy: (tdy / tdist) * bSpeed,
+            });
+
+            // Muzzle flash particle
+            state.particles.push({
+              x: pl.x - 24,
+              y: pl.y + 6,
+              vx: -30,
+              vy: 10,
+              color: '#fef08a',
+              life: 1,
+              maxLife: 8,
+              size: 4,
+            });
+          }
+
+          // 2. Aerial Bombing: Carpet, Torpedo, Cluster, Artillery Guide, Single
+          if (pattern === 'carpet_bomb') {
+            if ((pl.bombsLeft ?? 0) > 0 && currTime > (pl.nextBombTime ?? 0) && pl.x > 380 && pl.x < 680) {
+              pl.bombsLeft = (pl.bombsLeft ?? 2) - 1;
+              pl.nextBombTime = currTime + 420;
+              sound.playMissileLaunch();
+              state.hostileBombs.push({
+                x: pl.x,
+                y: pl.y + 12,
+                vx: pl.vx * 0.4,
+                vy: 95,
+                targetX: pl.x - 50,
+                targetY: 305,
+              });
+              addFloatingText(pl.x, pl.y - 20, '⚠️ قصف جوي عنقودي متتابع!', '#ef4444');
+            }
+          } else if (pattern === 'high_altitude_cluster') {
+            if ((pl.bombsLeft ?? 0) > 0 && currTime > (pl.nextBombTime ?? 0) && pl.x > 350 && pl.x < 750) {
+              pl.bombsLeft = (pl.bombsLeft ?? 3) - 1;
+              pl.nextBombTime = currTime + 320;
+              sound.playMissileLaunch();
+              const spreadOffset = (Math.random() - 0.5) * 80;
+              state.hostileBombs.push({
+                x: pl.x,
+                y: pl.y + 10,
+                vx: pl.vx * 0.35,
+                vy: 110,
+                targetX: pl.x - 60 + spreadOffset,
+                targetY: 305,
+              });
+            }
+          } else if (pattern === 'torpedo_skim') {
+            if (!pl.bombDropped && pl.x > 450 && pl.x < 600) {
+              pl.bombDropped = true;
+              sound.playMissileLaunch();
+              state.hostileBombs.push({
+                x: pl.x,
+                y: pl.y + 14,
+                vx: pl.vx * 0.6,
+                vy: 75,
+                targetX: 520,
+                targetY: 305,
+              });
+              addFloatingText(pl.x, pl.y - 20, '⚠️ إطلاق قنبلة انزلاقية على المعبر!', '#ef4444');
+            }
+          } else if (pattern === 'artillery_guide') {
+            if (!pl.bombDropped && pl.x > 500 && pl.x < 700) {
+              pl.bombDropped = true;
+              sound.playRadioClick();
+              addFloatingText(pl.x, pl.y - 20, '📡 استطلاع جوي: توجيه مدفعية العدو!', '#f59e0b');
+
+              // Trigger 2 coordinated artillery shells
+              for (let s = 0; s < 2; s++) {
+                const targetSec = state.pontoons[Math.floor(Math.random() * state.pontoons.length)];
+                if (targetSec) {
+                  state.artilleryShells.push({
+                    x: 880 + s * 40,
+                    y: 60,
+                    targetX: targetSec.x + targetSec.width / 2,
+                    targetY: targetSec.y + targetSec.height / 2,
+                    progress: 0,
+                    speed: 1.35,
+                  });
+                }
+              }
+            }
+          } else {
+            // Single precision bomb
+            if (!pl.bombDropped && pl.x > 460 && pl.x < 620) {
+              pl.bombDropped = true;
+              sound.playMissileLaunch();
+              state.hostileBombs.push({
+                x: pl.x,
+                y: pl.y + 12,
+                vx: pl.vx * 0.45,
+                vy: 90,
+                targetX: pl.x - 60,
+                targetY: 305,
+              });
+              addFloatingText(pl.x, pl.y - 20, '⚠️ إلقاء قنبلة جوية على الجسر!', '#ef4444');
+            }
+          }
+        }
+
         if (pl.x < -60) state.enemyPlanes.splice(j, 1);
+      }
+
+      // Update Hostile Plane Bullets
+      for (let b = state.hostileBullets.length - 1; b >= 0; b--) {
+        const hb = state.hostileBullets[b];
+        hb.x += hb.vx * dt;
+        hb.y += hb.vy * dt;
+
+        let hit = false;
+        for (const tk of state.crossingTanks) {
+          if (!tk.crossingComplete && Math.hypot(hb.x - tk.x, hb.y - tk.y) < 26) {
+            tk.hp -= 15;
+            sound.playHitSound();
+            spawnExplosion(hb.x, hb.y, '#ef4444', 6);
+            state.hostileBullets.splice(b, 1);
+            hit = true;
+            if (tk.hp <= 0) {
+              spawnExplosion(tk.x, tk.y, '#ef4444', 24, true);
+              sound.playExplosion(1.1);
+              addFloatingText(tk.x, tk.y - 25, '⚠️ تدمير دبابة بالهجوم الجوي!', '#ef4444');
+            }
+            break;
+          }
+        }
+
+        if (hit) continue;
+
+        if (hb.y >= 300) {
+          spawnExplosion(hb.x, hb.y, '#38bdf8', 6, false, true);
+          state.hostileBullets.splice(b, 1);
+          continue;
+        }
+
+        if (hb.x < 0 || hb.x > canvas.width || hb.y < 0) {
+          state.hostileBullets.splice(b, 1);
+        }
+      }
+
+      // Update Hostile Aerial Bombs
+      for (let b = state.hostileBombs.length - 1; b >= 0; b--) {
+        const bomb = state.hostileBombs[b];
+        bomb.x += bomb.vx * dt;
+        bomb.vy += 220 * dt;
+        bomb.y += bomb.vy * dt;
+
+        // Smoke trail behind falling bomb
+        if (Math.random() < 0.5) {
+          state.particles.push({
+            x: bomb.x,
+            y: bomb.y - 6,
+            vx: (Math.random() - 0.5) * 10,
+            vy: -15,
+            color: '#3f3f46',
+            life: 1,
+            maxLife: 18,
+            size: 3,
+            isSmoke: true,
+          });
+        }
+
+        // Bomb reaches water/bridge level
+        if (bomb.y >= 305) {
+          spawnExplosion(bomb.x, bomb.y, '#f59e0b', 26, true, false);
+          sound.playExplosion(1.3);
+
+          if (bomb.x >= 200 && bomb.x <= 800) {
+            setBridgeIntegrity((prev) => {
+              const next = Math.max(0, prev - 12);
+              if (next <= 0 && !state.isComplete) {
+                state.isComplete = true;
+                setIsDefeated(true);
+                sound.playDefeatSound();
+              }
+              return next;
+            });
+            addFloatingText(bomb.x, bomb.y - 30, '⚠️ انفجار قنبلة على الجسر! -12%', '#ef4444');
+          }
+
+          state.hostileBombs.splice(b, 1);
+        }
       }
 
       // Update Crossing Tanks
@@ -780,6 +1088,32 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         ctx.moveTo(sh.x, sh.y);
         ctx.lineTo(sh.x + 16, sh.y - 10);
         ctx.stroke();
+      }
+
+      // Hostile Strafing Bullets from Enemy Planes
+      for (const hb of state.hostileBullets) {
+        ctx.save();
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#ef4444';
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(hb.x - 6, hb.y - 2, 12, 4);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(hb.x - 3, hb.y - 1, 6, 2);
+        ctx.restore();
+      }
+
+      // Hostile Aerial Bombs falling from Enemy Planes
+      for (const bomb of state.hostileBombs) {
+        ctx.save();
+        ctx.translate(bomb.x, bomb.y);
+        ctx.fillStyle = '#27272a';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 9, 5, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Tail fins
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-7, -4, 4, 8);
+        ctx.restore();
       }
 
       // Render Momentary Flash Shockwaves
@@ -1055,6 +1389,9 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
                   stateRef.current.pontoons.forEach((p) => {
                     p.hp = 100;
                   });
+                  stateRef.current.hostileBullets = [];
+                  stateRef.current.hostileBombs = [];
+                  stateRef.current.enemyPlanes = [];
                   setBridgeIntegrity(100);
                   setFlakCharges(15);
                   setSmokeCharges(4);

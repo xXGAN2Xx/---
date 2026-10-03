@@ -13,11 +13,21 @@ interface EnemyTank {
   x: number;
   y: number;
   speed: number;
+  vy?: number;
+  baseY?: number;
   hp: number;
   maxHp: number;
   label: string;
   isPatton: boolean;
   destroyed: boolean;
+  reloadCooldown?: number;
+  smokeCooldown?: number;
+  salvoRemaining?: number;
+  nextSalvoTime?: number;
+  pattern?: 'salvo' | 'dune_flank' | 'standard' | 'hull_down_ambush' | 'smoke_rush';
+  hullDown?: boolean;
+  ambushTimer?: number;
+  badgeShown?: boolean;
 }
 
 interface HostileJet {
@@ -26,6 +36,10 @@ interface HostileJet {
   y: number;
   hp: number;
   destroyed: boolean;
+  rocketCooldown?: number;
+  pattern?: 'cluster' | 'dive_pass' | 'napalm_strike' | 'top_attack';
+  flareCooldown?: number;
+  badgeShown?: boolean;
 }
 
 interface GuidedMissile {
@@ -86,7 +100,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
   const [isDefeated, setIsDefeated] = useState(false);
 
   const stateRef = useRef({
-    playerTank: { x: 180, y: 380, targetY: 380, hp: 100, turretAngle: 0 },
+    playerTank: { x: 180, y: 380, targetY: 380, hp: 100, turretAngle: 0, vx: 0, vy: 0 },
     keys: { up: false, down: false, left: false, right: false },
     saggerTeams: [
       { x: 130, y: 300, label: 'البطل عبد العاطي (صائد الدبابات)' },
@@ -96,7 +110,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     hostileJets: [] as HostileJet[],
     guidedMissiles: [] as GuidedMissile[],
     samRockets: [] as { x: number; y: number; vx: number; vy: number; targetId: number }[],
-    shells: [] as { x: number; y: number; vx: number; vy: number; fromPlayer: boolean }[],
+    shells: [] as { x: number; y: number; vx: number; vy: number; fromPlayer: boolean; isAirRocket?: boolean }[],
     particles: [] as Particle[],
     shockwaves: [] as Shockwave[],
     floatingTexts: [] as FloatingText[],
@@ -372,39 +386,72 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
       const p = state.playerTank;
       const k = state.keys;
       const moveSpd = 200 * dt;
+      const oldPx = p.x;
+      const oldPy = p.y;
       if (k.up && p.y > 270) p.y -= moveSpd;
       if (k.down && p.y < canvas.height - 80) p.y += moveSpd;
       if (k.left && p.x > 80) p.x -= moveSpd;
       if (k.right && p.x < 320) p.x += moveSpd;
+      p.vx = dt > 0 ? (p.x - oldPx) / dt : 0;
+      p.vy = dt > 0 ? (p.y - oldPy) / dt : 0;
 
       const m = state.mousePos;
       p.turretAngle = Math.atan2(m.y - p.y, m.x - p.x);
 
-      // Fast enemy reinforcement
+      // Fast enemy reinforcement with randomized attack patterns
       if (currTime - state.lastSpawnTime > 4500 && state.enemyTanks.length < 5) {
         state.lastSpawnTime = currTime;
+        const tankPatterns: ('salvo' | 'dune_flank' | 'standard' | 'hull_down_ambush' | 'smoke_rush')[] = [
+          'salvo',
+          'dune_flank',
+          'standard',
+          'hull_down_ambush',
+          'smoke_rush',
+        ];
+        const chosenPattern = tankPatterns[Math.floor(Math.random() * tankPatterns.length)];
+        const spawnY = 280 + Math.random() * 200;
+
         state.enemyTanks.push({
           id: Date.now(),
           x: canvas.width + 60,
-          y: 280 + Math.random() * 200,
-          speed: -(30 + Math.random() * 15),
+          y: spawnY,
+          baseY: spawnY,
+          speed:
+            chosenPattern === 'dune_flank'
+              ? -(45 + Math.random() * 20)
+              : chosenPattern === 'smoke_rush'
+              ? -(48 + Math.random() * 15)
+              : -(28 + Math.random() * 15),
+          vy: 0,
           hp: 70,
           maxHp: 70,
           label: 'دبابة معادية M60',
           isPatton: true,
           destroyed: false,
+          pattern: chosenPattern,
+          salvoRemaining: chosenPattern === 'salvo' ? 2 : 1,
+          ambushTimer: 0,
         });
       }
 
-      // Hostile Jet
+      // Hostile Jet with randomized attack pattern
       if (Math.random() < 0.012 && state.hostileJets.length < 2) {
         sound.playTargetLock();
+        const jetPatterns: ('cluster' | 'dive_pass' | 'napalm_strike' | 'top_attack')[] = [
+          'cluster',
+          'dive_pass',
+          'napalm_strike',
+          'top_attack',
+        ];
+        const chosenJetPattern = jetPatterns[Math.floor(Math.random() * jetPatterns.length)];
+
         state.hostileJets.push({
           id: Date.now() + Math.random(),
           x: canvas.width + 40,
-          y: 70 + Math.random() * 110,
+          y: chosenJetPattern === 'top_attack' ? 50 : 70 + Math.random() * 110,
           hp: 40,
           destroyed: false,
+          pattern: chosenJetPattern,
         });
       }
 
@@ -540,16 +587,23 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
             }
           }
         } else {
-          if (Math.hypot(sh.x - p.x, sh.y - p.y) < 30) {
-            p.hp -= 10;
+          if (Math.hypot(sh.x - p.x, sh.y - p.y) < 32) {
+            const dmg = sh.isAirRocket ? 18 : 10;
+            p.hp -= dmg;
             setPlatoonHealth(Math.max(0, p.hp));
             sound.playHitSound();
-            spawnExplosion(p.x, p.y, '#ef4444', 14);
+            spawnExplosion(p.x, p.y, '#ef4444', sh.isAirRocket ? 20 : 14);
+            if (sh.isAirRocket) {
+              addFloatingText(p.x, p.y - 25, '⚠️ إصابة صاروخ جوي معادٍ! -18', '#ef4444');
+            } else {
+              addFloatingText(p.x, p.y - 25, 'إصابة دانة دبابة معادية! -10', '#f87171');
+            }
             state.shells.splice(b, 1);
 
             if (p.hp <= 0 && !state.isComplete) {
               state.isComplete = true;
               setIsDefeated(true);
+              sound.playDefeatSound();
             }
           }
         }
@@ -559,28 +613,167 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
         }
       }
 
-      // 4. Update Enemy Tanks
+      // 4. Update Enemy Tanks (Predictive Deflection Aiming, Evasion & Salvos)
       for (const tank of state.enemyTanks) {
         if (!tank.destroyed) {
+          if (!tank.badgeShown) {
+            tank.badgeShown = true;
+            const badgeMap: Record<string, string> = {
+              salvo: '⚠️ رمي سابوت ثنائي!',
+              dune_flank: '⚠️ التفاف مدرع سريع عبر الكثبان!',
+              standard: '⚠️ تقدم رتل مدرع!',
+              hull_down_ambush: '⚠️ كمين تكتيكي خلف الساتر!',
+              smoke_rush: '⚠️ هجوم خاطف بستارة دخانية!',
+            };
+            addFloatingText(tank.x, tank.y - 25, badgeMap[tank.pattern || 'standard'] || 'دبابة معادية!', '#f59e0b');
+          }
+
+          let dodging = false;
+
+          // A. Reactive Evasion against Sagger guided missiles
+          for (const gm of state.guidedMissiles) {
+            if (gm.active) {
+              const mdx = gm.x - tank.x;
+              const mdy = gm.y - tank.y;
+              const mdist = Math.hypot(mdx, mdy);
+              if (mdx < 0 && mdist < 260) {
+                dodging = true;
+                tank.vy = mdy > 0 ? -120 : 120;
+                tank.y += (tank.vy || 0) * dt;
+                tank.y = Math.max(260, Math.min(canvas.height - 70, tank.y));
+
+                // Deploy tactical smoke discharger
+                tank.smokeCooldown = (tank.smokeCooldown ?? 0) - dt;
+                if (tank.smokeCooldown <= 0) {
+                  tank.smokeCooldown = 3.5;
+                  for (let s = 0; s < 4; s++) {
+                    state.particles.push({
+                      x: tank.x - 10 + (Math.random() - 0.5) * 20,
+                      y: tank.y + (Math.random() - 0.5) * 20,
+                      vx: (Math.random() - 0.5) * 30,
+                      vy: -15 - Math.random() * 20,
+                      color: '#e2e8f0',
+                      life: 1,
+                      maxLife: 28,
+                      size: 5,
+                      isSmoke: true,
+                    });
+                  }
+                  addFloatingText(tank.x, tank.y - 25, 'ستارة دخان تكتيكية! 💨', '#e2e8f0');
+                }
+                break;
+              }
+            }
+          }
+
+          // B. Reactive Evasion against Incoming Player T-62 Cannon Shells
+          if (!dodging) {
+            for (const sh of state.shells) {
+              if (sh.fromPlayer && sh.vx > 0) {
+                const distShell = tank.x - sh.x;
+                if (distShell > 0 && distShell < 300 && Math.abs(sh.y - tank.y) < 38) {
+                  dodging = true;
+                  tank.vy = sh.y > tank.y ? -130 : 130;
+                  tank.y += (tank.vy || 0) * dt;
+                  tank.y = Math.max(260, Math.min(canvas.height - 70, tank.y));
+                  // Evasive acceleration juke
+                  tank.speed = -45;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!dodging) {
+            // Dune undulating motion
+            tank.y += Math.sin(currTime * 0.002 + tank.id) * 15 * dt;
+          }
+
+          // Pattern Specific Movement
+          if (tank.pattern === 'hull_down_ambush') {
+            tank.ambushTimer = (tank.ambushTimer ?? 0) + dt;
+            if (tank.x < canvas.width - 150 && tank.ambushTimer < 3.2) {
+              tank.speed = 0; // Halt in depression
+              tank.hullDown = true;
+            } else {
+              tank.speed = -32;
+              tank.hullDown = false;
+            }
+          } else if (tank.pattern === 'smoke_rush') {
+            // Emits constant dust and smoke
+            if (Math.random() < 0.25) {
+              state.particles.push({
+                x: tank.x + 10,
+                y: tank.y + 10,
+                vx: 15,
+                vy: -5,
+                color: '#cbd5e1',
+                life: 1,
+                maxLife: 15,
+                size: 4,
+                isSmoke: true,
+              });
+            }
+          }
+
           tank.x += tank.speed * dt;
 
-          if (Math.random() < 0.015 && tank.x < canvas.width - 50) {
+          tank.reloadCooldown = (tank.reloadCooldown ?? (1.8 + Math.random() * 1.5)) - dt;
+
+          if (tank.reloadCooldown <= 0 && tank.x < canvas.width - 40 && tank.x > p.x + 60) {
+            const isSalvo = tank.pattern === 'salvo';
+            tank.reloadCooldown = isSalvo ? 3.0 + Math.random() * 1.5 : 2.2 + Math.random() * 1.6;
             sound.playCannon();
-            const edx = p.x - tank.x;
-            const edy = p.y - tank.y;
-            const edist = Math.hypot(edx, edy);
+
+            // Calculate intercept lead
+            const shellSpeed = 520;
+            const dist = Math.hypot(p.x - tank.x, p.y - tank.y);
+            const timeToTarget = dist / shellSpeed;
+
+            const predX = p.x + (p.vx || 0) * timeToTarget * 0.85;
+            const predY = p.y + (p.vy || 0) * timeToTarget * 0.85;
+
+            const edx = predX - tank.x;
+            const edy = predY - tank.y;
+            const angle = Math.atan2(edy, edx) + (Math.random() - 0.5) * 0.05;
+
             state.shells.push({
-              x: tank.x,
+              x: tank.x - 24,
               y: tank.y,
-              vx: (edx / edist) * 450,
-              vy: (edy / edist) * 450,
+              vx: Math.cos(angle) * shellSpeed,
+              vy: Math.sin(angle) * shellSpeed,
               fromPlayer: false,
+            });
+
+            // If salvo pattern: fire second shell slightly offset
+            if (isSalvo) {
+              const angle2 = angle + (Math.random() - 0.5) * 0.08;
+              state.shells.push({
+                x: tank.x - 26,
+                y: tank.y + 4,
+                vx: Math.cos(angle2) * (shellSpeed * 0.96),
+                vy: Math.sin(angle2) * (shellSpeed * 0.96),
+                fromPlayer: false,
+              });
+              addFloatingText(tank.x, tank.y - 20, '⚠️ رمي سابوت ثنائي!', '#ef4444');
+            }
+
+            // Muzzle flash particle
+            state.particles.push({
+              x: tank.x - 26,
+              y: tank.y,
+              vx: -35,
+              vy: (Math.random() - 0.5) * 15,
+              color: '#fef08a',
+              life: 1,
+              maxLife: 10,
+              size: 5,
             });
           }
         }
       }
 
-      // 5. Update Hostile Jets
+      // 5. Update Hostile Jets (Air-to-Ground Strikes with Randomized Patterns & Flares)
       for (let j = state.hostileJets.length - 1; j >= 0; j--) {
         const jet = state.hostileJets[j];
         if (jet.destroyed) {
@@ -592,7 +785,96 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
           continue;
         }
 
+        if (!jet.badgeShown) {
+          jet.badgeShown = true;
+          const jetBadgeMap: Record<string, string> = {
+            cluster: '⚠️ غارة فانتوم عنقودية!',
+            dive_pass: '⚠️ انقضاض صاروخي مباشر!',
+            napalm_strike: '⚠️ إلقاء نابالم حارق!',
+            top_attack: '⚠️ هجوم من زاوية عليا حادة!',
+          };
+          addFloatingText(jet.x, jet.y - 20, jetBadgeMap[jet.pattern || 'dive_pass'] || 'غارة معادية!', '#ef4444');
+        }
+
+        // Reactive Evasion against SAM-6 Missiles
+        for (const sam of state.samRockets) {
+          if (sam.targetId === jet.id) {
+            const distSam = Math.hypot(sam.x - jet.x, sam.y - jet.y);
+            if (distSam < 240) {
+              jet.flareCooldown = (jet.flareCooldown ?? 0) - dt;
+              if (jet.flareCooldown <= 0) {
+                jet.flareCooldown = 3.2;
+                // Deploy defensive flares
+                for (let f = 0; f < 3; f++) {
+                  state.particles.push({
+                    x: jet.x + 15,
+                    y: jet.y + (Math.random() - 0.5) * 15,
+                    vx: 50 + Math.random() * 20,
+                    vy: (Math.random() - 0.5) * 40,
+                    color: '#fef08a',
+                    life: 1,
+                    maxLife: 20,
+                    size: 4,
+                  });
+                }
+                addFloatingText(jet.x, jet.y - 20, 'شعلات حرارية تكتيكية! 💥', '#fef08a');
+                // Violent pitch juke
+                jet.y += (jet.y > sam.y ? 65 : -65) * dt * 4;
+              }
+              break;
+            }
+          }
+        }
+
         jet.x -= 240 * dt;
+
+        // Tactical Air Strike AI
+        jet.rocketCooldown = (jet.rocketCooldown ?? (1.6 + Math.random() * 1.2)) - dt;
+        if (jet.rocketCooldown <= 0 && jet.x > p.x - 50 && jet.x < canvas.width - 60) {
+          jet.rocketCooldown = 3.6 + Math.random() * 2.0;
+          sound.playMissileLaunch();
+          sound.playTargetLock();
+
+          const rdx = p.x - jet.x;
+          const rdy = p.y - jet.y;
+          const rdist = Math.hypot(rdx, rdy) || 1;
+          const rSpeed = 440;
+
+          if (jet.pattern === 'cluster') {
+            for (let c = -1; c <= 1; c++) {
+              state.shells.push({
+                x: jet.x,
+                y: jet.y + 12,
+                vx: ((rdx + c * 40) / rdist) * rSpeed,
+                vy: ((rdy + c * 30) / rdist) * rSpeed,
+                fromPlayer: false,
+                isAirRocket: true,
+              });
+            }
+          } else if (jet.pattern === 'napalm_strike') {
+            // Napalm canister
+            state.shells.push({
+              x: jet.x,
+              y: jet.y + 12,
+              vx: (rdx / rdist) * 380,
+              vy: 120,
+              fromPlayer: false,
+              isAirRocket: true,
+            });
+            addFloatingText(jet.x, jet.y - 20, '⚠️ إلقاء نابالم حارق!', '#f97316');
+          } else {
+            // Single precision rocket
+            state.shells.push({
+              x: jet.x,
+              y: jet.y + 12,
+              vx: (rdx / rdist) * rSpeed,
+              vy: (rdy / rdist) * rSpeed,
+              fromPlayer: false,
+              isAirRocket: true,
+            });
+          }
+        }
+
         if (jet.x < -80) state.hostileJets.splice(j, 1);
       }
 
@@ -832,7 +1114,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
         ctx.stroke();
       }
 
-      // Improved Glowing Cannon Shells
+      // Improved Glowing Cannon Shells & Hostile Air Rockets
       for (const sh of state.shells) {
         if (sh.fromPlayer) {
           ctx.shadowBlur = 8;
@@ -846,12 +1128,36 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
           ctx.arc(sh.x, sh.y, 2, 0, Math.PI * 2);
           ctx.fill();
           ctx.shadowBlur = 0;
+        } else if (sh.isAirRocket) {
+          // Hostile Air Rocket
+          ctx.save();
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#ef4444';
+          ctx.fillStyle = '#f97316';
+          ctx.beginPath();
+          ctx.arc(sh.x, sh.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(sh.x, sh.y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(sh.x, sh.y);
+          ctx.lineTo(sh.x - sh.vx * 0.04, sh.y - sh.vy * 0.04);
+          ctx.stroke();
+          ctx.restore();
         } else {
           ctx.shadowBlur = 6;
           ctx.shadowColor = '#ef4444';
           ctx.fillStyle = '#ef4444';
           ctx.beginPath();
-          ctx.arc(sh.x, sh.y, 3, 0, Math.PI * 2);
+          ctx.arc(sh.x, sh.y, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.arc(sh.x, sh.y, 1.8, 0, Math.PI * 2);
           ctx.fill();
           ctx.shadowBlur = 0;
         }

@@ -8,6 +8,24 @@ interface FortressAssaultMissionProps {
   onExit: () => void;
 }
 
+interface EnemySentry {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  minX: number;
+  maxX: number;
+  hp: number;
+  maxHp: number;
+  destroyed: boolean;
+  isTakingCover: boolean;
+  evasionTimer: number;
+  attackPattern: 'suppressive_burst' | 'frag_grenade' | 'sniper_overwatch';
+  patternTimer: number;
+  burstCooldown: number;
+  badgeShown?: boolean;
+}
+
 export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ onComplete, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -30,10 +48,16 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       { id: 2, x: 380, y: 470, cut: false, label: 'صمام نابالم 2' },
     ],
     bunkers: [
-      { id: 1, x: 520, y: 390, captured: false, hp: 100, label: 'دشمة الرشاش الثقيل' },
-      { id: 2, x: 740, y: 330, captured: false, hp: 100, label: 'مركز قيادة الحصن' },
+      { id: 1, x: 520, y: 390, captured: false, hp: 100, label: 'دشمة الرشاش الثقيل', burstRemaining: 0, burstCooldown: 0, lastBurstTime: 0, specialPatternTimer: 4.0 },
+      { id: 2, x: 740, y: 330, captured: false, hp: 100, label: 'مركز قيادة الحصن', burstRemaining: 0, burstCooldown: 0.6, lastBurstTime: 0, specialPatternTimer: 6.5 },
     ],
-    bullets: [] as { x: number; y: number; vx: number; vy: number }[],
+    enemySentries: [
+      { id: 1, x: 440, y: 440, vx: 40, minX: 360, maxX: 500, hp: 40, maxHp: 40, destroyed: false, isTakingCover: false, evasionTimer: 0, attackPattern: 'suppressive_burst', patternTimer: 0, burstCooldown: 1.8 },
+      { id: 2, x: 650, y: 360, vx: -35, minX: 580, maxX: 720, hp: 40, maxHp: 40, destroyed: false, isTakingCover: false, evasionTimer: 0, attackPattern: 'frag_grenade', patternTimer: 0, burstCooldown: 2.5 },
+    ] as EnemySentry[],
+    bullets: [] as { x: number; y: number; vx: number; vy: number; isGrenade?: boolean; grenadeTimer?: number }[],
+    particles: [] as { x: number; y: number; vx: number; vy: number; color: string; life: number; maxLife: number; size: number }[],
+    shockwaves: [] as { x: number; y: number; radius: number; maxRadius: number; alpha: number; color: string }[],
     lastBunkerShot: 0,
     flagPole: { x: 880, y: 220, hoisted: 0 },
     floatingTexts: [] as { id: number; x: number; y: number; text: string; color: string; life: number; maxLife: number }[],
@@ -104,6 +128,18 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
         setScore(s.score);
         setBunkersCaptured((cnt) => cnt + 1);
         addFloatingText(bunker.x, bunker.y - 30, '+1000 استسلام حامية الدشمة! ⚔️', '#f59e0b');
+        return;
+      }
+    }
+
+    // Check sentries
+    for (const sentry of s.enemySentries) {
+      if (!sentry.destroyed && Math.hypot(c.x - sentry.x, c.y - sentry.y) < 70) {
+        sentry.destroyed = true;
+        sound.playHitSound();
+        s.score += 700;
+        setScore(s.score);
+        addFloatingText(sentry.x, sentry.y - 25, '+700 شل حركة حارس الحصن! ⚔️', '#38bdf8');
         return;
       }
     }
@@ -262,36 +298,171 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
         if (allBunkersCaptured && allPipesCut) handleInteract();
       }
 
-      // Uncaptured enemy bunkers fire suppressive machine gun bursts
-      const now = performance.now();
-      if (now - s.lastBunkerShot > 1400) {
-        s.lastBunkerShot = now;
-        for (const b of s.bunkers) {
-          if (!b.captured) {
-            const bdx = c.x - b.x;
-            const bdy = c.y - b.y;
-            const dist = Math.hypot(bdx, bdy) || 1;
-            if (dist < 420) {
-              s.bullets.push({
-                x: b.x,
-                y: b.y,
-                vx: (bdx / dist) * 280,
-                vy: (bdy / dist) * 280,
-              });
-              sound.playGunshot();
+      // Uncaptured enemy bunkers fire suppressive machine gun bursts with predictive lead
+      for (const b of s.bunkers) {
+        if (!b.captured) {
+          b.burstCooldown = (b.burstCooldown ?? (1.2 + Math.random() * 0.8)) - dt;
+          b.burstRemaining = b.burstRemaining ?? 0;
+          b.lastBurstTime = b.lastBurstTime ?? 0;
+
+          const dist = Math.hypot(c.x - b.x, c.y - b.y) || 1;
+          if (dist < 460) {
+            if (b.burstRemaining > 0) {
+              if (currTime - b.lastBurstTime >= 95) {
+                b.lastBurstTime = currTime;
+                b.burstRemaining--;
+                sound.playGunshot();
+
+                const bulletSpeed = 380;
+                const timeToTarget = dist / bulletSpeed;
+
+                // Commando velocity
+                const tdx = c.targetX - c.x;
+                const tdy = c.targetY - c.y;
+                const tdist = Math.hypot(tdx, tdy);
+                const cvx = tdist > 4 ? (tdx / tdist) * 260 : 0;
+                const cvy = tdist > 4 ? (tdy / tdist) * 260 : 0;
+
+                const predX = c.x + cvx * timeToTarget * 0.85;
+                const predY = c.y + cvy * timeToTarget * 0.85;
+
+                const bdx = predX - b.x;
+                const bdy = predY - b.y;
+                const angle = Math.atan2(bdy, bdx) + (Math.random() - 0.5) * 0.08;
+
+                s.bullets.push({
+                  x: b.x,
+                  y: b.y,
+                  vx: Math.cos(angle) * bulletSpeed,
+                  vy: Math.sin(angle) * bulletSpeed,
+                });
+              }
+            } else if (b.burstCooldown <= 0) {
+              b.burstRemaining = 3;
+              b.burstCooldown = 1.5 + Math.random() * 0.9;
+              b.lastBurstTime = currTime - 95;
             }
           }
         }
       }
 
-      // Update bullets
+      // Update Enemy Sentries: Evasive Movement & Tactical Attack Patterns
+      for (const sentry of s.enemySentries) {
+        if (sentry.destroyed) continue;
+
+        if (!sentry.badgeShown) {
+          sentry.badgeShown = true;
+          const badgeMap: Record<string, string> = {
+            suppressive_burst: '⚠️ حارس مجهز برشاش عوزي!',
+            frag_grenade: '⚠️ إلقاء قنبلة شظايا!',
+            sniper_overwatch: '⚠️ قناص خط بارليف المترصد!',
+          };
+          addFloatingText(sentry.x, sentry.y - 25, badgeMap[sentry.attackPattern] || 'دورية حراسة!', '#f97316');
+        }
+
+        const distToCommando = Math.hypot(c.x - sentry.x, c.y - sentry.y);
+
+        // Reactive Evasion when commando approaches or charges
+        if (distToCommando < 100) {
+          sentry.isTakingCover = true;
+          sentry.evasionTimer = 1.2;
+          sentry.vx = c.x > sentry.x ? -130 : 130;
+        }
+
+        sentry.evasionTimer -= dt;
+        if (sentry.evasionTimer <= 0) {
+          sentry.isTakingCover = false;
+        }
+
+        sentry.x += sentry.vx * dt;
+        if (sentry.x < sentry.minX) {
+          sentry.x = sentry.minX;
+          sentry.vx = Math.abs(sentry.vx);
+        } else if (sentry.x > sentry.maxX) {
+          sentry.x = sentry.maxX;
+          sentry.vx = -Math.abs(sentry.vx);
+        }
+
+        // Sentry Attack patterns with predictive aiming
+        sentry.burstCooldown -= dt;
+        if (sentry.burstCooldown <= 0 && distToCommando < 400) {
+          sentry.burstCooldown = 2.0 + Math.random() * 1.2;
+
+          const tdx = c.targetX - c.x;
+          const tdy = c.targetY - c.y;
+          const tdist = Math.hypot(tdx, tdy);
+          const cvx = tdist > 4 ? (tdx / tdist) * 260 : 0;
+          const cvy = tdist > 4 ? (tdy / tdist) * 260 : 0;
+
+          if (sentry.attackPattern === 'frag_grenade') {
+            sound.playMissileLaunch();
+            s.bullets.push({
+              x: sentry.x,
+              y: sentry.y - 10,
+              vx: (c.x - sentry.x) * 0.9,
+              vy: -180,
+              isGrenade: true,
+              grenadeTimer: 1.4,
+            });
+            addFloatingText(sentry.x, sentry.y - 25, '⚠️ قنبلة يدوية متدحرجة!', '#ef4444');
+          } else {
+            sound.playGunshot();
+            const bSpeed = 420;
+            const timeToTarget = distToCommando / bSpeed;
+            const predX = c.x + cvx * timeToTarget * 0.85;
+            const predY = c.y + cvy * timeToTarget * 0.85;
+            const angle = Math.atan2(predY - sentry.y, predX - sentry.x) + (Math.random() - 0.5) * 0.06;
+
+            s.bullets.push({
+              x: sentry.x,
+              y: sentry.y - 8,
+              vx: Math.cos(angle) * bSpeed,
+              vy: Math.sin(angle) * bSpeed,
+            });
+          }
+        }
+      }
+
+      // Update bullets & grenades
       for (let bi = s.bullets.length - 1; bi >= 0; bi--) {
         const bullet = s.bullets[bi];
-        bullet.x += bullet.vx * dt;
-        bullet.y += bullet.vy * dt;
+
+        if (bullet.isGrenade) {
+          bullet.vy += 320 * dt; // Gravity
+          bullet.x += bullet.vx * dt;
+          bullet.y += bullet.vy * dt;
+          bullet.grenadeTimer = (bullet.grenadeTimer ?? 1.4) - dt;
+
+          if (bullet.y > 450) {
+            bullet.y = 450;
+            bullet.vx *= 0.82;
+            bullet.vy = -bullet.vy * 0.35;
+          }
+
+          if (bullet.grenadeTimer <= 0) {
+            sound.playExplosion(1.0);
+            s.screenShake = 1.3;
+            s.bullets.splice(bi, 1);
+            if (Math.hypot(bullet.x - c.x, bullet.y - c.y) < 55) {
+              c.hp -= 25;
+              const remHp = Math.max(0, c.hp);
+              setCommandoHp(remHp);
+              addFloatingText(c.x, c.y - 25, '⚠️ انفجار شظايا قنبلة! -25', '#ef4444');
+              if (remHp <= 0 && !s.isComplete) {
+                s.isComplete = true;
+                setIsDefeated(true);
+                sound.playDefeatSound();
+              }
+            }
+            continue;
+          }
+        } else {
+          bullet.x += bullet.vx * dt;
+          bullet.y += bullet.vy * dt;
+        }
 
         // Check hit on commando
-        if (Math.hypot(bullet.x - c.x, bullet.y - c.y) < 18) {
+        if (!bullet.isGrenade && Math.hypot(bullet.x - c.x, bullet.y - c.y) < 18) {
           s.bullets.splice(bi, 1);
           c.hp -= 15;
           const remHp = Math.max(0, c.hp);
@@ -456,13 +627,75 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       ctx.fillRect(-12, -16, 4, 6);
       ctx.restore();
 
-      // Floating Texts
-      // Draw enemy machine gun tracer bullets
-      ctx.fillStyle = '#fef08a';
-      for (const bullet of s.bullets) {
+      // Enemy Sentries on Fortress Citadel
+      for (const sentry of s.enemySentries) {
+        if (sentry.destroyed) continue;
+        ctx.save();
+        ctx.translate(sentry.x, sentry.y);
+
+        // Body
+        ctx.fillStyle = sentry.isTakingCover ? '#52525b' : '#3f3f46';
+        ctx.fillRect(-8, -18, 16, 20);
+
+        // Helmet
+        ctx.fillStyle = '#1e293b';
         ctx.beginPath();
-        ctx.arc(bullet.x, bullet.y, 2.8, 0, Math.PI * 2);
+        ctx.arc(0, -22, 7, Math.PI, 0);
         ctx.fill();
+
+        // Weapon
+        ctx.strokeStyle = '#09090b';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -10);
+        ctx.lineTo(-16, -6);
+        ctx.stroke();
+
+        // Health bar
+        const sw = 32;
+        ctx.fillStyle = '#450a0a';
+        ctx.fillRect(-sw / 2, -34, sw, 4);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-sw / 2, -34, (sentry.hp / sentry.maxHp) * sw, 4);
+
+        if (sentry.isTakingCover) {
+          ctx.font = 'bold 9px Cairo, sans-serif';
+          ctx.fillStyle = '#38bdf8';
+          ctx.textAlign = 'center';
+          ctx.fillText('احتماء 🛡️', 0, -38);
+        }
+
+        ctx.restore();
+      }
+
+      // Draw enemy machine gun tracer bullets & grenades
+      for (const bullet of s.bullets) {
+        ctx.save();
+        if (bullet.isGrenade) {
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#ef4444';
+          ctx.fillStyle = '#18181b';
+          ctx.beginPath();
+          ctx.arc(bullet.x, bullet.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          // Blinking red fuse
+          ctx.fillStyle = Math.sin(currTime * 0.02) > 0 ? '#ef4444' : '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(bullet.x, bullet.y - 4, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = '#ef4444';
+          ctx.fillStyle = '#ef4444';
+          ctx.beginPath();
+          ctx.arc(bullet.x, bullet.y, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fef08a';
+          ctx.beginPath();
+          ctx.arc(bullet.x, bullet.y, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
 
       for (let t = s.floatingTexts.length - 1; t >= 0; t--) {
