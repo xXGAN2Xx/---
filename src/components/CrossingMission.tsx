@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Waves, Droplet, Shield, Trophy, CheckCircle2, RotateCcw, Clock, Sparkles } from 'lucide-react';
+import { ArrowLeft, Waves, Droplet, Shield, Flame, CheckCircle2, RotateCcw, Clock, Sparkles, Zap, AlertTriangle } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 
 interface CrossingMissionProps {
@@ -8,133 +8,235 @@ interface CrossingMissionProps {
   onExit: () => void;
 }
 
-interface SandSection {
+type NozzleMode = 'drill' | 'extinguish' | 'slurry';
+
+interface SandBreach {
   id: number;
+  label: string;
   x: number;
   width: number;
-  height: number;
-  maxHeight: number;
-  erodedPercent: number;
+  depth: number;       // 0 to 100%
+  layer: 'crust' | 'gravel' | 'clay' | 'open';
+  resistance: number;  // current layer hardness
   breached: boolean;
+  flagRaised: boolean;
 }
 
-interface AssaultBoat {
+interface NapalmSlick {
   id: number;
   x: number;
   y: number;
-  targetX: number;
-  soldiers: number;
-  arrived: boolean;
-  destroyed: boolean;
-}
-
-interface RampartSentry {
-  id: number;
-  x: number;
-  y: number;
-  vx: number;
-  minX: number;
-  maxX: number;
-  hp: number;
-  maxHp: number;
-  destroyed: boolean;
-  isTakingCover: boolean;
-  evasionTimer: number;
-  attackPattern: 'mortar_barrage' | 'sniper_pierce' | 'crossfire_sweep' | 'napalm_flare';
-  patternTimer: number;
-  burstCooldown: number;
-  badgeShown?: boolean;
+  width: number;
+  life: number;
+  maxLife: number;
+  extinguished: boolean;
 }
 
 interface EnemyBunker {
   id: number;
   x: number;
   y: number;
+  label: string;
   hp: number;
   maxHp: number;
-  label: string;
+  suppressedTimer: number;
+  napalmCooldown: number;
   destroyed: boolean;
-  cooldown: number;
-  burstRemaining?: number;
-  burstCooldown?: number;
-  lastShotTime?: number;
-  isTakingCover?: boolean;
-  specialPatternTimer?: number;
-  shutterOffset?: number;
-  attackPattern?: 'mortar_barrage' | 'sniper_pierce' | 'crossfire_sweep' | 'napalm_flare';
-  badgeShown?: boolean;
-  smokeCooldown?: number;
+}
+
+interface AssaultBoat {
+  id: number;
+  x: number;
+  y: number;
+  speed: number;
+  hp: number;
+  arrived: boolean;
+  destroyed: boolean;
+  soldiers: number;
+}
+
+interface WaterParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
+  isFoam?: boolean;
+}
+
+interface MudParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
 }
 
 export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const [boatsCrossed, setBoatsCrossed] = useState(0);
-  const [bridgeProgress, setBridgeProgress] = useState(0);
-  const [tanksCrossed, setTanksCrossed] = useState(0);
-  const [missionScore, setMissionScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(120); // 2-minute timer
-  const [continuousSpray, setContinuousSpray] = useState(true);
-  const [bothPumpsActive, setBothPumpsActive] = useState(true);
-  const [isWon, setIsWon] = useState(false);
-  const [isFailed, setIsFailed] = useState(false);
+  const [nozzleMode, setNozzleMode] = useState<NozzleMode>('drill');
+  const [pressure, setPressure] = useState<number>(65); // 0 to 100 BAR
+  const [pumpHeat, setPumpHeat] = useState<number>(15);   // 0 to 100%
+  const [boatsCrossed, setBoatsCrossed] = useState<number>(0);
+  const [breachesCompleted, setBreachesCompleted] = useState<number>(0);
+  const [score, setScore] = useState<number>(0);
+  const [timeLeft, setTimeLeft] = useState<number>(120);
+  const [isWon, setIsWon] = useState<boolean>(false);
+  const [isDefeated, setIsDefeated] = useState<boolean>(false);
+  const [activeAlert, setActiveAlert] = useState<string>('ابدأ تشغيل مضخات المياه التوربينية وركز تيار الضغط على الساتر الترابي!');
 
-  const gameRef = useRef({
-    waterPumps: [
-      { x: 110, y: 290, angle: 0, firing: true },
-      { x: 110, y: 430, angle: 0, firing: true },
-    ],
-    sandSections: [
-      { id: 1, x: 590, width: 105, height: 180, maxHeight: 180, erodedPercent: 0, breached: false },
-      { id: 2, x: 720, width: 105, height: 180, maxHeight: 180, erodedPercent: 0, breached: false },
-      { id: 3, x: 850, width: 105, height: 180, maxHeight: 180, erodedPercent: 0, breached: false },
-    ] as SandSection[],
+  const stateRef = useRef({
+    pump: {
+      x: 90,
+      y: 360,
+      angle: -0.22,
+      isFiring: false,
+      pressure: 65,
+      heat: 15,
+      nozzle: 'drill' as NozzleMode,
+    },
+    aim: { x: 740, y: 320 },
+    breaches: [
+      {
+        id: 1,
+        label: 'ثغرة القنطرة شرق (الجيش الثاني)',
+        x: 600,
+        width: 95,
+        depth: 0,
+        layer: 'crust' as const,
+        resistance: 1.0,
+        breached: false,
+        flagRaised: false,
+      },
+      {
+        id: 2,
+        label: 'ثغرة الإسماعيلية والدفرسوار (القطاع الأوسط)',
+        x: 730,
+        width: 105,
+        depth: 0,
+        layer: 'crust' as const,
+        resistance: 1.2,
+        breached: false,
+        flagRaised: false,
+      },
+      {
+        id: 3,
+        label: 'ثغرة الشط والسويس (الجيش الثالث)',
+        x: 870,
+        width: 95,
+        depth: 0,
+        layer: 'crust' as const,
+        resistance: 1.4,
+        breached: false,
+        flagRaised: false,
+      },
+    ] as SandBreach[],
     bunkers: [
-      { id: 1, x: 640, y: 130, hp: 80, maxHp: 80, label: 'دشمة رقم 14 (مدفعية)', destroyed: false, cooldown: 0 },
-      { id: 2, x: 800, y: 130, hp: 80, maxHp: 80, label: 'دشمة الكيلو 19 (رشاشات)', destroyed: false, cooldown: 35 },
+      { id: 1, x: 645, y: 155, label: 'دشمة الكيلو 19 الحصينة', hp: 100, maxHp: 100, suppressedTimer: 0, napalmCooldown: 6, destroyed: false },
+      { id: 2, x: 795, y: 155, label: 'دشمة نمرة 6 (مدفعية ونفث نابالم)', hp: 100, maxHp: 100, suppressedTimer: 0, napalmCooldown: 12, destroyed: false },
     ] as EnemyBunker[],
-    sentries: [
-      { id: 1, x: 660, y: 155, vx: 35, minX: 610, maxX: 710, hp: 50, maxHp: 50, destroyed: false, isTakingCover: false, evasionTimer: 0, attackPattern: 'sniper_pierce', patternTimer: 0, burstCooldown: 2.2 },
-      { id: 2, x: 780, y: 155, vx: -35, minX: 730, maxX: 850, hp: 50, maxHp: 50, destroyed: false, isTakingCover: false, evasionTimer: 0, attackPattern: 'mortar_barrage', patternTimer: 0, burstCooldown: 2.8 },
-    ] as RampartSentry[],
+    napalmSlicks: [] as NapalmSlick[],
     boats: [] as AssaultBoat[],
-    bullets: [] as { x: number; y: number; vx: number; vy: number; fromEnemy: boolean; isMortar?: boolean; isSniper?: boolean }[],
-    particles: [] as { x: number; y: number; vx: number; vy: number; color: string; life: number; maxLife: number; size: number }[],
+    bullets: [] as { x: number; y: number; vx: number; vy: number; fromEnemy: boolean }[],
+    waterParticles: [] as WaterParticle[],
+    mudParticles: [] as MudParticle[],
     floatingTexts: [] as { id: number; x: number; y: number; text: string; color: string; life: number; maxLife: number }[],
-    tanks: [] as { x: number; y: number; crossed: boolean }[],
-    bridgeBuilt: 0,
-    aimMouse: { x: 720, y: 320, isDown: true },
     score: 0,
-    timeLeft: 120,
-    screenShake: 0,
-    continuousSprayEnabled: true,
-    bothPumpsEnabled: true,
-    lastBoatLaunch: 0,
+    boatsArrivedCount: 0,
+    breachesDoneCount: 0,
+    lastBoatLaunchTime: 0,
     isComplete: false,
+    screenShake: 0,
   });
 
-  useEffect(() => {
-    gameRef.current.continuousSprayEnabled = continuousSpray;
-  }, [continuousSpray]);
+  const addFloatingText = (x: number, y: number, text: string, color = '#38bdf8') => {
+    stateRef.current.floatingTexts.push({
+      id: Date.now() + Math.random(),
+      x,
+      y,
+      text,
+      color,
+      life: 0,
+      maxLife: 45,
+    });
+  };
 
-  useEffect(() => {
-    gameRef.current.bothPumpsEnabled = bothPumpsActive;
-  }, [bothPumpsActive]);
+  const handleLaunchAssaultBoat = () => {
+    const state = stateRef.current;
+    if (state.boats.filter((b) => !b.arrived && !b.destroyed).length >= 4) return;
+    sound.playRadioTransmission();
 
-  // 2-Minute Countdown Timer
+    state.boats.push({
+      id: Date.now() + Math.random(),
+      x: 140,
+      y: 260 + Math.random() * 180,
+      speed: 65 + Math.random() * 25,
+      hp: 100,
+      arrived: false,
+      destroyed: false,
+      soldiers: 8,
+    });
+
+    addFloatingText(160, 280, '«الله أكبر.. انطلاق قارب عبور المشاة» 🇪🇬', '#facc15');
+  };
+
+  // 2-Minute Tactical Timer & Bunkers/Boats Lifecycle
   useEffect(() => {
-    if (isWon || isFailed) return;
+    if (isWon || isDefeated) return;
+
+    // Launch first assault boat after 1.5s
+    const firstBoatTimeout = setTimeout(() => {
+      handleLaunchAssaultBoat();
+    }, 1500);
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         const next = prev - 1;
-        gameRef.current.timeLeft = next;
 
-        if (next <= 0 && !gameRef.current.isComplete) {
-          gameRef.current.isComplete = true;
-          setIsFailed(true);
+        // Auto deploy assault boats periodically
+        const activeBoats = stateRef.current.boats.filter((b) => !b.arrived && !b.destroyed);
+        if (activeBoats.length < 3 && Math.random() < 0.7) {
+          handleLaunchAssaultBoat();
+        }
+
+        // Bunkers trigger napalm fuel release pipes into canal water!
+        for (const bk of stateRef.current.bunkers) {
+          if (!bk.destroyed && bk.suppressedTimer <= 0) {
+            bk.napalmCooldown -= 1;
+            if (bk.napalmCooldown <= 0) {
+              bk.napalmCooldown = 14 + Math.random() * 8;
+              sound.playCannon();
+              const slickX = bk.x - 120 + (Math.random() - 0.5) * 80;
+              const slickY = 280 + Math.random() * 140;
+
+              stateRef.current.napalmSlicks.push({
+                id: Date.now() + Math.random(),
+                x: slickX,
+                y: slickY,
+                width: 140,
+                life: 1,
+                maxLife: 18,
+                extinguished: false,
+              });
+
+              setActiveAlert('⚠️ تحذير: اشتعال بقعة نابالم على سطح القناة! ركز تيار المياه لإخمادها فوراً!');
+              addFloatingText(slickX, slickY - 20, '⚠️ أنابيب نابالم مشتعلة على القناة! أطفئها بالماء!', '#ef4444');
+            }
+          }
+        }
+
+        // Time out defeat condition
+        if (next <= 0 && !stateRef.current.isComplete) {
+          stateRef.current.isComplete = true;
+          setIsDefeated(true);
           sound.playDefeatSound();
-          sound.playExplosion(1.0);
           return 0;
         }
 
@@ -142,59 +244,13 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [isWon, isFailed]);
+    return () => {
+      clearTimeout(firstBoatTimeout);
+      clearInterval(timer);
+    };
+  }, [isWon, isDefeated]);
 
-  const addFloatingText = (x: number, y: number, text: string, color = '#38bdf8') => {
-    gameRef.current.floatingTexts.push({
-      id: Date.now() + Math.random(),
-      x,
-      y,
-      text,
-      color,
-      life: 0,
-      maxLife: 40,
-    });
-  };
-
-  const launchAssaultBoat = () => {
-    const game = gameRef.current;
-    if (game.boats.length >= 7) return;
-    sound.playRadioClick();
-    game.boats.push({
-      id: Date.now() + Math.random(),
-      x: 80,
-      y: 220 + Math.random() * 260,
-      targetX: 600,
-      soldiers: 8,
-      arrived: false,
-      destroyed: false,
-    });
-    addFloatingText(120, 240, '«الله أكبر.. بسم الله» 🇪🇬', '#facc15');
-  };
-
-  const buildBridgeSegment = () => {
-    const game = gameRef.current;
-    const anyBreached = game.sandSections.some((s) => s.breached);
-    if (!anyBreached) {
-      addFloatingText(300, 360, 'يجب أولاً فتح ثغرة بالساتر الترابي!', '#ef4444');
-      return;
-    }
-
-    sound.playCannon();
-    game.bridgeBuilt = Math.min(100, game.bridgeBuilt + 34);
-    setBridgeProgress(game.bridgeBuilt);
-    addFloatingText(320, 340, `+${game.bridgeBuilt}% تركيب جسر عائم PMP`, '#4ade80');
-
-    if (game.bridgeBuilt >= 100) {
-      game.tanks.push({ x: 60, y: 360, crossed: false });
-      game.score += 1000;
-      setMissionScore(game.score);
-      addFloatingText(320, 320, 'عبرت فصائل الدبابات إلى سيناء! ⚔️', '#38bdf8');
-    }
-  };
-
-  // Main Canvas Loop
+  // Main Canvas & Fluid Simulation Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -204,904 +260,848 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
     let animId: number;
     let lastTime = performance.now();
 
-    const updateAim = (clientX: number, clientY: number) => {
+    const updateAimPos = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      gameRef.current.aimMouse.x = (clientX - rect.left) * scaleX;
-      gameRef.current.aimMouse.y = (clientY - rect.top) * scaleY;
+      if (!rect.width || !rect.height) return;
+
+      // Handle letterbox/pillarbox offsets with CSS object-contain
+      const canvasAspect = canvas.width / canvas.height;
+      const rectAspect = rect.width / rect.height;
+      let renderW = rect.width;
+      let renderH = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (rectAspect > canvasAspect) {
+        renderW = rect.height * canvasAspect;
+        offsetX = (rect.width - renderW) / 2;
+      } else {
+        renderH = rect.width / canvasAspect;
+        offsetY = (rect.height - renderH) / 2;
+      }
+
+      const scaleX = canvas.width / renderW;
+      const scaleY = canvas.height / renderH;
+      stateRef.current.aim.x = Math.max(160, Math.min(canvas.width, (clientX - rect.left - offsetX) * scaleX));
+      stateRef.current.aim.y = Math.max(60, Math.min(canvas.height - 40, (clientY - rect.top - offsetY) * scaleY));
     };
 
-    const handleMouseMove = (e: MouseEvent) => updateAim(e.clientX, e.clientY);
-    const handleMouseDown = (e: MouseEvent) => {
-      gameRef.current.aimMouse.isDown = true;
-      updateAim(e.clientX, e.clientY);
+    const handleMouseMove = (e: MouseEvent) => {
+      updateAimPos(e.clientX, e.clientY);
     };
-    const handleMouseUp = () => {
-      if (!gameRef.current.continuousSprayEnabled) {
-        gameRef.current.aimMouse.isDown = false;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) {
+        updateAimPos(e.clientX, e.clientY);
+        stateRef.current.pump.isFiring = true;
       }
     };
+
+    const handleMouseUp = () => {
+      stateRef.current.pump.isFiring = false;
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        updateAimPos(e.touches[0].clientX, e.touches[0].clientY);
+        stateRef.current.pump.isFiring = true;
+      }
+    };
+
     const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) updateAim(e.touches[0].clientX, e.touches[0].clientY);
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        updateAimPos(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      stateRef.current.pump.isFiring = false;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        stateRef.current.pump.isFiring = true;
+      }
+      if (e.key === '1') {
+        stateRef.current.pump.nozzle = 'drill';
+        setNozzleMode('drill');
+        sound.playRadioClick();
+      }
+      if (e.key === '2') {
+        stateRef.current.pump.nozzle = 'extinguish';
+        setNozzleMode('extinguish');
+        sound.playRadioClick();
+      }
+      if (e.key === '3') {
+        stateRef.current.pump.nozzle = 'slurry';
+        setNozzleMode('slurry');
+        sound.playRadioClick();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        stateRef.current.pump.isFiring = false;
+      }
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
-    canvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length > 0) updateAim(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
-
-    launchAssaultBoat();
-    setTimeout(launchAssaultBoat, 1200);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     const loop = (currentTime: number) => {
-      const dt = (currentTime - lastTime) / 1000;
+      const dt = Math.min(0.1, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
-      const game = gameRef.current;
-      if (game.isComplete) {
+      const state = stateRef.current;
+      if (state.isComplete) {
         animId = requestAnimationFrame(loop);
         return;
       }
 
-      // Fast-paced automatic boat launch
-      if (currentTime - game.lastBoatLaunch > 3800 && game.boats.length < 5) {
-        game.lastBoatLaunch = currentTime;
-        launchAssaultBoat();
+      if (state.screenShake > 0) {
+        state.screenShake = Math.max(0, state.screenShake - dt * 14);
       }
 
-      // 1. Water Cannons with High Pressure (35%/s erosion)
-      const aim = game.aimMouse;
-      const isFiring = game.continuousSprayEnabled || aim.isDown;
+      const pump = state.pump;
+      const aim = state.aim;
 
-      game.waterPumps.forEach((pump, pIdx) => {
-        if (!game.bothPumpsEnabled && pIdx === 1) return;
+      // Pump nozzle angle pointing at aim crosshair
+      const aimDx = aim.x - pump.x;
+      const aimDy = aim.y - pump.y;
+      pump.angle = Math.atan2(aimDy, aimDx);
 
-        const dx = aim.x - pump.x;
-        const dy = aim.y - pump.y;
-        pump.angle = Math.atan2(dy, dx);
-        pump.firing = isFiring;
+      // Hydraulic pressure build-up and heat dissipation
+      if (pump.isFiring) {
+        pump.heat = Math.min(100, pump.heat + dt * 5.5);
+        pump.pressure = Math.min(100, pump.pressure + dt * 45);
+        if (Math.random() < 0.22) sound.playSplash();
+      } else {
+        pump.heat = Math.max(10, pump.heat - dt * 25);
+        pump.pressure = Math.max(50, pump.pressure - dt * 40);
+      }
+      setPressure(Math.round(pump.pressure));
+      setPumpHeat(Math.round(pump.heat));
 
-        if (pump.firing) {
-          if (Math.random() < 0.25) sound.playWaterCannon();
+      // Overheat throttle protection (operates reliably without stalling)
+      const effectivePressure = pump.heat >= 98 ? pump.pressure * 0.65 : pump.pressure;
 
-          // Water jet particles
-          for (let i = 0; i < 3; i++) {
-            const spread = (Math.random() - 0.5) * 0.12;
-            const speed = 800 + Math.random() * 220;
-            game.particles.push({
-              x: pump.x + Math.cos(pump.angle) * 32,
-              y: pump.y + Math.sin(pump.angle) * 32,
-              vx: Math.cos(pump.angle + spread) * speed,
-              vy: Math.sin(pump.angle + spread) * speed,
-              color: i % 2 === 0 ? '#38bdf8' : '#7dd3fc',
-              life: 1,
-              maxLife: 30,
-              size: Math.random() * 5 + 3,
-            });
-          }
+      // 1. Water Stream Particle Generation from British/German Turbine Cannon
+      if (pump.isFiring) {
+        const streamCount = pump.nozzle === 'extinguish' ? 8 : pump.nozzle === 'slurry' ? 7 : 6;
+        const baseSpeed = 860 + effectivePressure * 3.8;
 
-          // Erode sand sections rapidly
-          for (const section of game.sandSections) {
-            if (aim.x >= section.x - 20 && aim.x <= section.x + section.width + 20) {
-              section.erodedPercent = Math.min(100, section.erodedPercent + 35 * dt);
+        for (let i = 0; i < streamCount; i++) {
+          const spread =
+            pump.nozzle === 'extinguish'
+              ? (Math.random() - 0.5) * 0.28
+              : pump.nozzle === 'slurry'
+              ? (Math.random() - 0.5) * 0.18
+              : (Math.random() - 0.5) * 0.06;
 
-              if (section.erodedPercent >= 100 && !section.breached) {
-                section.breached = true;
-                sound.playExplosion(1.0);
-                game.score += 800;
-                setMissionScore(game.score);
-                addFloatingText(section.x + 30, 240, '+800 فُتِحَت ثغرة بالساتر الترابي! 🌊', '#4ade80');
-              }
-            }
-          }
+          const pAngle = pump.angle + spread;
+          const speed = baseSpeed * (0.92 + Math.random() * 0.22);
 
-          // Suppress Bunkers: Bunker reacts to high-pressure water stream
-          for (const bunker of game.bunkers) {
-            if (!bunker.destroyed) {
-              const underStream = Math.hypot(aim.x - bunker.x, aim.y - bunker.y) < 65;
-              bunker.isTakingCover = underStream;
-
-              if (underStream) {
-                // Taking defensive cover behind reinforced embrasure
-                bunker.hp -= 45 * dt;
-
-                // Deflection water spray particles
-                if (Math.random() < 0.35) {
-                  game.particles.push({
-                    x: bunker.x + (Math.random() - 0.5) * 16,
-                    y: bunker.y + (Math.random() - 0.5) * 16,
-                    vx: -40 - Math.random() * 40,
-                    vy: (Math.random() - 0.5) * 60,
-                    color: '#bae6fd',
-                    life: 1,
-                    maxLife: 14,
-                    size: 3,
-                  });
-                }
-
-                if (bunker.hp <= 0) {
-                  bunker.destroyed = true;
-                  sound.playExplosion(1.3);
-                  game.score += 1200;
-                  setMissionScore(game.score);
-                  addFloatingText(bunker.x, bunker.y - 30, '+1200 إخماد الدشمة! 💥', '#f59e0b');
-                }
-              }
-            }
-          }
-
-          // Suppress & Evade Sentries on Sand Ramparts
-          for (const sentry of game.sentries) {
-            if (!sentry.destroyed) {
-              const distToStream = Math.hypot(aim.x - sentry.x, aim.y - sentry.y);
-              if (distToStream < 80) {
-                // Reactive evasive combat dive away from water jet!
-                sentry.isTakingCover = true;
-                sentry.vx = aim.x > sentry.x ? -140 : 140;
-                sentry.evasionTimer = 1.2;
-
-                if (distToStream < 40) {
-                  sentry.hp -= 55 * dt;
-                  if (Math.random() < 0.4) {
-                    game.particles.push({
-                      x: sentry.x + (Math.random() - 0.5) * 12,
-                      y: sentry.y + (Math.random() - 0.5) * 12,
-                      vx: -30 - Math.random() * 30,
-                      vy: (Math.random() - 0.5) * 40,
-                      color: '#38bdf8',
-                      life: 1,
-                      maxLife: 10,
-                      size: 3,
-                    });
-                  }
-
-                  if (sentry.hp <= 0) {
-                    sentry.destroyed = true;
-                    sound.playExplosion(1.0);
-                    game.score += 600;
-                    setMissionScore(game.score);
-                    addFloatingText(sentry.x, sentry.y - 25, '+600 تحييد قناص الساتر! 🎯', '#4ade80');
-                  }
-                }
-              }
-            }
-          }
-        }
-      });
-
-      // 2. Faster Boat Movement (140 px/s)
-      for (let i = game.boats.length - 1; i >= 0; i--) {
-        const boat = game.boats[i];
-        if (boat.destroyed) {
-          game.boats.splice(i, 1);
-          continue;
-        }
-
-        if (!boat.arrived) {
-          boat.x += 140 * dt;
-          if (boat.x >= boat.targetX) {
-            boat.arrived = true;
-            sound.playRadioClick();
-            setBoatsCrossed((prev) => {
-              const next = prev + 1;
-              if (next >= 5 && game.sandSections.some((s) => s.breached) && !game.isComplete) {
-                game.isComplete = true;
-                const timeBonus = game.timeLeft * 20;
-                game.score += timeBonus;
-                setMissionScore(game.score);
-                setIsWon(true);
-                sound.playVictoryFanfare();
-              }
-              return next;
-            });
-            game.score += 400;
-            setMissionScore(game.score);
-            addFloatingText(boat.targetX, boat.y, '+400 نزول المشاة في سيناء!', '#38bdf8');
-          }
+          state.waterParticles.push({
+            x: pump.x + Math.cos(pump.angle) * 36,
+            y: pump.y + Math.sin(pump.angle) * 36,
+            vx: Math.cos(pAngle) * speed,
+            vy: Math.sin(pAngle) * speed + 10,
+            life: 0,
+            maxLife: 95 + Math.random() * 30, // Long-range: easily reaches all 3 breaches and crest bunkers
+            size: pump.nozzle === 'extinguish' ? 6 + Math.random() * 4 : 5 + Math.random() * 3,
+            color: Math.random() < 0.6 ? '#38bdf8' : '#e0f2fe',
+            isFoam: Math.random() < 0.35,
+          });
         }
       }
 
-      // 3. Enemy Bunkers firing with Predictive Lead AI & Randomized Attack Patterns
-      for (const bunker of game.bunkers) {
-        if (bunker.destroyed) continue;
+      // 2. Update Water Stream & Impacts on Sand Berm, Napalm & Bunkers
+      for (let w = state.waterParticles.length - 1; w >= 0; w--) {
+        const wp = state.waterParticles[w];
+        wp.vy += 110 * dt; // realistic gentle ballistic arc
+        wp.x += wp.vx * dt;
+        wp.y += wp.vy * dt;
+        wp.life++;
 
-        // If taking cover under direct water cannon blasting, suppress bunker fire temporarily
-        if (bunker.isTakingCover) continue;
+        let hitSomething = false;
 
-        bunker.burstCooldown = (bunker.burstCooldown ?? (1.4 + Math.random() * 0.8)) - dt;
-        bunker.burstRemaining = bunker.burstRemaining ?? 0;
-        bunker.lastShotTime = bunker.lastShotTime ?? 0;
-        bunker.specialPatternTimer = (bunker.specialPatternTimer ?? (4.5 + Math.random() * 3.5)) - dt;
+        // A. Hit on Sand Berm (x: 580 to 990, y: 170 to 500)
+        if (wp.x >= 575 && wp.x <= 990 && wp.y >= 170 && wp.y <= 500) {
+          hitSomething = true;
 
-        // Choose the highest-threat boat (furthest across the canal towards the eastern ramp)
-        let targetBoat: AssaultBoat | null = null;
-        let maxX = -1;
-        for (const boat of game.boats) {
-          if (!boat.arrived && !boat.destroyed && boat.x > maxX && boat.x < 740) {
-            maxX = boat.x;
-            targetBoat = boat;
-          }
-        }
+          // Find targeted breach
+          const targetBreach = state.breaches.find((b) => wp.x >= b.x - 30 && wp.x <= b.x + b.width + 30);
 
-        if (targetBoat) {
-          // A. Randomized Special Attack Pattern (Mortar Lob vs High-Velocity Sniper)
-          if (bunker.specialPatternTimer <= 0) {
-            bunker.specialPatternTimer = 5.5 + Math.random() * 3.5;
-            const useMortar = Math.random() < 0.5;
-
-            if (useMortar) {
-              sound.playCannon();
-              game.bullets.push({
-                x: bunker.x - 12,
-                y: bunker.y,
-                vx: -(160 + Math.random() * 90),
-                vy: -240,
-                fromEnemy: true,
-                isMortar: true,
-              });
-              addFloatingText(bunker.x, bunker.y - 25, '⚠️ قصف هاون معادٍ على القناة!', '#f97316');
+          if (targetBreach && !targetBreach.breached) {
+            // Erosion efficiency varies by chosen nozzle mode and layer resistance
+            let erosionRate = 0.075 * (effectivePressure / 60);
+            if (pump.nozzle === 'drill') {
+              erosionRate *= targetBreach.layer === 'crust' ? 2.5 : targetBreach.layer === 'gravel' ? 2.0 : 1.5;
+            } else if (pump.nozzle === 'slurry') {
+              erosionRate *= targetBreach.layer === 'clay' ? 2.8 : 1.4;
             } else {
-              sound.playGunshot();
-              const distToBoat = Math.hypot(targetBoat.x - bunker.x, targetBoat.y - bunker.y);
-              const bdx = targetBoat.x - bunker.x;
-              const bdy = targetBoat.y - bunker.y;
-              const angle = Math.atan2(bdy, bdx);
-              game.bullets.push({
-                x: bunker.x,
-                y: bunker.y + 6,
-                vx: Math.cos(angle) * 650,
-                vy: Math.sin(angle) * 650,
-                fromEnemy: true,
-                isSniper: true,
-              });
-              addFloatingText(bunker.x, bunker.y - 25, '⚠️ رصاصة قناص خط بارليف!', '#ef4444');
+              erosionRate *= 1.0;
             }
-          }
 
-          // B. Regular Predictive Lead Machine Gun Bursts
-          if (bunker.burstRemaining > 0) {
-            if (currentTime - bunker.lastShotTime >= 95) {
-              bunker.lastShotTime = currentTime;
-              bunker.burstRemaining--;
-              sound.playGunshot();
+            targetBreach.depth += erosionRate * dt * 55;
 
-              const bulletSpeed = 440;
-              const boatVx = 140;
-              const distToBoat = Math.hypot(targetBoat.x - bunker.x, targetBoat.y - bunker.y);
-              const timeToTarget = distToBoat / bulletSpeed;
-
-              const leadX = targetBoat.x + boatVx * timeToTarget * 0.88;
-              const leadY = targetBoat.y;
-
-              const bdx = leadX - bunker.x;
-              const bdy = leadY - bunker.y;
-              const angle = Math.atan2(bdy, bdx) + (Math.random() - 0.5) * 0.08;
-
-              game.bullets.push({
-                x: bunker.x,
-                y: bunker.y + 6,
-                vx: Math.cos(angle) * bulletSpeed,
-                vy: Math.sin(angle) * bulletSpeed,
-                fromEnemy: true,
-              });
-
-              // Muzzle flash particle at bunker embrasure
-              game.particles.push({
-                x: bunker.x,
-                y: bunker.y + 6,
-                vx: (Math.random() - 0.5) * 20,
-                vy: (Math.random() - 0.5) * 20,
-                color: '#fef08a',
-                life: 1,
-                maxLife: 8,
-                size: 4,
-              });
-            }
-          } else if (bunker.burstCooldown <= 0) {
-            bunker.burstRemaining = 3;
-            bunker.burstCooldown = 1.6 + Math.random() * 1.0;
-            bunker.lastShotTime = currentTime - 95;
-          }
-        }
-      }
-
-      // Update Sentries Movement & Evasive Patrol along Bar-Lev Ramparts
-      for (const sentry of game.sentries) {
-        if (sentry.destroyed) continue;
-
-        sentry.evasionTimer -= dt;
-        if (sentry.evasionTimer <= 0) {
-          sentry.isTakingCover = false;
-        }
-
-        sentry.x += sentry.vx * dt;
-        if (sentry.x < sentry.minX) {
-          sentry.x = sentry.minX;
-          sentry.vx = Math.abs(sentry.vx);
-        } else if (sentry.x > sentry.maxX) {
-          sentry.x = sentry.maxX;
-          sentry.vx = -Math.abs(sentry.vx);
-        }
-
-        // Sentry Attack & Firing AI with predictive lead
-        sentry.burstCooldown -= dt;
-        if (sentry.burstCooldown <= 0 && !sentry.isTakingCover) {
-          sentry.burstCooldown = 2.4 + Math.random() * 1.5;
-
-          // Find lead boat
-          let targetBoat: AssaultBoat | null = null;
-          let maxBx = -1;
-          for (const b of game.boats) {
-            if (!b.arrived && !b.destroyed && b.x > maxBx && b.x < 740) {
-              maxBx = b.x;
-              targetBoat = b;
-            }
-          }
-
-          if (targetBoat) {
-            const pattern = sentry.attackPattern;
-            if (pattern === 'mortar_barrage') {
-              sound.playCannon();
-              game.bullets.push({
-                x: sentry.x - 8,
-                y: sentry.y,
-                vx: -(150 + Math.random() * 80),
-                vy: -220,
-                fromEnemy: true,
-                isMortar: true,
-              });
-              addFloatingText(sentry.x, sentry.y - 25, '⚠️ قذيفة هاون متدحرجة!', '#f97316');
+            // Update layer transition
+            if (targetBreach.depth < 25) {
+              targetBreach.layer = 'crust';
+            } else if (targetBreach.depth < 60) {
+              targetBreach.layer = 'gravel';
+            } else if (targetBreach.depth < 99) {
+              targetBreach.layer = 'clay';
             } else {
-              sound.playGunshot();
-              const distToBoat = Math.hypot(targetBoat.x - sentry.x, targetBoat.y - sentry.y);
-              const bdx = targetBoat.x - sentry.x;
-              const bdy = targetBoat.y - sentry.y;
-              const angle = Math.atan2(bdy, bdx) + (Math.random() - 0.5) * 0.05;
-              game.bullets.push({
-                x: sentry.x,
-                y: sentry.y + 4,
-                vx: Math.cos(angle) * 600,
-                vy: Math.sin(angle) * 600,
-                fromEnemy: true,
-                isSniper: true,
-              });
-              addFloatingText(sentry.x, sentry.y - 25, '⚠️ رصاصة قناص من الساتر!', '#ef4444');
-            }
-          }
-        }
-      }
+              targetBreach.depth = 100;
+              targetBreach.layer = 'open';
+              if (!targetBreach.breached) {
+                targetBreach.breached = true;
+                targetBreach.flagRaised = true;
+                state.breachesDoneCount++;
+                setBreachesCompleted(state.breachesDoneCount);
+                sound.playMissionStartRadioAlert();
+                state.score += 2500;
+                setScore(state.score);
+                addFloatingText(targetBreach.x + targetBreach.width / 2, 220, `🌟 فُتحت ${targetBreach.label} بالكامل! 🇪🇬`, '#4ade80');
+                setActiveAlert(`الله أكبر! رُفع علم مصر فوق ${targetBreach.label} وسقطت أسطورة خط بارليف!`);
 
-      // 4. Update Bullets & Mortars
-      for (let b = game.bullets.length - 1; b >= 0; b--) {
-        const bullet = game.bullets[b];
-
-        if (bullet.isMortar) {
-          bullet.vy += 380 * dt; // Gravity arc
-          bullet.x += bullet.vx * dt;
-          bullet.y += bullet.vy * dt;
-
-          // Mortar splashes into canal
-          if (bullet.y >= 340) {
-            sound.playExplosion(0.8);
-            // Big water splash
-            for (let p = 0; p < 8; p++) {
-              game.particles.push({
-                x: bullet.x,
-                y: bullet.y,
-                vx: (Math.random() - 0.5) * 70,
-                vy: -50 - Math.random() * 60,
-                color: '#38bdf8',
-                life: 1,
-                maxLife: 20,
-                size: 4,
-              });
-            }
-
-            // Splash damage on nearby boats
-            for (const boat of game.boats) {
-              if (!boat.arrived && !boat.destroyed && Math.hypot(bullet.x - boat.x, bullet.y - boat.y) < 45) {
-                boat.soldiers -= 3;
-                if (boat.soldiers <= 0) {
-                  boat.destroyed = true;
-                  sound.playExplosion(0.6);
-                  addFloatingText(boat.x, boat.y - 20, '⚠️ غرق قارب بقذيفة هاون!', '#ef4444');
+                // Check victory (all 3 breaches opened!)
+                if (state.breachesDoneCount >= 3 && !state.isComplete) {
+                  state.isComplete = true;
+                  const timeBonus = timeLeft * 30;
+                  state.score += timeBonus;
+                  setScore(state.score);
+                  setIsWon(true);
+                  sound.playVictoryFanfare();
                 }
               }
             }
 
-            game.bullets.splice(b, 1);
-            continue;
+            // Spawn dynamic mud slurry run-off particles cascading down the sand slope into canal
+            if (Math.random() < 0.65) {
+              state.mudParticles.push({
+                x: wp.x + (Math.random() - 0.5) * 15,
+                y: wp.y,
+                vx: -50 - Math.random() * 70, // cascades down towards canal
+                vy: 70 + Math.random() * 90,
+                life: 1,
+                maxLife: 28,
+                size: 4 + Math.random() * 5,
+                color: targetBreach.layer === 'clay' ? '#78350f' : '#b45309',
+              });
+            }
           }
-        } else {
-          bullet.x += bullet.vx * dt;
-          bullet.y += bullet.vy * dt;
         }
 
-        let hitBoat = false;
-        for (const boat of game.boats) {
-          if (!boat.arrived && !boat.destroyed) {
-            if (Math.hypot(bullet.x - boat.x, bullet.y - boat.y) < 25) {
-              const dmg = bullet.isSniper ? 3 : 2;
-              boat.soldiers -= dmg;
-              game.bullets.splice(b, 1);
-              hitBoat = true;
-              sound.playHitSound();
-
-              for (let p = 0; p < 4; p++) {
-                game.particles.push({
-                  x: bullet.x,
-                  y: bullet.y,
-                  vx: (Math.random() - 0.5) * 40,
-                  vy: (Math.random() - 0.5) * 40 - 20,
-                  color: '#ef4444',
-                  life: 1,
-                  maxLife: 12,
-                  size: 3,
-                });
-              }
-
-              if (boat.soldiers <= 0) {
-                boat.destroyed = true;
-                sound.playExplosion(0.6);
-                addFloatingText(boat.x, boat.y - 20, '⚠️ غرق قارب اقتحام!', '#ef4444');
+        // B. Hit on Napalm Slick on Canal surface
+        if (!hitSomething) {
+          for (const slick of state.napalmSlicks) {
+            if (!slick.extinguished && Math.abs(wp.x - slick.x) < slick.width / 2 && Math.abs(wp.y - slick.y) < 40) {
+              hitSomething = true;
+              slick.life += (pump.nozzle === 'extinguish' ? 6.5 : 2.5) * dt;
+              if (slick.life >= slick.maxLife) {
+                slick.extinguished = true;
+                sound.playSplash();
+                state.score += 400;
+                setScore(state.score);
+                addFloatingText(slick.x, slick.y - 20, '+400 إخماد أنابيب النابالم بالماء! 🌊', '#38bdf8');
               }
               break;
             }
           }
         }
 
-        if (hitBoat) continue;
-
-        if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
-          if (bullet.y >= 260 && bullet.y <= 490 && Math.random() < 0.3) {
-            game.particles.push({
-              x: bullet.x,
-              y: bullet.y,
-              vx: (Math.random() - 0.5) * 20,
-              vy: -25 - Math.random() * 20,
-              color: '#38bdf8',
-              life: 1,
-              maxLife: 15,
-              size: 2.5,
-            });
+        // C. Hit on Enemy Bunkers (suppressing machine gun fire & destroying concrete)
+        if (!hitSomething) {
+          for (const bk of state.bunkers) {
+            if (!bk.destroyed && Math.hypot(wp.x - bk.x, wp.y - bk.y) < 55) {
+              hitSomething = true;
+              bk.suppressedTimer = 3.5; // blinds and suppresses enemy fire
+              bk.hp -= 35 * dt;
+              if (bk.hp <= 0 && !bk.destroyed) {
+                bk.destroyed = true;
+                sound.playExplosion(1.1);
+                state.score += 800;
+                setScore(state.score);
+                addFloatingText(bk.x, bk.y - 25, `+800 تدمير دشمة بارليف بالضغط الهيدروليكي! 💥`, '#4ade80');
+              }
+              break;
+            }
           }
-          game.bullets.splice(b, 1);
+        // Despawn water particle
+        if (hitSomething || wp.life >= wp.maxLife || wp.y > canvas.height + 20 || wp.x > canvas.width + 40) {
+          state.waterParticles.splice(w, 1);
         }
       }
 
-      // 5. Update Tanks on bridge
-      for (const tank of game.tanks) {
-        if (!tank.crossed) {
-          tank.x += 150 * dt;
-          if (tank.x > 750) {
-            tank.crossed = true;
-            setTanksCrossed((c) => c + 1);
-            game.score += 600;
-            setMissionScore(game.score);
-            sound.playCannon();
+      // 3. Update Mud Particles
+      for (let m = state.mudParticles.length - 1; m >= 0; m--) {
+        const mp = state.mudParticles[m];
+        mp.x += mp.vx * dt;
+        mp.y += mp.vy * dt;
+        mp.life++;
+        if (mp.life >= mp.maxLife || mp.y > 520) {
+          state.mudParticles.splice(m, 1);
+        }
+      }
+
+      // 4. Update Assault Boats crossing from West (x=140) to East (x=600)
+      for (let b = state.boats.length - 1; b >= 0; b--) {
+        const boat = state.boats[b];
+        if (boat.destroyed) continue;
+
+        if (!boat.arrived) {
+          boat.x += boat.speed * dt;
+
+          // Check if boat enters an active flaming napalm slick
+          for (const slick of state.napalmSlicks) {
+            if (!slick.extinguished && Math.abs(boat.x - slick.x) < slick.width / 2 && Math.abs(boat.y - slick.y) < 30) {
+              boat.hp -= 35 * dt;
+              if (Math.random() < 0.2) {
+                addFloatingText(boat.x, boat.y - 20, '⚠️ القارب يحترق بالنابالم! أطفئه!', '#ef4444');
+              }
+              if (boat.hp <= 0) {
+                boat.destroyed = true;
+                sound.playExplosion(0.9);
+                addFloatingText(boat.x, boat.y - 20, 'فقدنا قارب عبور بالنابالم! ⚠️', '#ef4444');
+              }
+            }
+          }
+
+          // Boat reached the breached sand rampart!
+          if (boat.x >= 580) {
+            boat.arrived = true;
+            state.boatsArrivedCount++;
+            setBoatsCrossed(state.boatsArrivedCount);
+            state.score += 600;
+            setScore(state.score);
+            sound.playTargetLock();
+            addFloatingText(boat.x, boat.y - 25, `+600 وصول كتيبة صاعقة إلى الشاطئ الشرقي! 🇪🇬`, '#4ade80');
           }
         }
       }
 
-      // Check Victory Condition
-      const allBreached = game.sandSections.every((s) => s.breached);
-      if (allBreached && game.bunkers.every((b) => b.destroyed) && !game.isComplete) {
-        game.isComplete = true;
-        const timeBonus = game.timeLeft * 20;
-        game.score += timeBonus;
-        setMissionScore(game.score);
-        setIsWon(true);
-        sound.playVictoryFanfare();
+      // Clean up extinguished napalms
+      for (let n = state.napalmSlicks.length - 1; n >= 0; n--) {
+        if (state.napalmSlicks[n].extinguished) {
+          state.napalmSlicks.splice(n, 1);
+        }
       }
 
-      // 6. Draw Scene
+      // ----------------------------------------------------
+      // RENDER CANVAS SCENE (Water, Sand Berm, Bunkers, Streams)
+      // ----------------------------------------------------
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Sky
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, 180);
-      skyGrad.addColorStop(0, '#78350f');
-      skyGrad.addColorStop(0.7, '#d97706');
-      skyGrad.addColorStop(1, '#f59e0b');
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 240);
+      skyGrad.addColorStop(0, '#0c4a6e');
+      skyGrad.addColorStop(0.6, '#38bdf8');
+      skyGrad.addColorStop(1, '#fde68a');
       ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, canvas.width, 180);
+      ctx.fillRect(0, 0, canvas.width, 240);
 
-      // Canal
-      const canalGrad = ctx.createLinearGradient(0, 180, 0, canvas.height);
-      canalGrad.addColorStop(0, '#0369a1');
-      canalGrad.addColorStop(0.4, '#0284c7');
-      canalGrad.addColorStop(1, '#075985');
-      ctx.fillStyle = canalGrad;
-      ctx.fillRect(0, 180, canvas.width, canvas.height - 180);
+      // West Bank (Egypt): Green palm groves and pump platform (x: 0 to 140)
+      ctx.fillStyle = '#15803d';
+      ctx.fillRect(0, 240, 140, canvas.height - 240);
 
-      // Western Bank
-      ctx.fillStyle = '#1c1917';
-      ctx.fillRect(0, 180, 80, canvas.height - 180);
-      ctx.fillStyle = '#22c55e';
-      ctx.fillRect(72, 180, 6, canvas.height - 180);
+      // Suez Canal Water (x: 140 to 600)
+      const waterGrad = ctx.createLinearGradient(140, 240, 600, 240);
+      waterGrad.addColorStop(0, '#0284c7');
+      waterGrad.addColorStop(0.5, '#0369a1');
+      waterGrad.addColorStop(1, '#075985');
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(140, 240, 460, canvas.height - 240);
 
-      // Bridges
-      if (game.bridgeBuilt > 0) {
-        const bridgeWidth = (game.bridgeBuilt / 100) * 530;
-        ctx.fillStyle = '#52525b';
-        ctx.fillRect(80, 345, bridgeWidth, 32);
-        ctx.fillStyle = '#27272a';
-        for (let bx = 85; bx < 80 + bridgeWidth; bx += 18) {
-          ctx.fillRect(bx, 345, 4, 32);
+      // Animated Water Waves
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      for (let r = 260; r < canvas.height; r += 28) {
+        ctx.beginPath();
+        for (let wx = 140; wx <= 600; wx += 20) {
+          const waveY = r + Math.sin(wx * 0.05 + currentTime * 0.003) * 3;
+          if (wx === 140) ctx.moveTo(wx, waveY);
+          else ctx.lineTo(wx, waveY);
         }
-        ctx.fillStyle = '#eab308';
-        ctx.fillRect(80, 360, bridgeWidth, 2);
+        ctx.stroke();
       }
 
-      // Sand Ramparts
-      for (const section of game.sandSections) {
-        if (section.breached) {
-          ctx.fillStyle = '#0284c7';
-          ctx.fillRect(section.x, 180, section.width, canvas.height - 180);
-          ctx.fillStyle = '#fbbf24';
-          ctx.font = 'bold 13px Cairo, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('ثغرة مفتوحة! ⚔️', section.x + section.width / 2, 220);
-        } else {
-          const sandGrad = ctx.createLinearGradient(section.x, 180, section.x + section.width, 180);
-          sandGrad.addColorStop(0, '#d97706');
-          sandGrad.addColorStop(0.5, '#f59e0b');
-          sandGrad.addColorStop(1, '#b45309');
-          ctx.fillStyle = sandGrad;
-          ctx.fillRect(section.x, 180, section.width, canvas.height - 180);
+      // East Bank: The Colossal Bar Lev Sand Berm (x: 580 to 1000)
+      // 20-meter high steep sloping mountain of sand (45° incline)
+      const bermGrad = ctx.createLinearGradient(580, 200, 1000, 520);
+      bermGrad.addColorStop(0, '#f59e0b');
+      bermGrad.addColorStop(0.4, '#d97706');
+      bermGrad.addColorStop(1, '#78350f');
+      ctx.fillStyle = bermGrad;
 
-          const erodedBar = Math.floor(section.erodedPercent);
-          ctx.fillStyle = '#1c1917';
-          ctx.fillRect(section.x + 8, 195, section.width - 16, 8);
-          ctx.fillStyle = '#38bdf8';
-          ctx.fillRect(section.x + 8, 195, ((section.width - 16) * erodedBar) / 100, 8);
+      ctx.beginPath();
+      ctx.moveTo(580, canvas.height);
+      ctx.lineTo(580, 260); // base of berm
+      ctx.lineTo(660, 170); // crest
+      ctx.lineTo(1000, 170);
+      ctx.lineTo(1000, canvas.height);
+      ctx.closePath();
+      ctx.fill();
 
-          ctx.font = 'bold 11px Cairo, sans-serif';
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'center';
-          ctx.fillText(`جرف: ${erodedBar}%`, section.x + section.width / 2, 220);
-        }
-      }
-
-      // Enemy Bunkers
-      for (const bunker of game.bunkers) {
-        if (bunker.destroyed) {
-          ctx.fillStyle = '#1c1917';
-          ctx.beginPath();
-          ctx.arc(bunker.x, bunker.y, 25, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#ef4444';
-          ctx.font = 'bold 12px Cairo, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('دشمة مدمرة 🔥', bunker.x, bunker.y - 30);
-        } else {
-          ctx.fillStyle = '#57534e';
-          ctx.beginPath();
-          ctx.roundRect(bunker.x - 32, bunker.y - 22, 64, 44, 8);
-          ctx.fill();
-
-          if (bunker.isTakingCover) {
-            // Reinforced armored blast shutter drawn over the embrasure
-            ctx.fillStyle = '#27272a';
-            ctx.fillRect(bunker.x - 24, bunker.y - 8, 48, 16);
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(bunker.x - 24, bunker.y - 8, 48, 16);
-            ctx.font = 'bold 9px Cairo, sans-serif';
-            ctx.fillStyle = '#38bdf8';
-            ctx.textAlign = 'center';
-            ctx.fillText('درع ساتر 🛡️', bunker.x, bunker.y + 4);
-          } else {
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(bunker.x - 22, bunker.y - 6, 44, 12);
-          }
-
-          const bw = 50;
-          ctx.fillStyle = '#450a0a';
-          ctx.fillRect(bunker.x - bw / 2, bunker.y - 34, bw, 6);
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(bunker.x - bw / 2, bunker.y - 34, (bunker.hp / bunker.maxHp) * bw, 6);
-
-          ctx.font = 'bold 11px Cairo, sans-serif';
-          ctx.fillStyle = '#fef08a';
-          ctx.textAlign = 'center';
-          ctx.fillText(bunker.label, bunker.x, bunker.y - 42);
-        }
-      }
-
-      // Draw Sentries on Bar-Lev Sand Rampart
-      for (const sentry of game.sentries) {
-        if (sentry.destroyed) continue;
+      // Render the 3 Sand Breaches carved out by water cannons
+      for (const b of state.breaches) {
         ctx.save();
-        ctx.translate(sentry.x, sentry.y);
+        const breachH = (b.depth / 100) * 220;
 
-        // Body with tactical camouflage
-        ctx.fillStyle = sentry.isTakingCover ? '#52525b' : '#3f3f46';
-        ctx.fillRect(-6, -16, 12, 16);
+        // Breached cut in the berm
+        if (b.depth > 0) {
+          ctx.fillStyle = '#0f172a'; // void / channel opening
+          ctx.beginPath();
+          ctx.moveTo(b.x, 260);
+          ctx.lineTo(b.x + b.width / 2, 260 + breachH);
+          ctx.lineTo(b.x + b.width, 260);
+          ctx.lineTo(b.x + b.width, 490);
+          ctx.lineTo(b.x, 490);
+          ctx.closePath();
+          ctx.fill();
 
-        // Steel Helmet
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.arc(0, -18, 6, Math.PI, 0);
+          // Flowing mud channel
+          ctx.fillStyle = b.layer === 'clay' ? '#451a03' : '#b45309';
+          ctx.fillRect(b.x + 8, 260 + breachH * 0.5, b.width - 16, 230 - breachH * 0.5);
+        }
+
+        // Breach Progress Banner & Depth meter
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.roundRect(b.x - 10, 480, b.width + 20, 36, 6);
         ctx.fill();
-
-        // Rifle aiming toward canal
-        ctx.strokeStyle = '#09090b';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(-2, -10);
-        ctx.lineTo(-14, -8);
+        ctx.strokeStyle = b.breached ? '#22c55e' : '#f59e0b';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // Health bar
-        const sw = 28;
-        ctx.fillStyle = '#450a0a';
-        ctx.fillRect(-sw / 2, -28, sw, 4);
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(-sw / 2, -28, (sentry.hp / sentry.maxHp) * sw, 4);
-
-        if (sentry.isTakingCover) {
-          ctx.font = 'bold 9px Cairo, sans-serif';
-          ctx.fillStyle = '#38bdf8';
-          ctx.textAlign = 'center';
-          ctx.fillText('تفادي 💨', 0, -32);
-        }
-
-        ctx.restore();
-      }
-
-      // Draw Boats
-      for (const boat of game.boats) {
-        if (boat.destroyed) continue;
-
-        ctx.save();
-        ctx.translate(boat.x, boat.y);
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 26, 13, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#15803d';
-        for (let s = -14; s <= 14; s += 8) {
-          ctx.beginPath();
-          ctx.arc(s, -2, 3.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(s, 2, 3.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(-22, -10, 6, 2);
+        ctx.font = 'bold 11px Cairo, sans-serif';
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-22, -8, 6, 2);
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(-22, -6, 6, 2);
-        ctx.restore();
-      }
-
-      // Draw Water Pumps
-      game.waterPumps.forEach((p, idx) => {
-        if (!game.bothPumpsEnabled && idx === 1) return;
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.fillStyle = '#d97706';
-        ctx.fillRect(-15, -15, 30, 30);
-        ctx.rotate(p.angle);
-        ctx.fillStyle = '#0284c7';
-        ctx.fillRect(0, -6, 30, 12);
-        ctx.fillStyle = '#38bdf8';
-        ctx.fillRect(22, -4, 10, 8);
-        ctx.restore();
-      });
-
-      // Draw Particles
-      for (let i = game.particles.length - 1; i >= 0; i--) {
-        const pt = game.particles[i];
-        pt.x += pt.vx * dt;
-        pt.y += pt.vy * dt;
-        pt.life++;
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = Math.max(0, 1 - pt.life / pt.maxLife);
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-        if (pt.life >= pt.maxLife) game.particles.splice(i, 1);
-      }
-
-      // Draw Glowing Tracer Bullets, Snipers, and Mortars
-      for (const bullet of game.bullets) {
-        ctx.save();
-        if (bullet.isMortar) {
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = '#f97316';
-          ctx.fillStyle = '#27272a';
-          ctx.beginPath();
-          ctx.arc(bullet.x, bullet.y, 6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#f59e0b';
-          ctx.beginPath();
-          ctx.arc(bullet.x, bullet.y, 3, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (bullet.isSniper) {
-          ctx.shadowBlur = 12;
-          ctx.shadowColor = '#dc2626';
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(bullet.x - 14, bullet.y - 1.5, 28, 3);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(bullet.x - 6, bullet.y - 0.75, 12, 1.5);
-        } else {
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = '#ef4444';
-          ctx.fillStyle = '#ef4444';
-          ctx.fillRect(bullet.x - 8, bullet.y - 2, 16, 4);
-          ctx.fillStyle = '#fef08a';
-          ctx.fillRect(bullet.x - 4, bullet.y - 1, 8, 2);
-        }
-        ctx.restore();
-      }
-
-      // Draw Floating Texts
-      for (let t = game.floatingTexts.length - 1; t >= 0; t--) {
-        const ft = game.floatingTexts[t];
-        ft.y -= 25 * dt;
-        ft.life++;
-        ctx.font = 'bold 12px Cairo, sans-serif';
-        ctx.fillStyle = ft.color;
         ctx.textAlign = 'center';
-        ctx.globalAlpha = Math.max(0, 1 - ft.life / ft.maxLife);
+        ctx.fillText(b.breached ? 'فتح المسار 100% 🇪🇬' : `عمق التجريف: ${Math.round(b.depth)}%`, b.x + b.width / 2, 496);
+
+        // Progress bar
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(b.x - 4, 502, b.width + 8, 8);
+        ctx.fillStyle = b.breached ? '#22c55e' : '#38bdf8';
+        ctx.fillRect(b.x - 4, 502, ((b.width + 8) * b.depth) / 100, 8);
+
+        // Raised Egyptian Flag when breach is complete!
+        if (b.flagRaised) {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(b.x + b.width / 2 - 2, 125, 4, 45); // flagpole
+          // Flag colors: Red, White, Black
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(b.x + b.width / 2 + 2, 125, 26, 7);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(b.x + b.width / 2 + 2, 132, 26, 7);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(b.x + b.width / 2 + 2, 139, 26, 7);
+        }
+
+        ctx.restore();
+      }
+
+      // Render Napalm Slicks on canal water
+      for (const slick of state.napalmSlicks) {
+        if (!slick.extinguished) {
+          // Fire glow
+          const glow = ctx.createRadialGradient(slick.x, slick.y, 10, slick.x, slick.y, slick.width / 2);
+          glow.addColorStop(0, 'rgba(239, 68, 68, 0.9)');
+          glow.addColorStop(0.5, 'rgba(249, 115, 22, 0.8)');
+          glow.addColorStop(1, 'rgba(234, 179, 8, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.ellipse(slick.x, slick.y, slick.width / 2, 22, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Floating Fire Tongue Text
+          ctx.font = 'bold 11px Cairo, sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.fillText('🔥 نابالم مشتعل! وجّه الماء لإطفائه', slick.x, slick.y - 12);
+        }
+      }
+
+      // Render Enemy Bunkers on Bar Lev crest
+      for (const bk of state.bunkers) {
+        ctx.save();
+        ctx.translate(bk.x, bk.y);
+
+        // Concrete Pillbox
+        ctx.fillStyle = bk.destroyed ? '#27272a' : '#52525b';
+        ctx.fillRect(-30, -18, 60, 36);
+
+        // Firing Slit
+        ctx.fillStyle = bk.suppressedTimer > 0 ? '#38bdf8' : '#000000';
+        ctx.fillRect(-22, -4, 44, 8);
+
+        // Armor Plate / Reinforced Roof
+        ctx.fillStyle = '#3f3f46';
+        ctx.fillRect(-34, -22, 68, 8);
+
+        // Status Label
+        ctx.font = 'bold 10px Cairo, sans-serif';
+        ctx.fillStyle = bk.suppressedTimer > 0 ? '#38bdf8' : '#f87171';
+        ctx.textAlign = 'center';
+        ctx.fillText(bk.destroyed ? 'مدمرة' : bk.suppressedTimer > 0 ? 'مغمورة بالمياه (صامتة)' : bk.label, 0, -28);
+
+        ctx.restore();
+      }
+
+      // Render Assault Boats
+      for (const boat of state.boats) {
+        if (!boat.destroyed) {
+          ctx.save();
+          ctx.translate(boat.x, boat.y);
+
+          // Inflatable rubber assault boat (زورق مطاطي أسود)
+          ctx.fillStyle = '#18181b';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 24, 11, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Soldiers holding paddles & RPG
+          ctx.fillStyle = '#15803d';
+          for (let s = -12; s <= 12; s += 8) {
+            ctx.beginPath();
+            ctx.arc(s, -3, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // Small Egyptian Flag at rear of boat
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(-20, -14, 8, 3);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(-20, -11, 8, 3);
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(-20, -8, 8, 3);
+
+          ctx.restore();
+        }
+      }
+
+      // Render Water Spray Particles
+      for (const wp of state.waterParticles) {
+        ctx.fillStyle = wp.isFoam ? '#ffffff' : wp.color;
+        ctx.beginPath();
+        ctx.arc(wp.x, wp.y, wp.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Render Mud Particles
+      for (const mp of state.mudParticles) {
+        ctx.fillStyle = mp.color;
+        ctx.beginPath();
+        ctx.arc(mp.x, mp.y, mp.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Render High-Pressure Turbine Water Cannon on West Bank Platform
+      ctx.save();
+      ctx.translate(pump.x, pump.y);
+
+      // Platform
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(-24, 18, 48, 14);
+
+      // Turbine Turret Swivel Base
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Nozzle Barrel pointing along pump.angle
+      ctx.rotate(pump.angle);
+
+      // Heavy English/German High-Pressure Barrel
+      ctx.fillStyle = pump.nozzle === 'drill' ? '#0284c7' : pump.nozzle === 'extinguish' ? '#0d9488' : '#b45309';
+      ctx.fillRect(0, -6, 36, 12);
+
+      // Brass Nozzle Tip
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(36, -4, 8, 8);
+
+      ctx.restore();
+
+      // Aiming Reticle / Crosshair on Sand Berm with Target Acquisition
+      ctx.save();
+      const nozzleTipX = pump.x + Math.cos(pump.angle) * 44;
+      const nozzleTipY = pump.y + Math.sin(pump.angle) * 44;
+
+      // 1. Water Stream Sightline Trajectory
+      ctx.strokeStyle = pump.isFiring ? 'rgba(56, 189, 248, 0.45)' : 'rgba(250, 204, 21, 0.25)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(nozzleTipX, nozzleTipY);
+      ctx.lineTo(aim.x, aim.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 2. Identify target under crosshair
+      let lockText = '';
+      const hoverBreach = state.breaches.find((b) => aim.x >= b.x - 20 && aim.x <= b.x + b.width + 20 && aim.y >= 200 && aim.y <= 490);
+      const hoverNapalm = state.napalmSlicks.find((s) => !s.extinguished && Math.abs(aim.x - s.x) < s.width / 2 && Math.abs(aim.y - s.y) < 35);
+      const hoverBunker = state.bunkers.find((b) => !b.destroyed && Math.hypot(aim.x - b.x, aim.y - b.y) < 45);
+
+      if (hoverBreach) {
+        lockText = hoverBreach.breached ? 'مسار مفتوح 100% 🇪🇬' : `🎯 تجريف: ${hoverBreach.label}`;
+      } else if (hoverNapalm) {
+        lockText = '🔥 إخماد سائل النابالم الحارق';
+      } else if (hoverBunker) {
+        lockText = `💥 إغراق وقصف: ${hoverBunker.label}`;
+      }
+
+      const reticleColor = hoverNapalm
+        ? '#f97316'
+        : hoverBunker
+        ? '#ef4444'
+        : pump.isFiring
+        ? '#38bdf8'
+        : '#facc15';
+
+      // 3. Central Reticle Ring & Crosshair
+      ctx.strokeStyle = reticleColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(aim.x, aim.y, pump.isFiring ? 18 : 15, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Crosshair Ticks
+      ctx.beginPath();
+      ctx.moveTo(aim.x - 24, aim.y);
+      ctx.lineTo(aim.x - 14, aim.y);
+      ctx.moveTo(aim.x + 14, aim.y);
+      ctx.lineTo(aim.x + 24, aim.y);
+      ctx.moveTo(aim.x, aim.y - 24);
+      ctx.lineTo(aim.x, aim.y - 14);
+      ctx.moveTo(aim.x, aim.y + 14);
+      ctx.lineTo(aim.x, aim.y + 24);
+      ctx.stroke();
+
+      // Center Laser Pip
+      ctx.fillStyle = reticleColor;
+      ctx.beginPath();
+      ctx.arc(aim.x, aim.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Lock label badge
+      if (lockText) {
+        ctx.font = 'bold 11px Cairo, sans-serif';
+        ctx.fillStyle = reticleColor;
+        ctx.textAlign = 'center';
+        ctx.fillText(lockText, aim.x, aim.y - 28);
+      }
+      ctx.restore();
+
+      // Floating Texts
+      for (let f = state.floatingTexts.length - 1; f >= 0; f--) {
+        const ft = state.floatingTexts[f];
+        ft.y -= 30 * dt;
+        ft.life++;
+        const alpha = Math.max(0, 1 - ft.life / ft.maxLife);
+
+        ctx.font = 'bold 13px Cairo, sans-serif';
+        ctx.fillStyle = ft.color;
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = 'center';
         ctx.fillText(ft.text, ft.x, ft.y);
         ctx.globalAlpha = 1.0;
-        if (ft.life >= ft.maxLife) game.floatingTexts.splice(t, 1);
-      }
 
-      // Crosshair
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(aim.x, aim.y, 14, 0, Math.PI * 2);
-      ctx.moveTo(aim.x - 18, aim.y);
-      ctx.lineTo(aim.x + 18, aim.y);
-      ctx.moveTo(aim.x, aim.y - 18);
-      ctx.lineTo(aim.x, aim.y + 18);
-      ctx.stroke();
+        if (ft.life >= ft.maxLife) {
+          state.floatingTexts.splice(f, 1);
+        }
+      }
 
       animId = requestAnimationFrame(loop);
     };
 
     animId = requestAnimationFrame(loop);
+
     return () => {
       cancelAnimationFrame(animId);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('touchstart', handleTouchStart);
       canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [timeLeft]);
 
-  const formatTimer = (sec: number) => {
-    const mins = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const handleRestart = () => {
+    sound.playRadioTransmission();
+    const state = stateRef.current;
+    state.isComplete = false;
+    state.breaches.forEach((b) => {
+      b.depth = 0;
+      b.layer = 'crust';
+      b.breached = false;
+      b.flagRaised = false;
+    });
+    state.boats = [];
+    state.napalmSlicks = [];
+    state.breachesDoneCount = 0;
+    state.boatsArrivedCount = 0;
+    state.score = 0;
+    setBreachesCompleted(0);
+    setBoatsCrossed(0);
+    setScore(0);
+    setTimeLeft(120);
+    setIsWon(false);
+    setIsDefeated(false);
+    setActiveAlert('أعد تشغيل مضخات المياه التوربينية وركز الضغط على الساتر الترابي!');
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-stone-900 shadow-2xl">
-      {/* Top HUD with 2-Minute Timer */}
-      <div className="p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col h-full bg-stone-950 text-stone-100 select-none overflow-hidden">
+      {/* Top Mission HUD */}
+      <div className="p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+        <div className="flex items-center gap-2">
           <button
             onClick={onExit}
-            className="p-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-300 transition-colors cursor-pointer"
+            className="p-1.5 bg-stone-800 hover:bg-stone-700 rounded-lg text-stone-300 hover:text-white cursor-pointer transition-colors"
+            title="العودة"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-base font-bold font-cairo text-amber-400">معركة العبور وتحطيم خط بارليف</h2>
-            <p className="text-xs text-stone-400">خراطيم المياه النفاثة للواء باقي زكي يوسف</p>
+            <h2 className="font-bold font-cairo text-sm sm:text-base text-amber-400">
+              ملحمة اقتحام خط بارليف وخراطيم المياه التوربينية
+            </h2>
+            <div className="text-[11px] text-stone-400">
+              عبقرية اللواء باقي زكي يوسف · تجريف 3 ملايين متر مكعب رمال
+            </div>
           </div>
         </div>
 
-        {/* Meters & 2-Minute Timer */}
-        <div className="flex items-center gap-6 text-xs font-semibold">
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
-              timeLeft < 30
-                ? 'bg-red-950/60 border-red-500 text-red-400 animate-pulse'
-                : 'bg-stone-900 border-stone-800 text-amber-400'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span className="text-stone-300 font-bold">الوقت المتبقي:</span>
-            <span className="font-mono text-sm font-black tabular-nums">{formatTimer(timeLeft)}</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Waves className="w-4 h-4 text-sky-400" />
-            <span className="font-mono tabular-nums text-emerald-400 font-bold">{boatsCrossed} قوارب عابرة</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-amber-400" />
-            <div className="w-20 h-2.5 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-              <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: `${bridgeProgress}%` }} />
-            </div>
-            <span className="font-mono tabular-nums text-stone-200">{bridgeProgress}%</span>
+        {/* Telemetry Bar */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <Droplet className="w-4 h-4 text-sky-400" />
+            <span className="text-stone-300">ضغط المضخة:</span>
+            <span className="font-mono tabular-nums font-bold text-sky-400">{pressure} BAR</span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <Trophy className="w-4 h-4 text-amber-400" />
-            <span className="font-mono tabular-nums font-bold text-amber-400">{missionScore} نقطة</span>
+            <Shield className="w-4 h-4 text-emerald-400" />
+            <span className="text-stone-300">الثغرات المفتوحة:</span>
+            <span className="font-mono tabular-nums font-bold text-emerald-400">{breachesCompleted} / 3</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Waves className="w-4 h-4 text-amber-400" />
+            <span className="text-stone-300">قوارب العبور:</span>
+            <span className="font-mono tabular-nums font-bold text-amber-400">{boatsCrossed}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Sparkles className="w-4 h-4 text-yellow-400" />
+            <span className="font-mono tabular-nums font-bold text-amber-400">{score} نقطة</span>
           </div>
         </div>
       </div>
 
-      {/* Control Action Buttons Bar */}
-      <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
+      {/* Control Helpers & Nozzle Switcher */}
+      <div className="px-4 py-2 bg-stone-900/90 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-stone-300">فوهة الضخ:</span>
           <button
-            onClick={() => setContinuousSpray(!continuousSpray)}
-            className={`px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              continuousSpray
-                ? 'bg-sky-500/20 border-sky-500/60 text-sky-300'
-                : 'bg-stone-800 border-stone-700 text-stone-400'
+            onClick={() => {
+              setNozzleMode('drill');
+              stateRef.current.pump.nozzle = 'drill';
+              sound.playRadioClick();
+            }}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              nozzleMode === 'drill'
+                ? 'bg-sky-600 text-white shadow-md'
+                : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
             }`}
           >
-            <Droplet className="w-3.5 h-3.5" />
-            <span>رش المياه التلقائي {continuousSpray ? '(مفعل ✓)' : '(معطل)'}</span>
+            <Zap className="w-3.5 h-3.5 text-sky-300" />
+            <span>[1] تيار الحفر النفاث ⚡</span>
           </button>
 
           <button
-            onClick={() => setBothPumpsActive(!bothPumpsActive)}
-            className={`px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              bothPumpsActive
-                ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
-                : 'bg-stone-800 border-stone-700 text-stone-400'
+            onClick={() => {
+              setNozzleMode('extinguish');
+              stateRef.current.pump.nozzle = 'extinguish';
+              sound.playRadioClick();
+            }}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              nozzleMode === 'extinguish'
+                ? 'bg-teal-600 text-white shadow-md'
+                : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>مضختين مياه معاً {bothPumpsActive ? '(مزدوج ✓)' : '(مفرد)'}</span>
+            <Flame className="w-3.5 h-3.5 text-amber-300" />
+            <span>[2] ستارة إخماد النابالم 🌊</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setNozzleMode('slurry');
+              stateRef.current.pump.nozzle = 'slurry';
+              sound.playRadioClick();
+            }}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+              nozzleMode === 'slurry'
+                ? 'bg-amber-600 text-stone-950 shadow-md font-black'
+                : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
+            }`}
+          >
+            <Waves className="w-3.5 h-3.5" />
+            <span>[3] طوفان تجريف الرمال 🌪️</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={launchAssaultBoat}
-            className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow active:scale-95 transition-all"
-          >
-            <Waves className="w-3.5 h-3.5" />
-            إطلاق قارب مشاة
-          </button>
+        <button
+          onClick={handleLaunchAssaultBoat}
+          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow active:scale-95 transition-all"
+        >
+          <Waves className="w-3.5 h-3.5" />
+          <span>إطلاق قارب عبور صاعقة 🚣</span>
+        </button>
+      </div>
 
-          <button
-            onClick={buildBridgeSegment}
-            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow active:scale-95 transition-all"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            مد قطعة كوبري (PMP)
-          </button>
+      {/* Operational Dispatch Banner */}
+      <div className="px-4 py-1.5 bg-stone-950 border-b border-stone-800 flex items-center justify-between text-xs text-stone-300">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+          <span className="font-bold text-amber-400">{activeAlert}</span>
+        </div>
+        <div className="text-stone-400 font-mono text-[11px] hidden sm:block">
+          انقر أو اضغط مع التحريك للتصويب والضخ المستمر
         </div>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas Battlefield Area */}
       <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
         <canvas
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
+          className="w-full h-full max-w-full max-h-full object-contain cursor-none select-none"
         />
 
-        {/* Digital Countdown Timer at the TOP */}
-        {!isWon && !isFailed && (
+        {/* Digital Countdown Timer */}
+        {!isWon && !isDefeated && (
           <MissionDigitalTimer
             timeLeft={timeLeft}
             totalTime={120}
-            label="الزمن المتبقي للفوز"
+            label="الزمن المتبقي للنصر"
             position="top-center"
           />
         )}
@@ -1109,50 +1109,68 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         {/* Victory Modal */}
         {isWon && (
           <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3 shadow-[0_0_25px_rgba(34,197,94,0.5)]">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h3 className="text-2xl font-black font-cairo text-amber-400 mb-1">سقط خط بارليف وعبرت القوات!</h3>
-            <p className="text-xs text-stone-300 max-w-md mb-4">
-              أنجزت معركة العبور وإذابة الساتر الترابي في زمن قياسي قبل انتهاء الدقيقتين!
+            <h3 className="text-2xl sm:text-3xl font-black font-cairo text-amber-400 mb-2">
+              انهيار أسطورة خط بارليف وسقوط الساتر الترابي!
+            </h3>
+            <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
+              فتحت خراطيم المياه التوربينية 3 ممرات واسعة في أضخم ساتر ترابي في التاريخ العسكري، وعبرت قوات الصاعقة والمشاة رافعة علم جمهورية مصر العربية خفاقاً!
             </p>
 
+            <div className="grid grid-cols-3 gap-3 mb-6 max-w-md w-full text-center">
+              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
+                <span className="block text-[11px] text-stone-400 mb-1">الثغرات المفتوحة</span>
+                <span className="text-base font-bold font-mono text-emerald-400">3 من 3</span>
+              </div>
+              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
+                <span className="block text-[11px] text-stone-400 mb-1">قوارب العبور</span>
+                <span className="text-base font-bold font-mono text-sky-400">{boatsCrossed} قوارب</span>
+              </div>
+              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
+                <span className="block text-[11px] text-stone-400 mb-1">النقاط الكلية</span>
+                <span className="text-base font-bold font-mono text-amber-400">{score}</span>
+              </div>
+            </div>
+
             <button
-              onClick={() => onComplete(missionScore + 2000)}
+              onClick={() => onComplete(score)}
               className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg transition-colors cursor-pointer shadow-lg active:scale-95"
             >
-              الانتقال إلى المرحلة الثالثة: معارك الدبابات وحائط الصواريخ
+              الانتقال إلى المرحلة الثالثة: ملحمة بناء الكباري العائمة
             </button>
           </div>
         )}
 
-        {/* Failed / Timeout Modal */}
-        {isFailed && (
+        {/* Defeat / Timeout Modal */}
+        {isDefeated && (
           <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-            <h3 className="text-xl font-bold font-cairo text-red-400 mb-2">انتهت مدة الدقيقتين المخصصة للمهمة!</h3>
-            <p className="text-xs text-stone-300 max-w-md mb-5">
-              استمر في توجيه خراطيم المياه على الساتر الترابي لإسقاطه وفتح الثغرات ومد الجسور سريعاً.
+            <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500/60 flex items-center justify-center text-red-500 mb-3 shadow-[0_0_25px_rgba(239,68,68,0.5)]">
+              <AlertTriangle className="w-9 h-9" />
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold font-cairo text-red-500 mb-2">
+              انتهت مدة الدقيقتين المخصصة لفتح الثغرات!
+            </h3>
+            <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
+              ركّز ضغط المياه النفاث باستمرار على الساتر الترابي، وأطفئ حرائق النابالم المشتعلة على سطح القناة لحماية قوارب العبور!
             </p>
+
             <button
-              onClick={() => {
-                setTimeLeft(120);
-                setIsFailed(false);
-                gameRef.current.timeLeft = 120;
-                gameRef.current.isComplete = false;
-              }}
-              className="px-5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
+              onClick={handleRestart}
+              className="px-6 py-2.5 bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold rounded-lg flex items-center gap-2 cursor-pointer transition-colors shadow"
             >
               <RotateCcw className="w-4 h-4" />
-              إعادة المحاولة (دقيقتان)
+              إعادة محاولة الاقتحام 🔄
             </button>
           </div>
         )}
       </div>
 
-      {/* Footer Instructions */}
+      {/* Footer Info */}
       <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
-        <span>وجه الفأرة نحو الساتر الترابي لإذابة الرمال وإخماد نيران الدشم قبل انتهاء المؤقت</span>
-        <span className="text-amber-400 font-semibold">«بسم الله.. الله أكبر»</span>
+        <span>فكرة اللواء باقي زكي يوسف: مضخات مياه بريطانية وألمانية متطورة</span>
+        <span className="text-amber-400 font-semibold">«بسم الله.. الله أكبر» 🇪🇬</span>
       </div>
     </div>
   );

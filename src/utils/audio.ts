@@ -757,64 +757,96 @@ class SoundSystem {
     }, 550);
   }
 
-  // Mission accomplished / Patriotic Victory fanfare ("الله أكبر .. بسم الله")
+  private lastVictoryFanfareTime: number = 0;
+
+  // Mission accomplished / Patriotic Victory fanfare ("الله أكبر .. بسم الله .. نصر أكتوبر 1973")
   public playVictoryFanfare() {
     if (this.isMuted) return;
     this.initCtx();
     if (!this.ctx) return;
 
-    // Stop clashing background music immediately upon victory!
+    const now = this.ctx.currentTime;
+    // Throttle guard to prevent duplicate clashing fanfares
+    if (now - this.lastVictoryFanfareTime < 1.8) {
+      return;
+    }
+    this.lastVictoryFanfareTime = now;
+
+    // Stop background music immediately so victory fanfare sounds crisp and majestic
     this.stopBackgroundTheme(false);
 
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
 
-    const now = this.ctx.currentTime;
-    // Patriotic brass fanfare melody ("الله أكبر بسم الله"): G3, C4, E4, G4, C5, G4, C5
+    // Patriotic brass fanfare melody ("الله أكبر بسم الله"): Sol3, Do4, Mi4, Sol4, Do5, Mi5
     const notes = [
-      { freq: 196.00, time: 0.0, dur: 0.22 }, // Sol 3
-      { freq: 261.63, time: 0.22, dur: 0.22 }, // Do 4
-      { freq: 329.63, time: 0.44, dur: 0.24 }, // Mi 4
-      { freq: 392.00, time: 0.70, dur: 0.35 }, // Sol 4 (الله أكبر)
-      { freq: 329.63, time: 1.10, dur: 0.22 }, // Mi 4
-      { freq: 523.25, time: 1.35, dur: 0.85 }, // High Do 5 (بسم الله)
-      { freq: 659.25, time: 2.25, dur: 0.95 }, // High Mi 5 (نصر أكتوبر)
+      { freq: 196.00, time: 0.0, dur: 0.24, gain: 0.28 }, // Sol 3
+      { freq: 261.63, time: 0.25, dur: 0.24, gain: 0.30 }, // Do 4
+      { freq: 329.63, time: 0.50, dur: 0.26, gain: 0.32 }, // Mi 4
+      { freq: 392.00, time: 0.78, dur: 0.40, gain: 0.35 }, // Sol 4 (الله أكبر)
+      { freq: 329.63, time: 1.22, dur: 0.24, gain: 0.30 }, // Mi 4
+      { freq: 523.25, time: 1.48, dur: 0.85, gain: 0.38 }, // High Do 5 (بسم الله)
+      { freq: 659.25, time: 2.38, dur: 1.10, gain: 0.40 }, // High Mi 5 (نصر أكتوبر)
     ];
 
     notes.forEach((note) => {
-      // Primary brass oscillator
+      // Primary brass oscillator (trumpet timbre)
       const osc = this.ctx!.createOscillator();
       const gain = this.ctx!.createGain();
+      const filter = this.ctx!.createBiquadFilter();
 
-      osc.type = 'triangle';
+      osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(note.freq, now + note.time);
 
-      gain.gain.setValueAtTime(0.0, now + note.time);
-      gain.gain.linearRampToValueAtTime(0.32, now + note.time + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.005, now + note.time + note.dur);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1400, now + note.time);
 
-      osc.connect(gain);
+      // Safe non-zero base value for exponential ramp (prevents DOMException in Web Audio)
+      gain.gain.setValueAtTime(0.001, now + note.time);
+      gain.gain.linearRampToValueAtTime(note.gain, now + note.time + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
       gain.connect(this.ctx!.destination);
 
       osc.start(now + note.time);
       osc.stop(now + note.time + note.dur);
 
-      // Harmonic brass overtone
+      // Triumphant octave & 5th overtone
       const subOsc = this.ctx!.createOscillator();
       const subGain = this.ctx!.createGain();
-      subOsc.type = 'sawtooth';
+      subOsc.type = 'triangle';
       subOsc.frequency.setValueAtTime(note.freq * 1.5, now + note.time);
 
-      subGain.gain.setValueAtTime(0.0, now + note.time);
-      subGain.gain.linearRampToValueAtTime(0.12, now + note.time + 0.04);
-      subGain.gain.exponentialRampToValueAtTime(0.002, now + note.time + note.dur);
+      subGain.gain.setValueAtTime(0.001, now + note.time);
+      subGain.gain.linearRampToValueAtTime(note.gain * 0.45, now + note.time + 0.04);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + note.time + note.dur);
 
       subOsc.connect(subGain);
       subGain.connect(this.ctx!.destination);
 
       subOsc.start(now + note.time);
       subOsc.stop(now + note.time + note.dur);
+    });
+
+    // Celebratory Timpani / War Drum bursts on key cadence beats (0s, 0.78s, 1.48s, 2.38s)
+    [0.0, 0.78, 1.48, 2.38].forEach((beatTime, idx) => {
+      const drum = this.ctx!.createOscillator();
+      const drumGain = this.ctx!.createGain();
+      drum.type = 'sine';
+      const startFreq = idx === 3 ? 120 : 95;
+      drum.frequency.setValueAtTime(startFreq, now + beatTime);
+      drum.frequency.exponentialRampToValueAtTime(32, now + beatTime + 0.4);
+
+      drumGain.gain.setValueAtTime(idx === 3 ? 0.45 : 0.32, now + beatTime);
+      drumGain.gain.exponentialRampToValueAtTime(0.001, now + beatTime + 0.45);
+
+      drum.connect(drumGain);
+      drumGain.connect(this.ctx!.destination);
+      drum.start(now + beatTime);
+      drum.stop(now + beatTime + 0.45);
     });
   }
 
@@ -885,11 +917,39 @@ class SoundSystem {
     gain.gain.linearRampToValueAtTime(0.2, t + 0.3);
     gain.gain.exponentialRampToValueAtTime(0.01, t + 0.85);
 
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-
     osc.start(t);
     osc.stop(t + 0.85);
+  }
+
+  // Water splash / high-pressure hydraulic stream sound (صوت خراطيم المياه ورذاذ الأمواج)
+  public playSplash() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const bufferSize = Math.floor(this.ctx.sampleRate * 0.15);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.4));
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, t);
+    filter.frequency.exponentialRampToValueAtTime(200, t + 0.15);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    noise.start(t);
   }
 }
 

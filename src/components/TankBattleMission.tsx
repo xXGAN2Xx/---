@@ -197,28 +197,38 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     });
   };
 
-  // Launch Sagger Missile with fast guidance
+  // Launch Sagger Missile with fast guidance and smart auto-lock
   const launchSaggerMissile = (targetTank?: EnemyTank) => {
     if (saggerAmmo <= 0) return;
     const state = stateRef.current;
     sound.playMissileLaunch();
     setSaggerAmmo((a) => a - 1);
 
-    const targetX = targetTank ? targetTank.x : state.mousePos.x;
-    const targetY = targetTank ? targetTank.y : state.mousePos.y;
+    // If no targetTank is explicitly clicked, automatically lock onto the closest advancing enemy tank!
+    let chosenTank = targetTank;
+    if (!chosenTank) {
+      const active = state.enemyTanks.filter((t) => !t.destroyed && t.x > 50 && t.x < 1100);
+      if (active.length > 0) {
+        active.sort((a, b) => a.x - b.x); // Pick closest threat
+        chosenTank = active[0];
+      }
+    }
+
+    const targetX = chosenTank ? chosenTank.x : state.mousePos.x;
+    const targetY = chosenTank ? chosenTank.y : state.mousePos.y;
 
     state.guidedMissiles.push({
       x: 160,
       y: 330,
       targetX,
       targetY,
-      vx: 580, // Faster missile flight
+      vx: 650, // Fast punchy missile flight
       vy: 0,
-      targetTankId: targetTank?.id,
+      targetTankId: chosenTank?.id,
       active: true,
     });
 
-    addFloatingText(170, 310, 'إطلاق صاروخ مالوتكا 🎯', '#f59e0b');
+    addFloatingText(170, 310, `صاروخ مالوتكا موجه 🎯${chosenTank ? ` [إقفال على ${chosenTank.label}]` : ''}`, '#f59e0b');
   };
 
   const launchSamMissile = () => {
@@ -226,7 +236,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     const state = stateRef.current;
     const targetJet = state.hostileJets.find((j) => !j.destroyed);
     if (!targetJet) {
-      addFloatingText(state.playerTank.x, state.playerTank.y - 40, 'لا توجد مقاتلات معادية حالياً', '#38bdf8');
+      addFloatingText(state.playerTank.x, state.playerTank.y - 40, 'لا توجد مقاتلات فانتوم معادية حالياً', '#38bdf8');
       return;
     }
 
@@ -244,17 +254,20 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     addFloatingText(100, 460, 'حائط الصواريخ سام-6 منطلق! 🚀', '#34d399');
   };
 
-  const fireTankCannon = () => {
+  const fireTankCannon = (targetX?: number, targetY?: number) => {
     const state = stateRef.current;
     sound.playCannon();
-    state.screenShake = 2.0; // Minimal gentle bump
+    state.screenShake = 2.0;
     const p = state.playerTank;
-    const angle = p.turretAngle;
+    const tx = targetX ?? state.mousePos.x;
+    const ty = targetY ?? state.mousePos.y;
+    const angle = Math.atan2(ty - p.y, tx - p.x);
+    p.turretAngle = angle;
 
     state.shells.push({
       x: p.x + Math.cos(angle) * 36,
       y: p.y + Math.sin(angle) * 36,
-      vx: Math.cos(angle) * 850, // Faster punchy shells
+      vx: Math.cos(angle) * 850,
       vy: Math.sin(angle) * 850,
       fromPlayer: true,
     });
@@ -270,34 +283,78 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     let animId: number;
     let lastTime = performance.now();
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const updateInputPos = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      stateRef.current.mousePos.x = (e.clientX - rect.left) * scaleX;
-      stateRef.current.mousePos.y = (e.clientY - rect.top) * scaleY;
+      stateRef.current.mousePos.x = (clientX - rect.left) * scaleX;
+      stateRef.current.mousePos.y = (clientY - rect.top) * scaleY;
     };
 
-    const handleMouseDown = () => {
+    const handlePointerAction = (clientX: number, clientY: number) => {
+      updateInputPos(clientX, clientY);
       const state = stateRef.current;
-      for (const tank of state.enemyTanks) {
-        if (!tank.destroyed && Math.hypot(state.mousePos.x - tank.x, state.mousePos.y - tank.y) < 45) {
-          sound.playTargetLock();
-          launchSaggerMissile(tank);
+      const mx = state.mousePos.x;
+      const my = state.mousePos.y;
+
+      // 1. Direct tap on enemy jet in sky
+      for (const jet of state.hostileJets) {
+        if (!jet.destroyed && Math.hypot(mx - jet.x, my - jet.y) < 65) {
+          launchSamMissile();
           return;
         }
       }
 
-      if (state.mousePos.y < 200 && state.hostileJets.length > 0) {
+      // 2. Direct tap on enemy tank
+      for (const tank of state.enemyTanks) {
+        if (!tank.destroyed && Math.hypot(mx - tank.x, my - tank.y) < 60) {
+          sound.playTargetLock();
+          if (saggerAmmo > 0) {
+            launchSaggerMissile(tank);
+          } else {
+            fireTankCannon(tank.x, tank.y);
+          }
+          return;
+        }
+      }
+
+      // 3. Tap in sky region when jets are active
+      if (my < 210 && state.hostileJets.some((j) => !j.destroyed)) {
         launchSamMissile();
         return;
       }
 
-      fireTankCannon();
+      // 4. Default: fire cannon towards tap position
+      fireTankCannon(mx, my);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      updateInputPos(e.clientX, e.clientY);
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      handlePointerAction(e.clientX, e.clientY);
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        handlePointerAction(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        updateInputPos(e.touches[0].clientX, e.touches[0].clientY);
+      }
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     const spawnExplosion = (x: number, y: number, color = '#f59e0b', count = 16, isMajor = false) => {
       sound.playExplosion(isMajor ? 1.25 : 0.85);
@@ -398,8 +455,17 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
       const m = state.mousePos;
       p.turretAngle = Math.atan2(m.y - p.y, m.x - p.x);
 
-      // Fast enemy reinforcement with randomized attack patterns
-      if (currTime - state.lastSpawnTime > 4500 && state.enemyTanks.length < 5) {
+      // 0. Clean up dead or off-screen enemy tanks to keep battlefield active and prevent freezing!
+      for (let i = state.enemyTanks.length - 1; i >= 0; i--) {
+        const t = state.enemyTanks[i];
+        if (t.destroyed || t.x < -80) {
+          state.enemyTanks.splice(i, 1);
+        }
+      }
+
+      // Continuous assault waves: always keep 3 to 4 active enemy tanks pushing forward
+      const activeTanks = state.enemyTanks.filter((t) => !t.destroyed && t.x > -50);
+      if (activeTanks.length < 3 || (currTime - state.lastSpawnTime > 3200 && activeTanks.length < 5)) {
         state.lastSpawnTime = currTime;
         const tankPatterns: ('salvo' | 'dune_flank' | 'standard' | 'hull_down_ambush' | 'smoke_rush')[] = [
           'salvo',
@@ -412,7 +478,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
         const spawnY = 280 + Math.random() * 200;
 
         state.enemyTanks.push({
-          id: Date.now(),
+          id: Date.now() + Math.random(),
           x: canvas.width + 60,
           y: spawnY,
           baseY: spawnY,
@@ -425,7 +491,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
           vy: 0,
           hp: 70,
           maxHp: 70,
-          label: 'دبابة معادية M60',
+          label: Math.random() < 0.5 ? 'دبابة معادية M60 باتون' : 'دبابة سينتوريون إسرائيلية',
           isPatton: true,
           destroyed: false,
           pattern: chosenPattern,
@@ -487,7 +553,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
 
         // Check impact
         for (const tank of state.enemyTanks) {
-          if (!tank.destroyed && Math.hypot(gm.x - tank.x, gm.y - tank.y) < 35) {
+          if (!tank.destroyed && Math.hypot(gm.x - tank.x, gm.y - tank.y) < 48) {
             tank.hp -= 75;
             sound.playHitSound();
             spawnExplosion(tank.x, tank.y, '#ef4444', 20);
@@ -559,7 +625,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
 
         if (sh.fromPlayer) {
           for (const tank of state.enemyTanks) {
-            if (!tank.destroyed && Math.hypot(sh.x - tank.x, sh.y - tank.y) < 32) {
+            if (!tank.destroyed && Math.hypot(sh.x - tank.x, sh.y - tank.y) < 44) {
               tank.hp -= 42;
               sound.playHitSound();
               spawnExplosion(sh.x, sh.y, '#f59e0b', 12);
@@ -572,7 +638,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
                 state.score += 800;
                 setScore(state.score);
                 setTanksDestroyed(state.tanksDown);
-                addFloatingText(tank.x, tank.y - 25, '+800 إصابة قاتلة لمدفع تي-62! 💥', '#fbbf24');
+                setSaggerAmmo((prev) => Math.min(18, prev + 2));
+                addFloatingText(tank.x, tank.y - 25, `+800 صيد دبابة معادية! 💥 (+2 مالوتكا)`, '#4ade80');
 
                 if (state.tanksDown >= 6 && !state.isComplete) {
                   state.isComplete = true;
@@ -628,66 +695,9 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
             addFloatingText(tank.x, tank.y - 25, badgeMap[tank.pattern || 'standard'] || 'دبابة معادية!', '#f59e0b');
           }
 
-          let dodging = false;
-
-          // A. Reactive Evasion against Sagger guided missiles
-          for (const gm of state.guidedMissiles) {
-            if (gm.active) {
-              const mdx = gm.x - tank.x;
-              const mdy = gm.y - tank.y;
-              const mdist = Math.hypot(mdx, mdy);
-              if (mdx < 0 && mdist < 260) {
-                dodging = true;
-                tank.vy = mdy > 0 ? -120 : 120;
-                tank.y += (tank.vy || 0) * dt;
-                tank.y = Math.max(260, Math.min(canvas.height - 70, tank.y));
-
-                // Deploy tactical smoke discharger
-                tank.smokeCooldown = (tank.smokeCooldown ?? 0) - dt;
-                if (tank.smokeCooldown <= 0) {
-                  tank.smokeCooldown = 3.5;
-                  for (let s = 0; s < 4; s++) {
-                    state.particles.push({
-                      x: tank.x - 10 + (Math.random() - 0.5) * 20,
-                      y: tank.y + (Math.random() - 0.5) * 20,
-                      vx: (Math.random() - 0.5) * 30,
-                      vy: -15 - Math.random() * 20,
-                      color: '#e2e8f0',
-                      life: 1,
-                      maxLife: 28,
-                      size: 5,
-                      isSmoke: true,
-                    });
-                  }
-                  addFloatingText(tank.x, tank.y - 25, 'ستارة دخان تكتيكية! 💨', '#e2e8f0');
-                }
-                break;
-              }
-            }
-          }
-
-          // B. Reactive Evasion against Incoming Player T-62 Cannon Shells
-          if (!dodging) {
-            for (const sh of state.shells) {
-              if (sh.fromPlayer && sh.vx > 0) {
-                const distShell = tank.x - sh.x;
-                if (distShell > 0 && distShell < 300 && Math.abs(sh.y - tank.y) < 38) {
-                  dodging = true;
-                  tank.vy = sh.y > tank.y ? -130 : 130;
-                  tank.y += (tank.vy || 0) * dt;
-                  tank.y = Math.max(260, Math.min(canvas.height - 70, tank.y));
-                  // Evasive acceleration juke
-                  tank.speed = -45;
-                  break;
-                }
-              }
-            }
-          }
-
-          if (!dodging) {
-            // Dune undulating motion
-            tank.y += Math.sin(currTime * 0.002 + tank.id) * 15 * dt;
-          }
+          // Smooth dune undulating movement and forward advance
+          tank.y += Math.sin(currTime * 0.002 + tank.id) * 12 * dt;
+          tank.y = Math.max(260, Math.min(canvas.height - 70, tank.y));
 
           // Pattern Specific Movement
           if (tank.pattern === 'hull_down_ambush') {
@@ -1363,6 +1373,84 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
             label="الزمن المتبقي للفوز"
             position="top-center"
           />
+        )}
+
+        {/* On-screen Tank Controls for Touch & Mobile Devices */}
+        {!isWon && !isDefeated && (
+          <div className="absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between sm:hidden pointer-events-none select-none">
+            {/* Steering D-pad */}
+            <div className="pointer-events-auto bg-stone-950/90 p-2 rounded-2xl border border-stone-700/80 backdrop-blur-md shadow-2xl">
+              <div className="grid grid-cols-3 gap-1.5 w-32 h-24 text-sm font-black">
+                <div />
+                <button
+                  type="button"
+                  onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.up = true; }}
+                  onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.up = false; }}
+                  className="bg-stone-800 text-amber-400 active:bg-amber-500 active:text-stone-950 rounded-xl flex items-center justify-center shadow"
+                >
+                  ▲
+                </button>
+                <div />
+                <button
+                  type="button"
+                  onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.left = true; }}
+                  onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.left = false; }}
+                  className="bg-stone-800 text-amber-400 active:bg-amber-500 active:text-stone-950 rounded-xl flex items-center justify-center shadow"
+                >
+                  ◀
+                </button>
+                <div className="flex items-center justify-center text-[10px] font-mono text-stone-500">T-62</div>
+                <button
+                  type="button"
+                  onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.right = true; }}
+                  onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.right = false; }}
+                  className="bg-stone-800 text-amber-400 active:bg-amber-500 active:text-stone-950 rounded-xl flex items-center justify-center shadow"
+                >
+                  ▶
+                </button>
+                <div />
+                <button
+                  type="button"
+                  onTouchStart={(e) => { e.preventDefault(); stateRef.current.keys.down = true; }}
+                  onTouchEnd={(e) => { e.preventDefault(); stateRef.current.keys.down = false; }}
+                  className="bg-stone-800 text-amber-400 active:bg-amber-500 active:text-stone-950 rounded-xl flex items-center justify-center shadow"
+                >
+                  ▼
+                </button>
+                <div />
+              </div>
+            </div>
+
+            {/* Fire Action Buttons */}
+            <div className="pointer-events-auto flex flex-col gap-2">
+              <button
+                type="button"
+                onTouchStart={(e) => { e.preventDefault(); fireTankCannon(); }}
+                className="w-14 h-12 bg-amber-600 active:bg-amber-400 text-stone-950 font-black text-xs rounded-xl shadow-lg border border-amber-400 flex flex-col items-center justify-center"
+              >
+                <span>💥</span>
+                <span className="text-[10px]">مدفع</span>
+              </button>
+              <button
+                type="button"
+                onTouchStart={(e) => { e.preventDefault(); launchSaggerMissile(); }}
+                disabled={saggerAmmo <= 0}
+                className="w-14 h-12 bg-red-600 active:bg-red-400 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-lg border border-red-400 flex flex-col items-center justify-center"
+              >
+                <span>🎯</span>
+                <span className="text-[10px]">مالوتكا</span>
+              </button>
+              <button
+                type="button"
+                onTouchStart={(e) => { e.preventDefault(); launchSamMissile(); }}
+                disabled={samMissiles <= 0}
+                className="w-14 h-12 bg-emerald-600 active:bg-emerald-400 disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-lg border border-emerald-400 flex flex-col items-center justify-center"
+              >
+                <span>🚀</span>
+                <span className="text-[10px]">سام-6</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Victory Modal */}

@@ -173,7 +173,7 @@ export default function App() {
 
   const handleMissionComplete = (mission: GameMode, scoreEarned: number) => {
     handleAddScore(scoreEarned);
-    sound.playVictoryFanfare();
+    sound.playRadioTransmission();
 
     setStats((prev) => ({
       ...prev,

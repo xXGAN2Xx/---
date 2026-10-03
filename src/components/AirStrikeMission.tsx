@@ -36,11 +36,12 @@ interface EnemyJet {
   missileCooldown?: number;
   evasionTimer?: number;
   targetAltitude?: number;
-  attackPattern?: 'dive_zoom' | 'scissors' | 'low_strafe' | 'pincer' | 'spiral_dive' | 'supersonic_rush';
+  attackPattern?: 'patrol_line' | 'wingman_pair' | 'air_superiority' | 'tactical_sweep';
   patternTimer?: number;
   patternPhase?: number;
   flaresCooldown?: number;
   badgeShown?: boolean;
+  tilt?: number;
 }
 
 interface Projectile {
@@ -151,6 +152,12 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       tilt: 0,
       hp: 100,
     },
+    keys: {
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+    },
     mouse: {
       x: 350,
       y: 260,
@@ -204,11 +211,15 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           if (canvas) {
             stateRef.current.enemyJets.push({
               x: canvas.width + 60,
-              y: 120 + Math.random() * 120,
-              vx: -230,
-              vy: 8,
+              y: 150,
+              baseY: 150,
+              vx: -220,
+              vy: 0,
               hp: 25,
               destroyed: false,
+              attackPattern: 'patrol_line',
+              patternTimer: 0,
+              patternPhase: 0,
             });
           }
           return 0;
@@ -361,23 +372,45 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
 
     const updateMouse = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      const mx = (clientX - rect.left) * scaleX;
-      const my = (clientY - rect.top) * scaleY;
-      stateRef.current.mouse.x = Math.max(60, Math.min(canvas.width - 60, mx));
-      stateRef.current.mouse.y = Math.max(50, Math.min(420, my));
+      if (!rect.width || !rect.height) return;
+
+      // Handle letterboxing/pillarboxing caused by CSS object-contain
+      const canvasAspect = canvas.width / canvas.height;
+      const rectAspect = rect.width / rect.height;
+      let renderW = rect.width;
+      let renderH = rect.height;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (rectAspect > canvasAspect) {
+        // Pillarboxed: empty bands on left and right
+        renderW = rect.height * canvasAspect;
+        offsetX = (rect.width - renderW) / 2;
+      } else {
+        // Letterboxed: empty bands on top and bottom
+        renderH = rect.width / canvasAspect;
+        offsetY = (rect.height - renderH) / 2;
+      }
+
+      const scaleX = canvas.width / renderW;
+      const scaleY = canvas.height / renderH;
+      const mx = (clientX - rect.left - offsetX) * scaleX;
+      const my = (clientY - rect.top - offsetY) * scaleY;
+
+      // Full canvas reticle coverage: aim anywhere from sky to ground
+      stateRef.current.mouse.x = Math.max(0, Math.min(canvas.width, mx));
+      stateRef.current.mouse.y = Math.max(0, Math.min(canvas.height, my));
     };
 
     const handleMouseMove = (e: MouseEvent) => updateMouse(e.clientX, e.clientY);
 
-    // Keyboard Flight Controls (W/S/A/D and Arrows)
-    const keys = { up: false, down: false, left: false, right: false };
+    // Keyboard Flight Controls directly drive plane movement
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = true;
-      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
-      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
-      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+      const k = stateRef.current.keys;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') k.up = true;
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') k.down = true;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') k.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') k.right = true;
       if (e.key === ' ') {
         e.preventDefault();
         stateRef.current.mouse.isLeftDown = true;
@@ -388,10 +421,11 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = false;
-      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = false;
-      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
-      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+      const k = stateRef.current.keys;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') k.up = false;
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') k.down = false;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') k.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') k.right = false;
       if (e.key === ' ') stateRef.current.mouse.isLeftDown = false;
     };
 
@@ -566,17 +600,20 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
       if (e.touches.length > 0) {
         updateMouse(e.touches[0].clientX, e.touches[0].clientY);
         stateRef.current.mouse.isLeftDown = true;
       }
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
       stateRef.current.mouse.isLeftDown = false;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
       if (e.touches.length > 0) updateMouse(e.touches[0].clientX, e.touches[0].clientY);
     };
 
@@ -584,9 +621,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('contextmenu', handleContextMenu);
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: true });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     const loop = (currentTime: number) => {
       const dt = (currentTime - lastTime) / 1000;
@@ -604,146 +641,119 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
         state.screenShake = Math.max(0, state.screenShake - dt * 12);
       }
 
-      // Flight movement following keyboard and mouse smoothly
+      // Direct Mouse Flight Control: Plane stays exactly on mouse position in all directions
       const p = state.player;
       const m = state.mouse;
-
-      // Keyboard adjustments
-      if (keys.up) m.y = Math.max(50, m.y - 360 * dt);
-      if (keys.down) m.y = Math.min(420, m.y + 360 * dt);
-      if (keys.left) m.x = Math.max(80, m.x - 300 * dt);
-      if (keys.right) m.x = Math.min(canvas.width * 0.55, m.x + 300 * dt);
-
       const oldPx = p.x;
       const oldPy = p.y;
-      p.x += (Math.min(canvas.width * 0.55, m.x) - p.x) * 8 * dt;
-      p.y += (m.y - p.y) * 8 * dt;
+
+      // Full freedom of movement in all directions: up, down, left, right
+      const targetX = Math.max(50, Math.min(canvas.width - 60, m.x));
+      const targetY = Math.max(40, Math.min(canvas.height - 75, m.y));
+
+      // Ultra-responsive direct tracking so the plane stays exactly on the mouse
+      p.x += (targetX - p.x) * 35 * dt;
+      p.y += (targetY - p.y) * 35 * dt;
+      if (Math.hypot(targetX - p.x, targetY - p.y) < 2) {
+        p.x = targetX;
+        p.y = targetY;
+      }
+
       p.vx = dt > 0 ? (p.x - oldPx) / dt : 0;
       p.vy = dt > 0 ? (p.y - oldPy) / dt : 0;
-      p.tilt = Math.max(-0.25, Math.min(0.25, (m.y - p.y) * 0.006));
+      // Aerodynamic pitch tilt matching vertical speed
+      p.tilt = Math.max(-0.28, Math.min(0.28, (p.vy / 280) * 0.28));
 
-      // Calculate altitude and low altitude ground warning
+      // Calculate altitude and telemetry
       const groundFloorY = 465;
       const altMeters = Math.max(10, Math.round((groundFloorY - p.y) * 2.2));
       setPlayerAltitude(altMeters);
-
-      const isLow = p.y > 425;
-      setAltitudeWarning(isLow);
-
-      // Ground Impact Collision (ملامسة رمال سيناء والأرض)
-      if (p.y >= groundFloorY) {
-        p.y = groundFloorY - 10;
-        p.hp -= 35;
-        const remainingHp = Math.max(0, p.hp);
-        setHp(remainingHp);
-        state.screenShake = 1.8;
-        sound.playExplosion(1.2);
-        spawnExplosion(p.x, p.y + 12, '#f59e0b', 22, true);
-        addFloatingText(p.x, p.y - 20, '⚠️ ملامسة الأرض! -35', '#ef4444');
-
-        if (remainingHp <= 0 && !state.isComplete) {
-          state.isComplete = true;
-          setIsDefeated(true);
-          setDefeatReason('crash');
-          sound.playDefeatSound();
-          spawnExplosion(p.x, p.y, '#ef4444', 36, true);
-        }
-      }
+      setAltitudeWarning(false);
 
       state.scrollX += 150 * dt;
 
-      // Cannon shooting when LEFT MOUSE BUTTON or Spacebar is held
+      // Autocannon Fire Streams directly forward from MiG-21 twin guns
       const now = performance.now();
-      if (m.isLeftDown && now - state.lastShotTime > 180) {
+      if (m.isLeftDown && now - state.lastShotTime > 140) {
         state.lastShotTime = now;
         sound.playGunshot();
 
-        // Calculate aim vector from jet nose to mouse crosshair
-        const aimDx = m.x - (p.x + 36);
-        const aimDy = m.y - p.y;
-        const aimDist = Math.hypot(aimDx, aimDy) || 1;
-
-        // Auto-convergence towards nearby enemy aircraft in forward cone
-        let targetAngle = 0;
-        let bestDist = 550;
-        for (const jet of state.enemyJets) {
-          if (!jet.destroyed && jet.x > p.x + 20 && jet.x < p.x + 550) {
-            const jdy = jet.y - p.y;
-            if (Math.abs(jdy) < 130) {
-              const jdist = Math.hypot(jet.x - p.x, jdy);
-              if (jdist < bestDist) {
-                bestDist = jdist;
-                targetAngle = Math.atan2(jdy, jet.x - p.x);
-              }
-            }
-          }
-        }
-
-        let bulletVx = 950;
-        let bulletVy = 0;
-        if (targetAngle !== 0) {
-          bulletVx = Math.cos(targetAngle) * 950;
-          bulletVy = Math.sin(targetAngle) * 950;
-        } else if (aimDx > 30) {
-          bulletVx = (aimDx / aimDist) * 950;
-          bulletVy = (aimDy / aimDist) * 950;
-        } else {
-          bulletVy = 40;
-        }
-
-        // Twin-barrel heavy cannon shots
+        const bulletSpeed = 1100;
         state.projectiles.push({
-          x: p.x + 38,
-          y: p.y - 4,
-          vx: bulletVx,
-          vy: bulletVy,
+          x: p.x + 40,
+          y: p.y - 6,
+          vx: bulletSpeed,
+          vy: 0,
           isRocket: false,
           fromPlayer: true,
         });
         state.projectiles.push({
-          x: p.x + 38,
-          y: p.y + 4,
-          vx: bulletVx,
-          vy: bulletVy,
+          x: p.x + 40,
+          y: p.y + 6,
+          vx: bulletSpeed,
+          vy: 0,
           isRocket: false,
           fromPlayer: true,
         });
       }
 
-      // Spawn Enemy Interceptor Jets only after the 5-second countdown finishes
-      if (!state.isCountdown && Math.random() < 0.016 && state.enemyJets.length < 3) {
-        const patterns: ('dive_zoom' | 'scissors' | 'low_strafe' | 'pincer' | 'spiral_dive' | 'supersonic_rush')[] = [
-          'dive_zoom',
-          'scissors',
-          'low_strafe',
-          'pincer',
-          'spiral_dive',
-          'supersonic_rush',
+      // Spawn Enemy Interceptor Jets in disciplined formations strictly in the open sky (Y=90 to 220)
+      if (!state.isCountdown && Math.random() < 0.018 && state.enemyJets.length < 3) {
+        const patterns: ('patrol_line' | 'wingman_pair' | 'air_superiority' | 'tactical_sweep')[] = [
+          'patrol_line',
+          'wingman_pair',
+          'air_superiority',
+          'tactical_sweep',
         ];
         const chosenPattern = patterns[Math.floor(Math.random() * patterns.length)];
-        const spawnY =
-          chosenPattern === 'dive_zoom'
-            ? 70 + Math.random() * 40
-            : chosenPattern === 'low_strafe'
-            ? 390 + Math.random() * 25
-            : chosenPattern === 'spiral_dive'
-            ? 100 + Math.random() * 80
-            : chosenPattern === 'supersonic_rush'
-            ? 140 + Math.random() * 180
-            : 110 + Math.random() * 180;
 
-        state.enemyJets.push({
-          x: canvas.width + 50,
-          y: spawnY,
-          baseY: spawnY,
-          vx: chosenPattern === 'supersonic_rush' ? -350 : chosenPattern === 'dive_zoom' ? -270 : -(220 + Math.random() * 50),
-          vy: 0,
-          hp: 25,
-          destroyed: false,
-          attackPattern: chosenPattern,
-          patternTimer: 0,
-          patternPhase: 0,
-        });
+        if (chosenPattern === 'wingman_pair' && state.enemyJets.length <= 1) {
+          // Coordinated 2-plane echelon formation in the open sky
+          state.enemyJets.push({
+            x: canvas.width + 60,
+            y: 125,
+            baseY: 125,
+            vx: -240,
+            vy: 0,
+            hp: 25,
+            destroyed: false,
+            attackPattern: 'wingman_pair',
+            patternTimer: 0,
+            patternPhase: 0,
+          });
+          state.enemyJets.push({
+            x: canvas.width + 120,
+            y: 185,
+            baseY: 185,
+            vx: -240,
+            vy: 0,
+            hp: 25,
+            destroyed: false,
+            attackPattern: 'wingman_pair',
+            patternTimer: 0,
+            patternPhase: 1,
+          });
+        } else {
+          const spawnY =
+            chosenPattern === 'air_superiority'
+              ? 95 + Math.random() * 35      // High sky: 95 - 130
+              : chosenPattern === 'tactical_sweep'
+              ? 160 + Math.random() * 40     // Mid sky: 160 - 200
+              : 140 + Math.random() * 60;    // Level patrol: 140 - 200
+
+          state.enemyJets.push({
+            x: canvas.width + 60,
+            y: spawnY,
+            baseY: spawnY,
+            vx: chosenPattern === 'air_superiority' ? -260 : -230,
+            vy: 0,
+            hp: 25,
+            destroyed: false,
+            attackPattern: chosenPattern,
+            patternTimer: 0,
+            patternPhase: 0,
+          });
+        }
       }
 
       // Update Projectiles (with AUTO-HOMING ROCKETS)
@@ -1006,12 +1016,14 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       for (let j = state.enemyJets.length - 1; j >= 0; j--) {
         const jet = state.enemyJets[j];
         if (jet.destroyed) {
-          jet.y += 150 * dt;
-          jet.x += jet.vx * 0.4 * dt;
+          jet.y += 180 * dt;
+          jet.x += (jet.vx || -200) * 0.35 * dt;
+          jet.tilt = 0.55; // Nose down in fatal dive
 
-          // No massive smoke clouds while falling - clean view remains clear!
-          if (jet.y > canvas.height - 40) {
-            spawnPlaneHitEffect(jet.x, canvas.height - 25);
+          if (jet.y >= 440) {
+            spawnPlaneHitEffect(jet.x, 445);
+            spawnExplosion(jet.x, 445, '#f59e0b', 18, true);
+            sound.playExplosion(1.1);
             state.enemyJets.splice(j, 1);
           }
           continue;
@@ -1037,193 +1049,82 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           }
         }
 
-        // 1. Randomized Tactical Attack Patterns Execution
+        // 1. Disciplined Military Flight Formations (Strictly above ground in the open sky corridor)
         jet.patternTimer = (jet.patternTimer ?? 0) + dt;
         jet.patternPhase = jet.patternPhase ?? 0;
         jet.flaresCooldown = (jet.flaresCooldown ?? 0) - dt;
         jet.baseY = jet.baseY ?? jet.y;
 
-        const pattern = jet.attackPattern ?? 'pincer';
+        const pattern = jet.attackPattern ?? 'patrol_line';
 
         if (!jet.badgeShown) {
           jet.badgeShown = true;
           const badgeMap: Record<string, string> = {
-            dive_zoom: '⚡ انقضاض حاد وصعود خاطف!',
-            scissors: '✂️ مناورة مقصات متعرجة!',
-            low_strafe: '🏜️ كشط الكثبان بارتفاع منخفض!',
-            pincer: '🦅 تطويق اعتراض جوي!',
-            spiral_dive: '🌪️ مناورة هجومية حلزونية!',
-            supersonic_rush: '🚀 اندفاع أسرع من الصوت!',
+            patrol_line: '✈️ دورية اعتراض أفقية منتظمة',
+            wingman_pair: '👥 تشكيل ثنائي مقاتل منسق',
+            air_superiority: '🦅 سيادة جوية على ارتفاع شاهق',
+            tactical_sweep: '🔄 مسح تكتيكي متوازن في الأجواء',
           };
-          addFloatingText(jet.x, jet.y - 25, badgeMap[pattern] || 'اشتباك جوي!', '#38bdf8');
+          addFloatingText(jet.x, jet.y - 25, badgeMap[pattern] || 'مقاتلة معادية في الأجواء!', '#38bdf8');
         }
 
-        if (pattern === 'dive_zoom') {
-          // Boom & Zoom: High ingress, supersonic dive pass, zoom climb
-          if (jet.patternPhase === 0) {
-            jet.vy = (85 - jet.y) * 2.5;
-            if (jet.x < canvas.width - 60) {
-              jet.patternPhase = 1;
-              jet.vx = -320;
-            }
-          } else if (jet.patternPhase === 1) {
-            jet.vy = 210;
-            if (jet.y > p.y + 40 || jet.x < p.x + 100) {
-              jet.patternPhase = 2;
-            }
-          } else if (jet.patternPhase === 2) {
-            jet.vy = -220;
-            jet.vx = -240;
-            if (Math.random() < 0.25) {
-              state.particles.push({
-                x: jet.x + 22,
-                y: jet.y,
-                vx: 50,
-                vy: 20,
-                color: '#f59e0b',
-                life: 1,
-                maxLife: 10,
-                size: 3.5,
-              });
-            }
-          }
-        } else if (pattern === 'scissors') {
-          // Rolling Scissors: Sinusoidal tactical wave weave
-          const oscY = (jet.baseY ?? 220) + Math.sin(currentTime * 0.007 + j * 2.0) * 85;
-          const vyDiff = oscY - jet.y;
-          jet.vy += Math.sign(vyDiff) * Math.min(130, Math.abs(vyDiff) * 3.5) * dt;
-        } else if (pattern === 'low_strafe') {
-          // Sand Skimmer: Hug low dunes under radar, surprise pop-up missile
-          if (jet.x > p.x + 420 || jet.x < p.x + 180) {
-            jet.vy = (405 - jet.y) * 3.0;
-          } else {
-            jet.vy = (p.y - jet.y) * 3.5;
-          }
-        } else if (pattern === 'spiral_dive') {
-          // Helical 3D corkscrew roll and diving assault
-          const spiralAngle = currentTime * 0.009 + j * 1.5;
-          const targetSpiralY = (jet.baseY ?? 220) + Math.sin(spiralAngle) * 75;
-          jet.vy = (targetSpiralY - jet.y) * 4.0;
-          jet.vx = -260 + Math.cos(spiralAngle) * 55;
-          if (Math.random() < 0.28) {
-            state.particles.push({
-              x: jet.x + 20,
-              y: jet.y,
-              vx: 40,
-              vy: (Math.random() - 0.5) * 15,
-              color: '#cbd5e1',
-              life: 1,
-              maxLife: 14,
-              size: 3,
-              isSmoke: true,
-            });
-          }
-        } else if (pattern === 'supersonic_rush') {
-          // Supersonic Dash with Mach Cone and Rapid Salvo
-          if (jet.patternPhase === 0) {
-            jet.vx = -360;
-            jet.vy = (p.y - jet.y) * 2.6;
-            if (Math.random() < 0.45) {
-              state.particles.push({
-                x: jet.x + 24,
-                y: jet.y,
-                vx: 80,
-                vy: (Math.random() - 0.5) * 10,
-                color: '#f97316',
-                life: 1,
-                maxLife: 8,
-                size: 4,
-              });
-            }
-            if (jet.x < p.x + 160) {
-              jet.patternPhase = 1;
-            }
-          } else {
-            jet.vy = -240;
-            jet.vx = -230;
-          }
+        // Clean, structured flight mechanics without random twitching
+        if (pattern === 'patrol_line') {
+          // Horizontal steady patrol at set altitude with gentle aerodynamic float
+          const targetY = (jet.baseY ?? 150) + Math.sin(currentTime * 0.0018 + j) * 8;
+          jet.vy = (targetY - jet.y) * 3.0;
+          jet.vx = -225;
+        } else if (pattern === 'wingman_pair') {
+          // Disciplined echelon pair maintaining altitude and formation
+          const targetY = (jet.baseY ?? (jet.patternPhase === 0 ? 125 : 185)) + Math.sin(currentTime * 0.0015 + j) * 6;
+          jet.vy = (targetY - jet.y) * 3.0;
+          jet.vx = -240;
+        } else if (pattern === 'air_superiority') {
+          // High altitude interceptor staying high in the sky (Y=90 to 130)
+          const targetY = (jet.baseY ?? 105) + Math.sin(currentTime * 0.002 + j) * 10;
+          jet.vy = (targetY - jet.y) * 3.0;
+          jet.vx = -260;
         } else {
-          // Pincer / Standard Intercept: Direct altitude matching dogfight
-          const targetAlt = Math.max(70, Math.min(420, p.y + Math.sin(currentTime * 0.003 + j * 1.5) * 35));
-          const vyDiff = targetAlt - jet.y;
-          jet.vy += Math.sign(vyDiff) * Math.min(95, Math.abs(vyDiff) * 2.5) * dt;
+          // Tactical sweep: Predictable, gentle mid-sky wave (amplitude 22px, period ~3.5s)
+          const sweepY = (jet.baseY ?? 175) + Math.sin(currentTime * 0.0022 + j * 1.2) * 22;
+          jet.vy = (sweepY - jet.y) * 2.8;
+          jet.vx = -220;
         }
-        jet.vy = Math.max(-250, Math.min(250, jet.vy));
 
-        // 2. High-Response Reactive Evasion against Player Fire & Targeting
-        let evading = false;
-
-        // A. Evading Player Auto-Homing Rockets
+        // Defensive flares against homing rockets without erratic teleporting
         for (const pr of state.projectiles) {
           if (pr.fromPlayer && pr.isRocket) {
             const rdx = pr.x - jet.x;
             const rdy = pr.y - jet.y;
             const rDist = Math.hypot(rdx, rdy);
-            if (rdx < 0 && rDist < 270) {
-              evading = true;
-              // Hard break maneuver away from rocket trajectory
-              jet.vy = rdy > 0 ? -210 : 210;
-              jet.vx = Math.min(-300, jet.vx - 80 * dt);
-
-              // Deploy defensive decoy flares / chaff
-              if (jet.flaresCooldown <= 0) {
-                jet.flaresCooldown = 2.2;
-                for (let f = 0; f < 3; f++) {
-                  state.particles.push({
-                    x: jet.x + 15,
-                    y: jet.y + (Math.random() - 0.5) * 12,
-                    vx: 60 + Math.random() * 40,
-                    vy: (Math.random() - 0.5) * 50,
-                    life: 1,
-                    maxLife: 20,
-                    color: '#fef08a',
-                    size: 4,
-                  });
-                }
-                addFloatingText(jet.x, jet.y - 20, 'حراريات دفاعية! 💥', '#fef08a');
+            if (rdx < 0 && rDist < 250 && jet.flaresCooldown <= 0) {
+              jet.flaresCooldown = 3.5;
+              // Deploy defensive flares
+              for (let f = 0; f < 3; f++) {
+                state.particles.push({
+                  x: jet.x + 18,
+                  y: jet.y + (Math.random() - 0.5) * 10,
+                  vx: 60 + Math.random() * 30,
+                  vy: (Math.random() - 0.5) * 35,
+                  life: 1,
+                  maxLife: 22,
+                  color: '#fef08a',
+                  size: 4,
+                });
               }
+              addFloatingText(jet.x, jet.y - 20, 'حراريات دفاعية! 💥', '#fef08a');
               break;
             }
           }
         }
 
-        // B. Evading Player Rapid Cannon Fire Streams
-        if (!evading && m.isLeftDown) {
-          for (const pr of state.projectiles) {
-            if (pr.fromPlayer && !pr.isRocket && pr.vx > 0) {
-              const bdx = pr.x - jet.x;
-              const bdy = pr.y - jet.y;
-              if (bdx < 0 && bdx > -200 && Math.abs(bdy) < 60) {
-                // Juke immediately up or down
-                jet.vy = bdy > 0 ? -190 : 190;
-                // Evasive afterburner puff
-                if (Math.random() < 0.35) {
-                  state.particles.push({
-                    x: jet.x + 18,
-                    y: jet.y,
-                    vx: 45,
-                    vy: (Math.random() - 0.5) * 20,
-                    life: 1,
-                    maxLife: 12,
-                    color: '#38bdf8',
-                    size: 3,
-                  });
-                }
-                break;
-              }
-            }
-          }
-        }
-
-        // C. Evading Direct Player Gunsight Crosshair Lock
-        if (!evading && Math.hypot(m.x - jet.x, m.y - jet.y) < 85) {
-          jet.vy += (jet.y > m.y ? 150 : -150) * dt;
-          jet.vx -= 40 * dt;
-        }
-
+        // Apply smooth movement
         jet.x += jet.vx * dt;
         jet.y += jet.vy * dt;
-        jet.y = Math.max(55, Math.min(445, jet.y));
+
+        // STRICT CORRIDOR: Always stay well above ground (ground is at Y=410, living jets stay between 75 and 255)
+        jet.y = Math.max(75, Math.min(255, jet.y));
+        jet.tilt = Math.max(-0.25, Math.min(0.25, (jet.vy / 200) * 0.3));
 
         // 3. Intelligent Predictive Firing AI
         const distToPlayer = Math.hypot(jet.x - p.x, jet.y - p.y);
@@ -1261,18 +1162,18 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           // B. Predictive Autocannon Burst Firing (Deflection Shooting)
           if (distToPlayer < 800) {
             if (jet.burstRemaining > 0) {
-              const shotInterval = pattern === 'supersonic_rush' ? 70 : 90;
+              const shotInterval = pattern === 'air_superiority' ? 75 : 95;
               if (currentTime - jet.lastBurstTime >= shotInterval) {
                 jet.lastBurstTime = currentTime;
                 jet.burstRemaining--;
                 sound.playGunshot();
 
                 // Advanced lead calculation
-                const bulletSpeed = pattern === 'supersonic_rush' ? 700 : 640;
+                const bulletSpeed = pattern === 'air_superiority' ? 700 : 640;
                 const timeToTarget = distToPlayer / bulletSpeed;
                 // Predict where MiG-21 will be based on velocity
                 const predX = p.x + (p.vx || 0) * timeToTarget * 0.85;
-                const predY = Math.max(50, Math.min(450, p.y + (p.vy || 0) * timeToTarget * 0.85));
+                const predY = Math.max(70, Math.min(270, p.y + (p.vy || 0) * timeToTarget * 0.85));
 
                 const bdx = predX - (jet.x - 22);
                 const bdy = predY - jet.y;
@@ -1302,8 +1203,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
             } else if (jet.burstCooldown <= 0) {
               const angleToPlayer = Math.atan2(p.y - jet.y, p.x - jet.x);
               if (Math.abs(angleToPlayer - Math.PI) < 0.7 || Math.abs(angleToPlayer + Math.PI) < 0.7) {
-                jet.burstRemaining = pattern === 'supersonic_rush' ? 5 : 3;
-                jet.burstCooldown = pattern === 'supersonic_rush' ? 1.2 : (1.5 + Math.random() * 1.0);
+                jet.burstRemaining = pattern === 'air_superiority' ? 4 : 3;
+                jet.burstCooldown = pattern === 'air_superiority' ? 1.4 : (1.8 + Math.random() * 0.8);
                 jet.lastBurstTime = currentTime - 90;
               }
             }
@@ -1734,6 +1635,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
         ctx.save();
         ctx.translate(jet.x, jet.y);
         ctx.scale(-1, 1); // Facing left towards Egyptian player
+        if (jet.tilt) {
+          ctx.rotate(-jet.tilt); // Smooth aerodynamic banking
+        }
 
         if (jet.destroyed) {
           // Burning wreckage silhouette
@@ -2304,16 +2208,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       ctx.textAlign = 'center';
       ctx.fillText('رادار الكشف الميداني', radarX, radarY - radarRadius - 6);
 
-      // Aim Reticle
-      ctx.strokeStyle = m.isLeftDown ? '#22c55e' : '#38bdf8';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(m.x, m.y, 14, 0, Math.PI * 2);
-      ctx.moveTo(m.x - 18, m.y);
-      ctx.lineTo(m.x + 18, m.y);
-      ctx.moveTo(m.x, m.y - 18);
-      ctx.lineTo(m.x, m.y + 18);
-      ctx.stroke();
+
 
       ctx.restore();
 
@@ -2419,8 +2314,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
           <span className="font-bold text-amber-400">{currentAlert}</span>
         </div>
-        <div className="text-stone-400 font-mono text-[11px]">
-          صواريخ موجهة ذاتياً · كشف راداري مباشر
+        <div className="text-stone-300 font-bold text-[11px]">
+          ✈️ تحكم مباشر بحركة الفأرة في كل الاتجاهات · انقر باليسار لإطلاق المدافع · انقر باليمين للصواريخ
         </div>
       </div>
 
@@ -2430,7 +2325,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
+          className="w-full h-full max-w-full max-h-full object-contain cursor-none select-none"
         />
 
         {/* Digital Countdown Timer at the TOP */}
@@ -2461,6 +2356,21 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex items-center gap-2 px-4 py-2 rounded-full bg-red-950/95 border-2 border-red-500 text-red-300 text-xs sm:text-sm font-black shadow-[0_0_20px_rgba(239,68,68,0.7)] animate-pulse">
             <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 animate-bounce" />
             <span>⚠️ تحذير: اقتراب شديد من رمال الأرض! ارتفع للأعلى (PULL UP!)</span>
+          </div>
+        )}
+
+        {/* Mobile Rocket Button */}
+        {!missionWon && !isDefeated && isCombatActive && (
+          <div className="absolute bottom-4 right-4 z-30 sm:hidden select-none">
+            <button
+              type="button"
+              onTouchStart={(e) => { e.preventDefault(); fireRocket(); }}
+              disabled={rockets <= 0}
+              className="w-16 h-16 rounded-2xl bg-amber-500 active:bg-amber-400 disabled:opacity-40 text-stone-950 font-black flex flex-col items-center justify-center shadow-2xl border-2 border-amber-300 text-xs cursor-pointer"
+            >
+              <Zap className="w-5 h-5 mb-0.5" />
+              <span>صاروخ [{rockets}]</span>
+            </button>
           </div>
         )}
 

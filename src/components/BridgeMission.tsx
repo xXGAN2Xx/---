@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 
 interface BridgeMissionProps {
@@ -25,6 +25,7 @@ interface CrossingTank {
   y: number;
   speed: number;
   hp: number;
+  status: 'advancing' | 'waiting_strike' | 'cleared_crossing' | 'destroyed';
   crossingComplete: boolean;
 }
 
@@ -50,9 +51,7 @@ interface EnemyPlane {
   bombsLeft?: number;
   nextBombTime?: number;
   pattern?: 'carpet_bomb' | 'dive_strafing' | 'artillery_guide' | 'torpedo_skim' | 'high_altitude_cluster';
-  evasionCooldown?: number;
   badgeShown?: boolean;
-  phase?: number;
 }
 
 interface Shockwave {
@@ -91,16 +90,20 @@ interface FloatingText {
 export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const [pontoonsCount, setPontoonsCount] = useState(0);
   const [tanksCrossed, setTanksCrossed] = useState(0);
+  const [lostOpportunities, setLostOpportunities] = useState(0);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(120); // 2-minute timer
+  const [timeLeft, setTimeLeft] = useState(120); // 2-minute mission timer
   const [smokeScreenActive, setSmokeScreenActive] = useState(false);
   const [smokeCharges, setSmokeCharges] = useState(4);
-  const [flakCharges, setFlakCharges] = useState(15);
+  const [flakCharges, setFlakCharges] = useState(18);
   const [isWon, setIsWon] = useState(false);
   const [isDefeated, setIsDefeated] = useState(false);
-  const [bridgeIntegrity, setBridgeIntegrity] = useState(100);
+  const [strikeActive, setStrikeActive] = useState(false);
+  const [strikeCountdown, setStrikeCountdown] = useState(4.8);
+  const [maxStrikeTime, setMaxStrikeTime] = useState(4.8);
+  const [targetBridgeIndex, setTargetBridgeIndex] = useState(2);
+  const [defeatReason, setDefeatReason] = useState<'lost_tanks' | 'timeout'>('lost_tanks');
 
   const stateRef = useRef({
     pontoons: [] as PontoonSection[],
@@ -117,19 +120,18 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     score: 0,
     timeLeft: 120,
     tanksCrossedCount: 0,
+    lostOpportunities: 0,
     isComplete: false,
     smokeTimeRemaining: 0,
-    lastTankDeployTime: 0,
-    bridgeLocked: false,
+    strikeActive: false,
+    strikeCountdown: 4.8,
+    maxStrikeTime: 4.8,
+    targetBridgeIndex: 2,
+    bridgeLocked: true,
   });
 
-  // Initialize Pontoon bridge segments across the canal
+  // Initialize Pontoon bridge segments across the Suez Canal (x=230 to 770)
   useEffect(() => {
-    // Canvas: width 1000, height 560
-    // West Bank: x = 0 to 220
-    // Canal Water: x = 220 to 780 (width = 560px)
-    // East Bank (Sinai): x = 780 to 1000
-    // Bridge spans from x=220 to x=780 in 6 pontoon segments
     const bridgeY = 270;
     const startX = 230;
     const totalSpan = 540;
@@ -146,85 +148,11 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         height: 64,
         hp: 100,
         maxHp: 100,
-        assembled: false,
+        assembled: true,
       });
     }
     stateRef.current.pontoons = sections;
   }, []);
-
-  // 2-Minute Timer & Artillery Threat
-  useEffect(() => {
-    if (isWon) return;
-
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        const next = prev - 1;
-        stateRef.current.timeLeft = next;
-
-        // Auto victory if 2 minutes elapse
-        if (next <= 0 && !stateRef.current.isComplete) {
-          stateRef.current.isComplete = true;
-          setIsWon(true);
-          sound.playVictoryFanfare();
-          return 0;
-        }
-
-        // Spawn periodic artillery strikes (distracted if smoke screen active!)
-        if (Math.random() < (stateRef.current.smokeTimeRemaining > 0 ? 0.2 : 0.65)) {
-          const targetSection = stateRef.current.pontoons[Math.floor(Math.random() * stateRef.current.pontoons.length)];
-          if (targetSection) {
-            const spread = stateRef.current.smokeTimeRemaining > 0 ? 120 : 30;
-            stateRef.current.artilleryShells.push({
-              x: 850 + Math.random() * 100,
-              y: 50 + Math.random() * 80,
-              targetX: targetSection.x + targetSection.width / 2 + (Math.random() - 0.5) * spread,
-              targetY: targetSection.y + targetSection.height / 2 + (Math.random() - 0.5) * spread,
-              progress: 0,
-              speed: 1.1 + Math.random() * 0.4,
-            });
-          }
-        }
-
-        // Spawn enemy strike plane occasionally with randomized attack patterns
-        if (Math.random() < 0.25 && stateRef.current.enemyPlanes.length < 2) {
-          const patterns: ('carpet_bomb' | 'dive_strafing' | 'artillery_guide' | 'torpedo_skim' | 'high_altitude_cluster')[] = [
-            'carpet_bomb',
-            'dive_strafing',
-            'artillery_guide',
-            'torpedo_skim',
-            'high_altitude_cluster',
-          ];
-          const chosenPattern = patterns[Math.floor(Math.random() * patterns.length)];
-          const spawnY =
-            chosenPattern === 'dive_strafing'
-              ? 140
-              : chosenPattern === 'torpedo_skim'
-              ? 180
-              : chosenPattern === 'high_altitude_cluster'
-              ? 55
-              : 75 + Math.random() * 85;
-
-          stateRef.current.enemyPlanes.push({
-            x: 1050,
-            y: spawnY,
-            baseY: spawnY,
-            vx: chosenPattern === 'dive_strafing' ? -270 : chosenPattern === 'torpedo_skim' ? -290 : -220,
-            vy: 0,
-            hp: 30,
-            destroyed: false,
-            pattern: chosenPattern,
-            bombsLeft: chosenPattern === 'carpet_bomb' ? 2 : chosenPattern === 'high_altitude_cluster' ? 3 : 1,
-            nextBombTime: 0,
-            phase: 0,
-          });
-        }
-
-        return next;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isWon]);
 
   const addFloatingText = (x: number, y: number, text: string, color = '#facc15') => {
     stateRef.current.floatingTexts.push({
@@ -238,27 +166,26 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     });
   };
 
-  const spawnExplosion = (x: number, y: number, color = '#f59e0b', count = 16, isMajor = false, isWater = false) => {
-    sound.playExplosion(isMajor ? 1.2 : 0.7);
-    stateRef.current.screenShake = isMajor ? 2.2 : 1.1;
+  const spawnExplosion = (x: number, y: number, color = '#f59e0b', count = 18, isMajor = false, isWater = false) => {
+    sound.playExplosion(isMajor ? 1.3 : 0.8);
+    stateRef.current.screenShake = isMajor ? 2.5 : 1.2;
 
-    // 1. Instant Flash Shockwave
+    // Flash Shockwave
     stateRef.current.shockwaves.push({
       x,
       y,
       radius: 8,
-      maxRadius: isMajor ? 90 : 50,
+      maxRadius: isMajor ? 95 : 55,
       alpha: 1.0,
       color: isWater ? '#38bdf8' : isMajor ? '#ffffff' : '#fef08a',
     });
 
     if (isWater) {
-      // Water geyser plume
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 22; i++) {
         stateRef.current.particles.push({
           x: x + (Math.random() - 0.5) * 20,
           y,
-          vx: (Math.random() - 0.5) * 12,
+          vx: (Math.random() - 0.5) * 14,
           vy: -60 - Math.random() * 70,
           life: 1,
           maxLife: 35,
@@ -270,8 +197,8 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
       return;
     }
 
-    // 2. Dense Billowing Black Smoke
-    const smokeCount = isMajor ? 26 : 14;
+    // Dense Smoke
+    const smokeCount = isMajor ? 24 : 12;
     const smokeTones = ['#18181b', '#27272a', '#3f3f46', '#09090b'];
     for (let i = 0; i < smokeCount; i++) {
       const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.8;
@@ -290,7 +217,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
       });
     }
 
-    // 3. Fire and Embers
+    // Fire and Embers
     const fireColors = ['#ffffff', '#fef08a', '#f59e0b', '#ef4444', '#f97316'];
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -306,79 +233,74 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         size: Math.random() * 4 + 2,
       });
     }
-
-    // 4. Shrapnel
-    const shrapnelCount = isMajor ? 12 : 5;
-    for (let i = 0; i < shrapnelCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const spd = Math.random() * 5 + 1.5;
-      stateRef.current.particles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * spd,
-        vy: Math.sin(angle) * spd - 2,
-        color: '#fbbf24',
-        life: 1,
-        maxLife: 30 + Math.random() * 20,
-        size: Math.random() * 3 + 1.5,
-        gravity: 190,
-      });
-    }
   };
 
-  // Build Next Pontoon Section
-  const handleAssembleNextPontoon = () => {
+  // Deploy Tank from West Bank approach
+  const handleDeployTank = () => {
     const state = stateRef.current;
-    const nextUnassembled = state.pontoons.find((p) => !p.assembled);
-    if (!nextUnassembled) return;
+    if (state.crossingTanks.some((t) => t.status === 'advancing' || t.status === 'waiting_strike')) {
+      return;
+    }
 
+    sound.playCannon();
+    state.crossingTanks.push({
+      id: Date.now() + Math.random(),
+      x: 60,
+      y: 282,
+      speed: 95,
+      hp: 100,
+      status: 'advancing',
+      crossingComplete: false,
+    });
+
+    addFloatingText(80, 250, 'انطلاق دبابة T-62 نحو معبر القناة! 🚜', '#fbbf24');
+  };
+
+  // Execute the Precision Timing Strike on the targeted bridge section
+  const handleExecutePrecisionStrike = () => {
+    const state = stateRef.current;
+    if (!state.strikeActive) return;
+
+    const targetPontoon = state.pontoons[state.targetBridgeIndex];
+    if (!targetPontoon) return;
+
+    sound.playExplosion(1.4);
     sound.playTargetLock();
-    nextUnassembled.assembled = true;
-    nextUnassembled.hp = 100;
-    state.score += 400;
+    state.screenShake = 2.5;
+
+    // Precision blast destroys obstacle and opens crossing window
+    spawnExplosion(targetPontoon.x + targetPontoon.width / 2, targetPontoon.y + 25, '#f59e0b', 30, true);
+
+    addFloatingText(
+      targetPontoon.x + targetPontoon.width / 2,
+      targetPontoon.y - 35,
+      '💥 ضربة دقيقة في التوقيت الحاسم! انطلاق الدبابة عبر الكوبري!',
+      '#4ade80'
+    );
+
+    // Cleared! Waiting tank surges forward across the canal into Sinai
+    const tank = state.crossingTanks.find((t) => t.status === 'waiting_strike');
+    if (tank) {
+      tank.status = 'cleared_crossing';
+      tank.speed = 150;
+      sound.playCannon();
+    }
+
+    state.strikeActive = false;
+    setStrikeActive(false);
+    state.score += 500;
     setScore(state.score);
-
-    const assembledCount = state.pontoons.filter((p) => p.assembled).length;
-    setPontoonsCount(assembledCount);
-
-    addFloatingText(nextUnassembled.x + 40, nextUnassembled.y - 30, `+400 تثبيت بنتون كوبري ${assembledCount}/6! ⚓`, '#38bdf8');
-
-    // Check if whole bridge is complete
-    if (assembledCount === 6) {
-      state.bridgeLocked = true;
-      sound.playVictoryFanfare();
-      addFloatingText(500, 200, '🌟 اكتمل الجسر بالكامل! انطلاق أرتال الدبابات! 🌟', '#4ade80');
-      // Auto-deploy first tank immediately
-      handleDeployTank();
-    }
   };
 
-  // Repair Damaged Pontoons
-  const handleRepairBridge = () => {
-    const state = stateRef.current;
-    let repairedAny = false;
-    for (const p of state.pontoons) {
-      if (p.assembled && p.hp < 100) {
-        p.hp = 100;
-        repairedAny = true;
-      }
-    }
-    if (repairedAny) {
-      sound.playHitSound();
-      addFloatingText(500, 250, 'تم ترميم أجزاء الكوبري بنجاح 🛠️', '#4ade80');
-    }
-  };
-
-  // Deploy Smoke Screen
+  // Deploy Smoke Screen to blind enemy spotters
   const handleDeploySmokeScreen = () => {
     if (smokeCharges <= 0) return;
     setSmokeCharges((prev) => prev - 1);
     setSmokeScreenActive(true);
-    stateRef.current.smokeTimeRemaining = 12; // 12 seconds
+    stateRef.current.smokeTimeRemaining = 12;
     sound.playMissileLaunch();
     addFloatingText(500, 240, 'ستارة دخان تكتيكية نشطة! تعمية مدفعية العدو 💨', '#e2e8f0');
 
-    // Create massive smoke clouds across canal
     for (let i = 0; i < 40; i++) {
       stateRef.current.particles.push({
         x: 230 + Math.random() * 540,
@@ -395,7 +317,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     }
   };
 
-  // Fire Anti-Aircraft Flak Gun
+  // Fire Anti-Aircraft Flak Gun at enemy planes or falling bombs
   const handleFireFlak = (targetX?: number, targetY?: number) => {
     if (flakCharges <= 0) return;
     setFlakCharges((prev) => prev - 1);
@@ -406,7 +328,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
     spawnExplosion(tx, ty, '#f59e0b', 12, false, false);
 
-    // Check hit on enemy planes
+    // Hit enemy planes
     for (const plane of stateRef.current.enemyPlanes) {
       if (plane.destroyed) continue;
       const flakDist = Math.hypot(plane.x - tx, plane.y - ty);
@@ -419,27 +341,12 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
           spawnExplosion(plane.x, plane.y, '#ef4444', 28, true);
           stateRef.current.score += 800;
           setScore(stateRef.current.score);
-          addFloatingText(plane.x, plane.y - 20, '+800 إسقاط طائرة معادية بمدافع م/ط! 🎯', '#38bdf8');
+          addFloatingText(plane.x, plane.y - 20, '+800 إسقاط فانتوم بمدافع م/ط! 🎯', '#38bdf8');
         }
-      } else if (flakDist < 160) {
-        // Reactive evasion juke away from exploding flak
-        plane.y += plane.y > ty ? 45 : -45;
-        plane.y = Math.max(50, Math.min(220, plane.y));
-        stateRef.current.particles.push({
-          x: plane.x + 18,
-          y: plane.y,
-          vx: 35,
-          vy: (Math.random() - 0.5) * 35,
-          color: '#fef08a',
-          life: 1,
-          maxLife: 15,
-          size: 3.5,
-        });
-        addFloatingText(plane.x, plane.y - 20, 'مناورة تفادي معادية! 💨', '#fef08a');
       }
     }
 
-    // Check hit on hostile aerial bombs
+    // Hit falling aerial bombs
     for (let b = stateRef.current.hostileBombs.length - 1; b >= 0; b--) {
       const bomb = stateRef.current.hostileBombs[b];
       if (Math.hypot(bomb.x - tx, bomb.y - ty) < 65) {
@@ -453,29 +360,77 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     }
   };
 
-  // Deploy Tank across the bridge
-  const handleDeployTank = () => {
-    const state = stateRef.current;
-    if (!state.bridgeLocked) return;
+  // 2-Minute Timer & Artillery Threat
+  useEffect(() => {
+    if (isWon || isDefeated) return;
 
-    const now = performance.now();
-    if (now - state.lastTankDeployTime < 1800) return;
-    state.lastTankDeployTime = now;
+    // Start with the first tank arriving shortly
+    const deployTimeout = setTimeout(() => {
+      handleDeployTank();
+    }, 700);
 
-    sound.playCannon();
-    state.crossingTanks.push({
-      id: Date.now() + Math.random(),
-      x: 180,
-      y: 282,
-      speed: 130,
-      hp: 100,
-      crossingComplete: false,
-    });
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        const next = prev - 1;
+        stateRef.current.timeLeft = next;
 
-    addFloatingText(190, 260, 'دبابة T-62 تعبر الجسر! 🚜', '#fbbf24');
-  };
+        // Auto victory if 2 minutes elapse and at least some tanks crossed
+        if (next <= 0 && !stateRef.current.isComplete) {
+          stateRef.current.isComplete = true;
+          if (stateRef.current.tanksCrossedCount >= 3) {
+            setIsWon(true);
+            sound.playVictoryFanfare();
+          } else {
+            setDefeatReason('timeout');
+            setIsDefeated(true);
+            sound.playDefeatSound();
+          }
+          return 0;
+        }
 
-  // Main Canvas Loop
+        // Periodic background artillery harassment
+        if (Math.random() < (stateRef.current.smokeTimeRemaining > 0 ? 0.2 : 0.6)) {
+          const targetSection = stateRef.current.pontoons[Math.floor(Math.random() * stateRef.current.pontoons.length)];
+          if (targetSection) {
+            const spread = stateRef.current.smokeTimeRemaining > 0 ? 120 : 35;
+            stateRef.current.artilleryShells.push({
+              x: 850 + Math.random() * 100,
+              y: 50 + Math.random() * 80,
+              targetX: targetSection.x + targetSection.width / 2 + (Math.random() - 0.5) * spread,
+              targetY: targetSection.y + targetSection.height / 2 + (Math.random() - 0.5) * spread,
+              progress: 0,
+              speed: 1.1 + Math.random() * 0.4,
+            });
+          }
+        }
+
+        // Periodic enemy fighter jets
+        if (Math.random() < 0.28 && stateRef.current.enemyPlanes.length < 2) {
+          const spawnY = 70 + Math.random() * 90;
+          stateRef.current.enemyPlanes.push({
+            x: 1050,
+            y: spawnY,
+            baseY: spawnY,
+            vx: -240,
+            vy: 0,
+            hp: 30,
+            destroyed: false,
+            bombsLeft: 1,
+            nextBombTime: 0,
+          });
+        }
+
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      clearTimeout(deployTimeout);
+      clearInterval(timer);
+    };
+  }, [isWon, isDefeated]);
+
+  // Main Canvas & Precision Timing Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -485,35 +440,87 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     let animId: number;
     let lastTime = performance.now();
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerAction = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      stateRef.current.mousePos.x = (e.clientX - rect.left) * scaleX;
-      stateRef.current.mousePos.y = (e.clientY - rect.top) * scaleY;
+      const mx = (clientX - rect.left) * scaleX;
+      const my = (clientY - rect.top) * scaleY;
+      stateRef.current.mousePos.x = mx;
+      stateRef.current.mousePos.y = my;
+
+      // 1. If Precision Strike is active and player clicks on/near the bridge target or clicks bridge area:
+      if (stateRef.current.strikeActive) {
+        const targetPontoon = stateRef.current.pontoons[stateRef.current.targetBridgeIndex];
+        if (targetPontoon) {
+          // If clicked near target pontoon or anywhere on the bridge waterway during strike window
+          if (Math.abs(my - 300) < 100 && mx >= 190 && mx <= 800) {
+            handleExecutePrecisionStrike();
+            return;
+          }
+        }
+      }
+
+      // 2. Click in the sky -> Fire Anti-Aircraft Flak
+      if (my < 220) {
+        handleFireFlak(mx, my);
+        return;
+      }
+
+      // 3. Otherwise, if strike is active, execute strike as well
+      if (stateRef.current.strikeActive) {
+        handleExecutePrecisionStrike();
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      stateRef.current.mousePos.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      stateRef.current.mousePos.y = (e.clientY - rect.top) * (canvas.height / rect.height);
     };
 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
-        // If clicking in the sky, fire flak gun; if clicking in water/bridge, interact
-        if (stateRef.current.mousePos.y < 200) {
-          handleFireFlak();
+        handlePointerAction(e.clientX, e.clientY);
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        handlePointerAction(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) {
+        const rect = canvas.getBoundingClientRect();
+        stateRef.current.mousePos.x = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+        stateRef.current.mousePos.y = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        if (stateRef.current.strikeActive) {
+          handleExecutePrecisionStrike();
         } else {
-          // If bridge not fully built, assemble next pontoon!
-          if (!stateRef.current.bridgeLocked) {
-            handleAssembleNextPontoon();
-          } else {
-            handleDeployTank();
-          }
+          handleFireFlak();
         }
       }
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
 
     const loop = (currTime: number) => {
-      const dt = (currTime - lastTime) / 1000;
+      const dt = Math.min(0.1, (currTime - lastTime) / 1000);
       lastTime = currTime;
 
       const state = stateRef.current;
@@ -526,7 +533,6 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         state.screenShake = Math.max(0, state.screenShake - dt * 14);
       }
 
-      // Update smoke duration
       if (state.smokeTimeRemaining > 0) {
         state.smokeTimeRemaining -= dt;
         if (state.smokeTimeRemaining <= 0) {
@@ -534,7 +540,110 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         }
       }
 
-      // Update Artillery Shells
+      // 1. Tank Movement & Triggering Precision Strike Window
+      for (const tk of state.crossingTanks) {
+        if (tk.status === 'advancing') {
+          tk.x += tk.speed * dt;
+
+          // Reached bridge entrance (x = 210): HALT and open Precision Strike Countdown!
+          if (tk.x >= 210) {
+            tk.x = 210;
+            tk.status = 'waiting_strike';
+            tk.speed = 0;
+
+            // Open Precision Strike Window!
+            state.strikeActive = true;
+            // Escalating difficulty: countdown duration shrinks with each crossed tank!
+            // Tank 1: 4.8s -> Tank 2: 4.0s -> Tank 3: 3.4s -> Tank 4: 2.9s -> Tank 5: 2.4s
+            const strikeDuration = Math.max(2.3, 4.8 - state.tanksCrossedCount * 0.6);
+            state.strikeCountdown = strikeDuration;
+            state.maxStrikeTime = strikeDuration;
+            state.targetBridgeIndex = 1 + Math.floor(Math.random() * 4); // Section index 1 to 4
+            setStrikeActive(true);
+            setStrikeCountdown(strikeDuration);
+            setMaxStrikeTime(strikeDuration);
+            setTargetBridgeIndex(state.targetBridgeIndex);
+
+            sound.playMissionStartRadioAlert();
+            addFloatingText(210, 240, '⚡ فرصة العبور بدأت! نفّذ الضربة الدقيقة على المعبر!', '#facc15');
+          }
+        } else if (tk.status === 'cleared_crossing') {
+          tk.x += tk.speed * dt;
+
+          // Reached Sinai Eastern Bank! (x >= 820)
+          if (tk.x >= 820 && !tk.crossingComplete) {
+            tk.crossingComplete = true;
+            state.tanksCrossedCount++;
+            state.score += 1500;
+            setScore(state.score);
+            setTanksCrossed(state.tanksCrossedCount);
+            sound.playMissionStartRadioAlert();
+            addFloatingText(tk.x, tk.y - 30, `+1500 عبور ناجح للدبابة ${state.tanksCrossedCount}/5 إلى سيناء! 🚜🇪🇬`, '#4ade80');
+
+            // VICTORY CONDITION: 5 tanks successfully crossed!
+            if (state.tanksCrossedCount >= 5 && !state.isComplete) {
+              state.isComplete = true;
+              state.score += state.timeLeft * 35;
+              setScore(state.score);
+              setIsWon(true);
+              sound.playVictoryFanfare();
+            } else {
+              // Deploy next tank after 1.8 seconds
+              setTimeout(() => {
+                if (!stateRef.current.isComplete) {
+                  handleDeployTank();
+                }
+              }, 1800);
+            }
+          }
+        }
+      }
+
+      // 2. Active Precision Strike Countdown Tick
+      if (state.strikeActive) {
+        state.strikeCountdown -= dt;
+        setStrikeCountdown(Math.max(0, state.strikeCountdown));
+
+        // Urgent audio beeps when under 1.6s
+        if (state.strikeCountdown < 1.6 && Math.random() < 0.08) {
+          sound.playCountdownBeep(false);
+        }
+
+        // TIMEOUT: Opportunity Lost! (ضياع فرصة عبور الدبابة)
+        if (state.strikeCountdown <= 0) {
+          state.strikeActive = false;
+          setStrikeActive(false);
+
+          const stalledTank = state.crossingTanks.find((t) => t.status === 'waiting_strike');
+          if (stalledTank) {
+            stalledTank.status = 'destroyed';
+            spawnExplosion(stalledTank.x, stalledTank.y, '#ef4444', 30, true);
+            sound.playExplosion(1.3);
+            sound.playDefeatSound();
+
+            state.lostOpportunities++;
+            setLostOpportunities(state.lostOpportunities);
+            addFloatingText(stalledTank.x, 240, '⚠️ ضاعت فرصة العبور! دُمّرت الدبابة بالقصف!', '#ef4444');
+
+            // 3 lost opportunities = Mission Failed!
+            if (state.lostOpportunities >= 3 && !state.isComplete) {
+              state.isComplete = true;
+              setDefeatReason('lost_tanks');
+              setIsDefeated(true);
+              sound.playDefeatSound();
+            } else {
+              // Deploy another tank after 2.2s to try again
+              setTimeout(() => {
+                if (!stateRef.current.isComplete) {
+                  handleDeployTank();
+                }
+              }, 2200);
+            }
+          }
+        }
+      }
+
+      // 3. Update Artillery Shells
       for (let i = state.artilleryShells.length - 1; i >= 0; i--) {
         const sh = state.artilleryShells[i];
         sh.progress += sh.speed * dt;
@@ -542,43 +651,22 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         sh.y += (sh.targetY - sh.y) * 2.5 * dt;
 
         if (sh.progress >= 1.0) {
-          // Shell impacts!
           const hitWater = sh.targetY < 250 || sh.targetY > 340 || sh.targetX < 230 || sh.targetX > 770;
           if (hitWater) {
             spawnExplosion(sh.targetX, sh.targetY, '#38bdf8', 12, false, true);
           } else {
-            // Hit pontoon or bridge
-            spawnExplosion(sh.targetX, sh.targetY, '#f97316', 22, true, false);
-            for (const p of state.pontoons) {
-              if (p.assembled && sh.targetX >= p.x && sh.targetX <= p.x + p.width) {
-                p.hp = Math.max(20, p.hp - 25);
-              }
-            }
+            spawnExplosion(sh.targetX, sh.targetY, '#f97316', 20, false, false);
           }
           state.artilleryShells.splice(i, 1);
         }
       }
 
-      // Update Enemy Planes & Hostile Airstrike AI
+      // 4. Update Enemy Strike Planes & Bombs
       for (let j = state.enemyPlanes.length - 1; j >= 0; j--) {
         const pl = state.enemyPlanes[j];
         if (pl.destroyed) {
           pl.y += 140 * dt;
           pl.x += pl.vx * 0.5 * dt;
-          if (Math.random() < 0.5) {
-            state.particles.push({
-              x: pl.x,
-              y: pl.y,
-              vx: (Math.random() - 0.5) * 12,
-              vy: -20 - Math.random() * 15,
-              color: '#18181b',
-              life: 1,
-              maxLife: 35,
-              size: Math.random() * 6 + 4,
-              isSmoke: true,
-              growth: 0.35,
-            });
-          }
           if (pl.y > canvas.height - 60) {
             spawnExplosion(pl.x, pl.y, '#f59e0b', 24, true);
             state.enemyPlanes.splice(j, 1);
@@ -588,452 +676,179 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
         pl.x += pl.vx * dt;
 
-        // Tactical Airstrike AI: Randomized Attack Patterns & Evasion
-        pl.strafeCooldown = (pl.strafeCooldown ?? (0.8 + Math.random() * 0.6)) - dt;
-        const pattern = pl.pattern ?? 'dive_strafing';
-
-        if (!pl.badgeShown) {
-          pl.badgeShown = true;
-          const badgeMap: Record<string, string> = {
-            carpet_bomb: '⚠️ غارة قصف سجادي متتابع!',
-            dive_strafing: '⚠️ انقضاض رشاشات على الجسر!',
-            artillery_guide: '📡 استطلاع جوي: توجيه مدفعي!',
-            torpedo_skim: '⚠️ غارة كشط مائي منخفض!',
-            high_altitude_cluster: '⚠️ قصف عنقودي عالي الارتفاع!',
-          };
-          addFloatingText(pl.x, pl.y - 25, badgeMap[pattern] || 'غارة جوية معادية!', '#f59e0b');
-        }
-
-        // Reactive Evasion against player anti-air gunsight cursor lock
-        const mouseDist = Math.hypot(state.mousePos.x - pl.x, state.mousePos.y - pl.y);
-        if (mouseDist < 100) {
-          pl.y += (pl.y > state.mousePos.y ? 90 : -90) * dt;
-          pl.y = Math.max(45, Math.min(230, pl.y));
-        }
-
-        if (pattern === 'dive_strafing') {
-          // Low diving pass with rapid strafe
-          if (pl.x > 400 && pl.x < 780) {
-            pl.y += (135 - pl.y) * 3.0 * dt;
-          } else {
-            pl.y += (75 - pl.y) * 2.5 * dt;
-          }
-        } else if (pattern === 'torpedo_skim') {
-          // Water-skimming torpedo run
-          if (pl.x > 420 && pl.x < 800) {
-            pl.y += (170 - pl.y) * 3.5 * dt;
-          } else if (pl.x <= 420) {
-            // Zoom climb escape
-            pl.y += (60 - pl.y) * 3.0 * dt;
-          }
-        } else if (pattern === 'high_altitude_cluster') {
-          // Hug top altitude
-          pl.y += (55 - pl.y) * 2.5 * dt;
-        }
-
-        if (pl.x > 200 && pl.x < 850) {
-          // 1. Strafing Run: target crossing tanks or bridge deck
-          if (pl.strafeCooldown <= 0) {
-            pl.strafeCooldown = pattern === 'dive_strafing' ? 0.55 : 0.85 + Math.random() * 0.7;
-            sound.playGunshot();
-
-            const targetTank = state.crossingTanks.find((t) => !t.crossingComplete);
-            const targetX = targetTank ? targetTank.x + 15 : pl.x - 120;
-            const targetY = 300;
-
-            const tdx = targetX - (pl.x - 20);
-            const tdy = targetY - pl.y;
-            const tdist = Math.hypot(tdx, tdy) || 1;
-            const bSpeed = 490;
-
-            state.hostileBullets.push({
-              x: pl.x - 20,
-              y: pl.y + 6,
-              vx: (tdx / tdist) * bSpeed,
-              vy: (tdy / tdist) * bSpeed,
-            });
-
-            // Muzzle flash particle
-            state.particles.push({
-              x: pl.x - 24,
-              y: pl.y + 6,
-              vx: -30,
-              vy: 10,
-              color: '#fef08a',
-              life: 1,
-              maxLife: 8,
-              size: 4,
-            });
-          }
-
-          // 2. Aerial Bombing: Carpet, Torpedo, Cluster, Artillery Guide, Single
-          if (pattern === 'carpet_bomb') {
-            if ((pl.bombsLeft ?? 0) > 0 && currTime > (pl.nextBombTime ?? 0) && pl.x > 380 && pl.x < 680) {
-              pl.bombsLeft = (pl.bombsLeft ?? 2) - 1;
-              pl.nextBombTime = currTime + 420;
-              sound.playMissileLaunch();
-              state.hostileBombs.push({
-                x: pl.x,
-                y: pl.y + 12,
-                vx: pl.vx * 0.4,
-                vy: 95,
-                targetX: pl.x - 50,
-                targetY: 305,
-              });
-              addFloatingText(pl.x, pl.y - 20, '⚠️ قصف جوي عنقودي متتابع!', '#ef4444');
-            }
-          } else if (pattern === 'high_altitude_cluster') {
-            if ((pl.bombsLeft ?? 0) > 0 && currTime > (pl.nextBombTime ?? 0) && pl.x > 350 && pl.x < 750) {
-              pl.bombsLeft = (pl.bombsLeft ?? 3) - 1;
-              pl.nextBombTime = currTime + 320;
-              sound.playMissileLaunch();
-              const spreadOffset = (Math.random() - 0.5) * 80;
-              state.hostileBombs.push({
-                x: pl.x,
-                y: pl.y + 10,
-                vx: pl.vx * 0.35,
-                vy: 110,
-                targetX: pl.x - 60 + spreadOffset,
-                targetY: 305,
-              });
-            }
-          } else if (pattern === 'torpedo_skim') {
-            if (!pl.bombDropped && pl.x > 450 && pl.x < 600) {
-              pl.bombDropped = true;
-              sound.playMissileLaunch();
-              state.hostileBombs.push({
-                x: pl.x,
-                y: pl.y + 14,
-                vx: pl.vx * 0.6,
-                vy: 75,
-                targetX: 520,
-                targetY: 305,
-              });
-              addFloatingText(pl.x, pl.y - 20, '⚠️ إطلاق قنبلة انزلاقية على المعبر!', '#ef4444');
-            }
-          } else if (pattern === 'artillery_guide') {
-            if (!pl.bombDropped && pl.x > 500 && pl.x < 700) {
-              pl.bombDropped = true;
-              sound.playRadioClick();
-              addFloatingText(pl.x, pl.y - 20, '📡 استطلاع جوي: توجيه مدفعية العدو!', '#f59e0b');
-
-              // Trigger 2 coordinated artillery shells
-              for (let s = 0; s < 2; s++) {
-                const targetSec = state.pontoons[Math.floor(Math.random() * state.pontoons.length)];
-                if (targetSec) {
-                  state.artilleryShells.push({
-                    x: 880 + s * 40,
-                    y: 60,
-                    targetX: targetSec.x + targetSec.width / 2,
-                    targetY: targetSec.y + targetSec.height / 2,
-                    progress: 0,
-                    speed: 1.35,
-                  });
-                }
-              }
-            }
-          } else {
-            // Single precision bomb
-            if (!pl.bombDropped && pl.x > 460 && pl.x < 620) {
-              pl.bombDropped = true;
-              sound.playMissileLaunch();
-              state.hostileBombs.push({
-                x: pl.x,
-                y: pl.y + 12,
-                vx: pl.vx * 0.45,
-                vy: 90,
-                targetX: pl.x - 60,
-                targetY: 305,
-              });
-              addFloatingText(pl.x, pl.y - 20, '⚠️ إلقاء قنبلة جوية على الجسر!', '#ef4444');
-            }
-          }
+        // Drop aerial bomb over bridge
+        if (!pl.bombDropped && pl.x > 450 && pl.x < 650) {
+          pl.bombDropped = true;
+          sound.playMissileLaunch();
+          state.hostileBombs.push({
+            x: pl.x,
+            y: pl.y + 12,
+            vx: pl.vx * 0.4,
+            vy: 90,
+            targetX: pl.x - 50,
+            targetY: 305,
+          });
         }
 
         if (pl.x < -60) state.enemyPlanes.splice(j, 1);
       }
 
-      // Update Hostile Plane Bullets
-      for (let b = state.hostileBullets.length - 1; b >= 0; b--) {
-        const hb = state.hostileBullets[b];
-        hb.x += hb.vx * dt;
-        hb.y += hb.vy * dt;
-
-        let hit = false;
-        for (const tk of state.crossingTanks) {
-          if (!tk.crossingComplete && Math.hypot(hb.x - tk.x, hb.y - tk.y) < 26) {
-            tk.hp -= 15;
-            sound.playHitSound();
-            spawnExplosion(hb.x, hb.y, '#ef4444', 6);
-            state.hostileBullets.splice(b, 1);
-            hit = true;
-            if (tk.hp <= 0) {
-              spawnExplosion(tk.x, tk.y, '#ef4444', 24, true);
-              sound.playExplosion(1.1);
-              addFloatingText(tk.x, tk.y - 25, '⚠️ تدمير دبابة بالهجوم الجوي!', '#ef4444');
-            }
-            break;
-          }
-        }
-
-        if (hit) continue;
-
-        if (hb.y >= 300) {
-          spawnExplosion(hb.x, hb.y, '#38bdf8', 6, false, true);
-          state.hostileBullets.splice(b, 1);
-          continue;
-        }
-
-        if (hb.x < 0 || hb.x > canvas.width || hb.y < 0) {
-          state.hostileBullets.splice(b, 1);
-        }
-      }
-
-      // Update Hostile Aerial Bombs
+      // 5. Update Falling Aerial Bombs
       for (let b = state.hostileBombs.length - 1; b >= 0; b--) {
         const bomb = state.hostileBombs[b];
         bomb.x += bomb.vx * dt;
         bomb.vy += 220 * dt;
         bomb.y += bomb.vy * dt;
 
-        // Smoke trail behind falling bomb
-        if (Math.random() < 0.5) {
-          state.particles.push({
-            x: bomb.x,
-            y: bomb.y - 6,
-            vx: (Math.random() - 0.5) * 10,
-            vy: -15,
-            color: '#3f3f46',
-            life: 1,
-            maxLife: 18,
-            size: 3,
-            isSmoke: true,
-          });
-        }
-
-        // Bomb reaches water/bridge level
         if (bomb.y >= 305) {
-          spawnExplosion(bomb.x, bomb.y, '#f59e0b', 26, true, false);
-          sound.playExplosion(1.3);
-
-          if (bomb.x >= 200 && bomb.x <= 800) {
-            setBridgeIntegrity((prev) => {
-              const next = Math.max(0, prev - 12);
-              if (next <= 0 && !state.isComplete) {
-                state.isComplete = true;
-                setIsDefeated(true);
-                sound.playDefeatSound();
-              }
-              return next;
-            });
-            addFloatingText(bomb.x, bomb.y - 30, '⚠️ انفجار قنبلة على الجسر! -12%', '#ef4444');
-          }
-
+          spawnExplosion(bomb.x, bomb.y, '#f59e0b', 24, true, false);
           state.hostileBombs.splice(b, 1);
         }
       }
 
-      // Update Crossing Tanks
-      for (let t = state.crossingTanks.length - 1; t >= 0; t--) {
-        const tk = state.crossingTanks[t];
-        tk.x += tk.speed * dt;
-
-        // Dust and exhaust particles
-        if (Math.random() < 0.4) {
-          state.particles.push({
-            x: tk.x - 20,
-            y: tk.y + 10,
-            vx: -20 + (Math.random() - 0.5) * 10,
-            vy: -10 + (Math.random() - 0.5) * 10,
-            color: '#78716c',
-            life: 1,
-            maxLife: 20,
-            size: Math.random() * 4 + 3,
-            isSmoke: true,
-            growth: 0.2,
-          });
-        }
-
-        // Reached Sinai bank! (x >= 820)
-        if (tk.x >= 820 && !tk.crossingComplete) {
-          tk.crossingComplete = true;
-          state.tanksCrossedCount++;
-          state.score += 1000;
-          setScore(state.score);
-          setTanksCrossed(state.tanksCrossedCount);
-          sound.playVictoryFanfare();
-          addFloatingText(tk.x, tk.y - 30, `+1000 وصول الدبابة رقم ${state.tanksCrossedCount} إلى سيناء! 🇪🇬`, '#4ade80');
-
-          // FAST VICTORY CONDITION: 5 tanks crossed!
-          if (state.tanksCrossedCount >= 5 && !state.isComplete) {
-            state.isComplete = true;
-            state.score += state.timeLeft * 30;
-            setScore(state.score);
-            setIsWon(true);
-          }
-        }
-
-        if (tk.x > canvas.width + 80) {
-          state.crossingTanks.splice(t, 1);
-        }
-      }
-
-      // Calculate total bridge integrity
-      const assembledP = state.pontoons.filter((p) => p.assembled);
-      if (assembledP.length > 0) {
-        const avgHp = Math.round(assembledP.reduce((sum, p) => sum + p.hp, 0) / assembledP.length);
-        setBridgeIntegrity(avgHp);
-
-        if (avgHp <= 0 && assembledP.length >= 2 && !state.isComplete) {
-          state.isComplete = true;
-          setIsDefeated(true);
-          sound.playDefeatSound();
-        }
-      }
-
-      // DRAW SCENE
-      ctx.save();
-      if (state.screenShake > 0) {
-        const sx = (Math.random() - 0.5) * state.screenShake;
-        const sy = (Math.random() - 0.5) * state.screenShake;
-        ctx.translate(sx, sy);
-      }
+      // ----------------------------------------------------
+      // RENDER CANVAS SCENE (Water, Pontoon Bridge, Tanks, Strike Reticle)
+      // ----------------------------------------------------
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Sky
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, 220);
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 240);
       skyGrad.addColorStop(0, '#0f172a');
       skyGrad.addColorStop(0.5, '#1e293b');
-      skyGrad.addColorStop(1, '#b45309');
+      skyGrad.addColorStop(1, '#f59e0b');
       ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, canvas.width, 220);
+      ctx.fillRect(0, 0, canvas.width, 240);
 
-      // Distant dunes & Sinai backdrop
-      ctx.fillStyle = '#92400e';
-      ctx.beginPath();
-      ctx.moveTo(0, 190);
-      for (let x = 0; x <= canvas.width; x += 30) {
-        const my = Math.sin(x * 0.015) * 18;
-        ctx.lineTo(x, 190 + my);
-      }
-      ctx.lineTo(canvas.width, 220);
-      ctx.lineTo(0, 220);
-      ctx.fill();
+      // West Bank (Egypt): green shoreline & staging area (x: 0 to 230)
+      ctx.fillStyle = '#166534';
+      ctx.fillRect(0, 240, 230, canvas.height - 240);
 
-      // Suez Canal Water
-      const waterGrad = ctx.createLinearGradient(0, 220, 0, canvas.height);
-      waterGrad.addColorStop(0, '#0369a1');
-      waterGrad.addColorStop(0.4, '#0284c7');
-      waterGrad.addColorStop(1, '#075985');
-      ctx.fillStyle = waterGrad;
-      ctx.fillRect(0, 220, canvas.width, canvas.height - 220);
+      // East Bank (Sinai): golden desert sand berm (x: 770 to 1000)
+      const desertGrad = ctx.createLinearGradient(770, 240, 1000, 240);
+      desertGrad.addColorStop(0, '#d97706');
+      desertGrad.addColorStop(1, '#78350f');
+      ctx.fillStyle = desertGrad;
+      ctx.fillRect(770, 240, 230, canvas.height - 240);
 
-      // Water ripples
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      // Suez Canal Waterway (x: 230 to 770)
+      const canalGrad = ctx.createLinearGradient(230, 240, 770, 240);
+      canalGrad.addColorStop(0, '#0284c7');
+      canalGrad.addColorStop(0.5, '#0369a1');
+      canalGrad.addColorStop(1, '#0c4a6e');
+      ctx.fillStyle = canalGrad;
+      ctx.fillRect(230, 240, 540, canvas.height - 240);
+
+      // Water waves
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.lineWidth = 1.5;
-      for (let y = 230; y < canvas.height; y += 22) {
+      for (let r = 260; r < canvas.height; r += 32) {
         ctx.beginPath();
-        const offset = Math.sin(currTime * 0.002 + y) * 15;
-        ctx.moveTo(220, y);
-        ctx.lineTo(780 + offset, y);
+        for (let wx = 230; wx <= 770; wx += 25) {
+          const waveY = r + Math.sin(wx * 0.04 + currTime * 0.003) * 3;
+          if (wx === 230) ctx.moveTo(wx, waveY);
+          else ctx.lineTo(wx, waveY);
+        }
         ctx.stroke();
       }
 
-      // West Bank (Egyptian Staging Shoreline)
-      ctx.fillStyle = '#d97706';
-      ctx.fillRect(0, 220, 220, canvas.height - 220);
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(205, 220, 15, canvas.height - 220);
+      // Pontoon Bridge Sections (PMP Floating Bridge across Canal)
+      for (let i = 0; i < state.pontoons.length; i++) {
+        const p = state.pontoons[i];
+        const isTarget = state.strikeActive && i === state.targetBridgeIndex;
 
-      // West Bank Fortifications / Sand ramparts
-      ctx.fillStyle = '#b45309';
-      ctx.beginPath();
-      ctx.roundRect(10, 230, 190, 80, 8);
-      ctx.fill();
-      ctx.font = 'bold 12px Cairo, sans-serif';
-      ctx.fillStyle = '#fef08a';
-      ctx.textAlign = 'center';
-      ctx.fillText('الضفة الغربية · نقطة انطلاق سلاح المهندسين', 105, 255);
+        // Pontoon steel pontoons
+        ctx.fillStyle = isTarget ? '#7f1d1d' : '#334155';
+        ctx.fillRect(p.x, p.y - 8, p.width, p.height + 16);
 
-      // East Bank (Sinai Conquered Shoreline / Breached Bar Lev)
-      ctx.fillStyle = '#d97706';
-      ctx.fillRect(780, 220, 220, canvas.height - 220);
-      ctx.fillStyle = '#78350f';
-      ctx.fillRect(780, 220, 15, canvas.height - 220);
+        // Wooden roadway deck
+        ctx.fillStyle = isTarget ? '#991b1b' : '#78350f';
+        ctx.fillRect(p.x + 2, p.y, p.width - 4, p.height);
 
-      // Breached sand rampart on Sinai side
-      ctx.fillStyle = '#92400e';
-      ctx.beginPath();
-      ctx.moveTo(780, 220);
-      ctx.lineTo(840, 250);
-      ctx.lineTo(1000, 250);
-      ctx.lineTo(1000, canvas.height);
-      ctx.lineTo(780, canvas.height);
-      ctx.fill();
+        // Steel wheel treads
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(p.x, p.y + 12, p.width, 6);
+        ctx.fillRect(p.x, p.y + 46, p.width, 6);
 
-      // Egyptian Flag on East Bank
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(860, 240, 4, 60);
-      ctx.fillStyle = '#dc2626';
-      ctx.fillRect(864, 240, 28, 8);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(864, 248, 28, 8);
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(864, 256, 28, 8);
+        // Connecting hinge bolts
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + p.height / 2, 4, 0, Math.PI * 2);
+        ctx.arc(p.x + p.width, p.y + p.height / 2, 4, 0, Math.PI * 2);
+        ctx.fill();
 
-      ctx.font = 'bold 12px Cairo, sans-serif';
-      ctx.fillStyle = '#4ade80';
-      ctx.textAlign = 'center';
-      ctx.fillText('الضفة الشرقية (سيناء المحررة)', 890, 325);
+        // ----------------------------------------------------
+        // DYNAMIC PRECISION STRIKE TARGET RETICLE (when window is active)
+        // ----------------------------------------------------
+        if (isTarget) {
+          ctx.save();
+          const targetX = p.x + p.width / 2;
+          const targetY = p.y + p.height / 2;
+          const pulse = (Math.sin(currTime * 0.012) + 1) * 0.5;
 
-      // PONTOON BRIDGE SECTIONS (PMP Pontoon Bridge)
-      for (const p of state.pontoons) {
-        if (p.assembled) {
-          // Floating metal pontoon structure
-          ctx.fillStyle = '#334155';
-          ctx.fillRect(p.x, p.y - 8, p.width, p.height + 16);
+          // Red glowing strike zone
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(p.x + 4, p.y + 4, p.width - 8, p.height - 8);
 
-          // Wooden roadway deck
-          ctx.fillStyle = '#78350f';
-          ctx.fillRect(p.x + 2, p.y, p.width - 4, p.height);
-
-          // Steel beam treads
-          ctx.fillStyle = '#1e293b';
-          ctx.fillRect(p.x, p.y + 12, p.width, 6);
-          ctx.fillRect(p.x, p.y + 46, p.width, 6);
-
-          // Connecting bolts / links
-          ctx.fillStyle = '#facc15';
+          // Concentric animated pulsing crosshairs
           ctx.beginPath();
-          ctx.arc(p.x, p.y + p.height / 2, 4, 0, Math.PI * 2);
-          ctx.arc(p.x + p.width, p.y + p.height / 2, 4, 0, Math.PI * 2);
+          ctx.arc(targetX, targetY, 28 + pulse * 8, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(239, 68, 68, ${0.7 + pulse * 0.3})`;
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(targetX, targetY, 14, 0, Math.PI * 2);
+          ctx.fillStyle = '#ef4444';
           ctx.fill();
 
-          // Health bar on pontoon
-          ctx.fillStyle = '#450a0a';
-          ctx.fillRect(p.x + 6, p.y - 14, p.width - 12, 4);
-          ctx.fillStyle = p.hp > 50 ? '#22c55e' : '#ef4444';
-          ctx.fillRect(p.x + 6, p.y - 14, ((p.width - 12) * p.hp) / p.maxHp, 4);
-        } else {
-          // Ghost outline showing next spot to build
-          ctx.strokeStyle = '#38bdf8';
+          // Crosshair lines
+          ctx.strokeStyle = '#fef08a';
           ctx.lineWidth = 2;
-          ctx.setLineDash([6, 4]);
-          ctx.strokeRect(p.x, p.y, p.width, p.height);
-          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(targetX - 34, targetY);
+          ctx.lineTo(targetX + 34, targetY);
+          ctx.moveTo(targetX, targetY - 34);
+          ctx.lineTo(targetX, targetY + 34);
+          ctx.stroke();
 
-          ctx.font = 'bold 11px Cairo, sans-serif';
-          ctx.fillStyle = '#38bdf8';
+          // Reticle Banner
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+          ctx.roundRect(targetX - 70, p.y - 36, 140, 24, 6);
+          ctx.fill();
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.font = 'black 11px Cairo, sans-serif';
+          ctx.fillStyle = '#fef08a';
           ctx.textAlign = 'center';
-          ctx.fillText(`بنتون #${p.index + 1}`, p.x + p.width / 2, p.y + p.height / 2 + 4);
+          ctx.fillText(`اضغط هنا للضربة! 🎯 [${state.strikeCountdown.toFixed(1)}s]`, targetX, p.y - 20);
+          ctx.restore();
         }
       }
 
       // Crossing Tanks
       for (const tk of state.crossingTanks) {
+        if (tk.status === 'destroyed') continue;
+
         ctx.save();
         ctx.translate(tk.x, tk.y);
 
-        // Tank hull
+        // Status badge above tank
+        if (tk.status === 'waiting_strike') {
+          ctx.font = 'bold 11px Cairo, sans-serif';
+          ctx.fillStyle = '#facc15';
+          ctx.textAlign = 'center';
+          ctx.fillText('⚠️ بانتظار توقيت الضربة الدقيقة للعبور!', 0, -26);
+        } else if (tk.status === 'cleared_crossing') {
+          ctx.font = 'bold 10px Cairo, sans-serif';
+          ctx.fillStyle = '#4ade80';
+          ctx.textAlign = 'center';
+          ctx.fillText('انطلاق بأقصى سرعة! 🚜', 0, -24);
+        }
+
+        // Tank Hull
         ctx.fillStyle = '#166534';
         ctx.fillRect(-24, -14, 48, 28);
 
@@ -1066,191 +881,146 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         ctx.scale(-1, 1);
         ctx.fillStyle = pl.destroyed ? '#451a03' : '#64748b';
         ctx.beginPath();
-        ctx.moveTo(30, 0);
-        ctx.lineTo(-20, -10);
-        ctx.lineTo(-12, 0);
-        ctx.lineTo(-20, 10);
+        ctx.moveTo(28, 0);
+        ctx.lineTo(-18, -10);
+        ctx.lineTo(-10, 0);
+        ctx.lineTo(-18, 10);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
       }
 
-      // Incoming Artillery Shells
-      for (const sh of state.artilleryShells) {
-        ctx.fillStyle = '#f59e0b';
-        ctx.beginPath();
-        ctx.arc(sh.x, sh.y, 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = '#dc2626';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(sh.x, sh.y);
-        ctx.lineTo(sh.x + 16, sh.y - 10);
-        ctx.stroke();
-      }
-
-      // Hostile Strafing Bullets from Enemy Planes
-      for (const hb of state.hostileBullets) {
-        ctx.save();
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = '#ef4444';
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(hb.x - 6, hb.y - 2, 12, 4);
-        ctx.fillStyle = '#fef08a';
-        ctx.fillRect(hb.x - 3, hb.y - 1, 6, 2);
-        ctx.restore();
-      }
-
-      // Hostile Aerial Bombs falling from Enemy Planes
-      for (const bomb of state.hostileBombs) {
-        ctx.save();
-        ctx.translate(bomb.x, bomb.y);
-        ctx.fillStyle = '#27272a';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 9, 5, Math.PI / 4, 0, Math.PI * 2);
-        ctx.fill();
-        // Tail fins
-        ctx.fillStyle = '#ef4444';
-        ctx.fillRect(-7, -4, 4, 8);
-        ctx.restore();
-      }
-
-      // Render Momentary Flash Shockwaves
-      ctx.save();
-      for (let s = state.shockwaves.length - 1; s >= 0; s--) {
-        const sw = state.shockwaves[s];
-        sw.radius += (sw.maxRadius - sw.radius) * 14 * dt;
-        sw.alpha -= 4.8 * dt;
-        if (sw.alpha <= 0) {
-          state.shockwaves.splice(s, 1);
-          continue;
-        }
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = sw.color;
-        ctx.lineWidth = 4 * sw.alpha;
-        ctx.globalAlpha = Math.max(0, sw.alpha);
-        ctx.beginPath();
-        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      // Particles (Dense Billowing Black Smoke, Water Plumes, Sparks)
-      for (let i = state.particles.length - 1; i >= 0; i--) {
-        const pt = state.particles[i];
+      // Particles & Explosions
+      for (let pIdx = state.particles.length - 1; pIdx >= 0; pIdx--) {
+        const pt = state.particles[pIdx];
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
         if (pt.gravity) pt.vy += pt.gravity * dt;
-        pt.x += pt.vx * dt * 60;
-        pt.y += pt.vy * dt * 60;
-        if (pt.growth) pt.size += pt.growth;
         pt.life++;
+
         ctx.fillStyle = pt.color;
-        const progress = pt.life / pt.maxLife;
-        ctx.globalAlpha = Math.max(0, pt.isSmoke ? (1 - progress) * 0.85 : 1 - progress);
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
         ctx.fill();
+
+        if (pt.life >= pt.maxLife) {
+          state.particles.splice(pIdx, 1);
+        }
+      }
+
+      // Shockwaves
+      for (let sIdx = state.shockwaves.length - 1; sIdx >= 0; sIdx--) {
+        const sw = state.shockwaves[sIdx];
+        sw.radius += 180 * dt;
+        sw.alpha = Math.max(0, 1 - sw.radius / sw.maxRadius);
+
+        ctx.strokeStyle = sw.color;
+        ctx.globalAlpha = sw.alpha;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.globalAlpha = 1.0;
-        if (pt.life >= pt.maxLife) state.particles.splice(i, 1);
+
+        if (sw.radius >= sw.maxRadius) {
+          state.shockwaves.splice(sIdx, 1);
+        }
       }
 
       // Floating Texts
-      for (let t = state.floatingTexts.length - 1; t >= 0; t--) {
-        const ft = state.floatingTexts[t];
-        ft.y -= 25 * dt;
+      for (let fIdx = state.floatingTexts.length - 1; fIdx >= 0; fIdx--) {
+        const ft = state.floatingTexts[fIdx];
+        ft.y -= 30 * dt;
         ft.life++;
-        ctx.font = 'bold 12px Cairo, sans-serif';
+        const alpha = Math.max(0, 1 - ft.life / ft.maxLife);
+
+        ctx.font = 'bold 13px Cairo, sans-serif';
         ctx.fillStyle = ft.color;
+        ctx.globalAlpha = alpha;
         ctx.textAlign = 'center';
-        ctx.globalAlpha = Math.max(0, 1 - ft.life / ft.maxLife);
         ctx.fillText(ft.text, ft.x, ft.y);
         ctx.globalAlpha = 1.0;
-        if (ft.life >= ft.maxLife) state.floatingTexts.splice(t, 1);
+
+        if (ft.life >= ft.maxLife) {
+          state.floatingTexts.splice(fIdx, 1);
+        }
       }
-
-      // Aim Reticle
-      ctx.strokeStyle = state.mousePos.y < 200 ? '#ef4444' : '#38bdf8';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(state.mousePos.x, state.mousePos.y, 14, 0, Math.PI * 2);
-      ctx.moveTo(state.mousePos.x - 18, state.mousePos.y);
-      ctx.lineTo(state.mousePos.x + 18, state.mousePos.y);
-      ctx.moveTo(state.mousePos.x, state.mousePos.y - 18);
-      ctx.lineTo(state.mousePos.x, state.mousePos.y + 18);
-      ctx.stroke();
-
-      ctx.restore();
 
       animId = requestAnimationFrame(loop);
     };
 
     animId = requestAnimationFrame(loop);
+
     return () => {
       cancelAnimationFrame(animId);
       canvas.removeEventListener('mousemove', handleMouseMove);
       canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [timeLeft]);
 
-  const formatTimer = (sec: number) => {
-    const mins = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const handleRestart = () => {
+    sound.playRadioTransmission();
+    const state = stateRef.current;
+    state.isComplete = false;
+    state.crossingTanks = [];
+    state.artilleryShells = [];
+    state.enemyPlanes = [];
+    state.hostileBombs = [];
+    state.tanksCrossedCount = 0;
+    state.lostOpportunities = 0;
+    state.strikeActive = false;
+    state.score = 0;
+    setTanksCrossed(0);
+    setLostOpportunities(0);
+    setScore(0);
+    setTimeLeft(120);
+    setStrikeActive(false);
+    setIsWon(false);
+    setIsDefeated(false);
+    setFlakCharges(18);
+    setSmokeCharges(4);
+    setTimeout(() => {
+      handleDeployTank();
+    }, 600);
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-stone-900 shadow-2xl">
+    <div className="flex flex-col h-full bg-stone-950 text-stone-100 select-none overflow-hidden">
       {/* Top HUD */}
-      <div className="p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+        <div className="flex items-center gap-2">
           <button
             onClick={onExit}
-            className="p-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-stone-300 transition-colors cursor-pointer"
+            className="p-1.5 bg-stone-800 hover:bg-stone-700 rounded-lg text-stone-300 hover:text-white cursor-pointer transition-colors"
+            title="العودة"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h2 className="text-base font-bold font-cairo text-amber-400">بناء الجسور والكباري العائمة (سلاح المهندسين)</h2>
-            <p className="text-xs text-stone-400">الشهيد أحمد حمدي واللواء باقي زكي · أرتال دبابات النصر</p>
+            <h2 className="font-bold font-cairo text-sm sm:text-base text-amber-400">
+              ملحمة كباري العبور والضربة الدقيقة الحاسمة
+            </h2>
+            <div className="text-[11px] text-stone-400">
+              سلاح المهندسين العسكريين · توقيت دقيق ومحسوب لعبور الدبابات
+            </div>
           </div>
         </div>
 
         {/* Meters */}
-        <div className="flex items-center gap-5 text-xs font-semibold">
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-              timeLeft <= 30
-                ? 'bg-red-950/80 border-red-500 text-red-400 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]'
-                : 'bg-stone-900 border-stone-800 text-amber-400'
-            }`}
-          >
-            <Clock className={`w-4 h-4 ${timeLeft <= 30 ? 'text-red-400' : 'text-emerald-400'}`} />
-            <span className="text-stone-300 font-bold">المؤقت:</span>
-            <span className={`font-mono text-sm font-black tabular-nums ${timeLeft <= 30 ? 'text-red-400' : 'text-amber-400'}`}>
-              {formatTimer(timeLeft)}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-400" />
-            <span className="text-stone-300">أجزاء الكوبري:</span>
-            <span className="font-mono tabular-nums font-bold text-sky-400">{pontoonsCount} / 6 بنتون</span>
-          </div>
-
+        <div className="flex items-center gap-4 text-xs font-semibold">
           <div className="flex items-center gap-2">
             <span className="text-stone-300">الدبابات العابرة:</span>
-            <span className="font-mono tabular-nums font-bold text-amber-400">{tanksCrossed} / 5 للنصر السريع</span>
+            <span className="font-mono tabular-nums font-bold text-emerald-400 text-sm">{tanksCrossed} / 5</span>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-stone-300">سلامة الجسر:</span>
-            <div className="w-16 h-2 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-              <div
-                className={`h-full ${bridgeIntegrity > 50 ? 'bg-emerald-500' : 'bg-red-500'}`}
-                style={{ width: `${bridgeIntegrity}%` }}
-              />
-            </div>
-            <span className="font-mono tabular-nums text-stone-200">{bridgeIntegrity}%</span>
+            <span className="text-stone-300">الفرص الضائعة:</span>
+            <span className={`font-mono tabular-nums font-bold text-sm ${lostOpportunities > 0 ? 'text-red-400 animate-pulse' : 'text-stone-400'}`}>
+              {lostOpportunities} / 3
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -1259,57 +1029,67 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         </div>
       </div>
 
-      {/* Tactical Engineering Actions Strip */}
-      <div className="px-4 py-2.5 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleAssembleNextPontoon}
-            disabled={pontoonsCount >= 6}
-            className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow"
-          >
-            <Shield className="w-4 h-4" />
-            <span>تركيب بنتون كوبري ({pontoonsCount}/6)</span>
-          </button>
+      {/* TACTICAL ACTION STRIP & PRECISION STRIKE COUNTDOWN BANNER */}
+      {strikeActive ? (
+        <div className="px-4 py-2.5 bg-red-950/95 border-b-2 border-red-500 flex flex-wrap items-center justify-between gap-3 text-xs shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
+            <span className="font-cairo font-black text-sm text-yellow-300">
+              ⚡ نافذة الضربة الدقيقة للكوبري: سارع بالضرب لتأمين عبور الدبابة قبل فوات الأوان!
+            </span>
+          </div>
 
-          <button
-            onClick={handleDeploySmokeScreen}
-            disabled={smokeCharges <= 0 || smokeScreenActive}
-            className={`px-3.5 py-1.5 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow ${
-              smokeScreenActive
-                ? 'bg-slate-700 text-stone-200 animate-pulse'
-                : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700'
-            }`}
-          >
-            <Wind className="w-4 h-4 text-sky-400" />
-            <span>ستارة دخان كثيفة [{smokeCharges}]</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="w-28 sm:w-36 h-3 bg-stone-900 rounded-full overflow-hidden border border-red-400">
+              <div
+                className="h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 transition-all duration-100"
+                style={{ width: `${(strikeCountdown / maxStrikeTime) * 100}%` }}
+              />
+            </div>
+            <span className="font-mono text-xl sm:text-2xl font-black text-amber-400 tabular-nums drop-shadow">
+              {strikeCountdown.toFixed(1)}s
+            </span>
 
-          <button
-            onClick={() => handleFireFlak()}
-            disabled={flakCharges <= 0}
-            className="px-3.5 py-1.5 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow"
-          >
-            <Crosshair className="w-4 h-4" />
-            <span>مدافع م/ط ضد الطيران [{flakCharges}]</span>
-          </button>
-
-          <button
-            onClick={handleRepairBridge}
-            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-all shadow"
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>ترميم الكوبري</span>
-          </button>
+            <button
+              onClick={handleExecutePrecisionStrike}
+              className="px-4 py-1.5 bg-red-600 hover:bg-red-500 active:scale-95 text-white font-black rounded-lg cursor-pointer shadow-lg transition-all flex items-center gap-1.5 border border-red-300"
+            >
+              <Zap className="w-4 h-4 text-yellow-300" />
+              <span>تنفيذ الضربة الدقيقة 🎯</span>
+            </button>
+          </div>
         </div>
+      ) : (
+        <div className="px-4 py-2 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-300">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDeploySmokeScreen}
+              disabled={smokeCharges <= 0 || smokeScreenActive}
+              className={`px-3.5 py-1.5 font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow ${
+                smokeScreenActive
+                  ? 'bg-slate-700 text-stone-200 animate-pulse'
+                  : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700'
+              }`}
+            >
+              <Wind className="w-4 h-4 text-sky-400" />
+              <span>ستارة دخان كثيفة [{smokeCharges}]</span>
+            </button>
 
-        <button
-          onClick={handleDeployTank}
-          disabled={pontoonsCount < 6}
-          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow active:scale-95"
-        >
-          <span>إطلاق رتل دبابات عبر الجسر 🚜</span>
-        </button>
-      </div>
+            <button
+              onClick={() => handleFireFlak()}
+              disabled={flakCharges <= 0}
+              className="px-3.5 py-1.5 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow"
+            >
+              <Crosshair className="w-4 h-4" />
+              <span>مدافع م/ط ضد الطيران [{flakCharges}]</span>
+            </button>
+          </div>
+
+          <div className="text-stone-400 text-xs font-semibold">
+            🚜 تتقدم الدبابة نحو المعبر.. استعد لتوقيت الضربة الدقيقة عند وصولها!
+          </div>
+        </div>
+      )}
 
       {/* Canvas Area */}
       <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
@@ -1320,12 +1100,12 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
           className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
         />
 
-        {/* Digital Countdown Timer at the TOP */}
-        {!isWon && (
+        {/* Digital Countdown Timer */}
+        {!isWon && !isDefeated && (
           <MissionDigitalTimer
             timeLeft={timeLeft}
             totalTime={120}
-            label="الزمن المتبقي للفوز"
+            label="الزمن المتبقي للمهمة"
             position="top-center"
           />
         )}
@@ -1333,24 +1113,24 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
         {/* Victory Modal */}
         {isWon && (
           <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3 shadow-[0_0_25px_rgba(34,197,94,0.5)]">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h3 className="text-2xl font-black font-cairo text-amber-400 mb-1">
-              تم بناء الجسور بنجاح وتدفقت دبابات النصر إلى سيناء!
+            <h3 className="text-2xl sm:text-3xl font-black font-cairo text-amber-400 mb-2">
+              نصر عسكري مبين! عبرت أرتال الدبابات بالضربات الدقيقة!
             </h3>
-            <p className="text-xs text-stone-300 max-w-md mb-4">
-              سجل سلاح المهندسين العسكريين ملحمة تاريخية بإقامة الجسور والكباري العائمة تحت نيران العدو، مما مكن القوات المدرعة من حسم المعركة والسيطرة الكاملة على رؤوس الكباري!
+            <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
+              سددت ضرباتك الدقيقة في التوقيت المثالي قبل فوات الأوان، مما سمح لـ 5 دبابات قتالية بالتدفق الكامل عبر كباري العبور والسيطرة على خط بارليف في سيناء!
             </p>
 
-            <div className="grid grid-cols-3 gap-3 mb-5 max-w-md w-full text-center">
+            <div className="grid grid-cols-3 gap-3 mb-6 max-w-md w-full text-center">
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
                 <span className="block text-[11px] text-stone-400 mb-1">الدبابات العابرة</span>
-                <span className="text-base font-bold font-mono text-emerald-400">{tanksCrossed} دبابات</span>
+                <span className="text-base font-bold font-mono text-emerald-400">5 من 5</span>
               </div>
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">الوقت المتبقي</span>
-                <span className="text-base font-bold font-mono text-sky-400">{formatTimer(timeLeft)}</span>
+                <span className="block text-[11px] text-stone-400 mb-1">الفرص الضائعة</span>
+                <span className="text-base font-bold font-mono text-sky-400">{lostOpportunities} / 3</span>
               </div>
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
                 <span className="block text-[11px] text-stone-400 mb-1">النقاط الكلية</span>
@@ -1367,40 +1147,29 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
           </div>
         )}
 
-        {/* Defeat Modal when bridge is destroyed */}
+        {/* Defeat Modal */}
         {isDefeated && (
           <div className="absolute inset-0 bg-stone-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
             <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500/60 flex items-center justify-center text-red-500 mb-3 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse">
               <AlertTriangle className="w-9 h-9" />
             </div>
             <h3 className="text-2xl font-bold font-cairo text-red-400 mb-2">
-              تضرر جسر العبور وفشلت محاولة التدفق!
+              {defeatReason === 'timeout'
+                ? 'انتهى الوقت المخصص للمهمة قبل إتمام العبور!'
+                : 'فشلت المهمة: ضاعت فرص عبور أرتال الدبابات!'}
             </h3>
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
-              تعرضت بنتونات الجسر لغارات جوية مكثفة أدت لتعطيل مسار الدبابات. أطلق نيران الدفاع الجوي م/ط واستخدم ستائر الدخان لتأمين المهندسين العسكريين!
+              {defeatReason === 'timeout'
+                ? 'انتهت مدة الدقيقتين دون عبور الدبابات الكافية إلى سيناء. اضبط توقيت ضرباتك وسددها بسرعة!'
+                : 'تأخرت في توجيه الضربة الدقيقة على الكوبري قبل نفاد العداد التنازلي، مما أدى لقصف دبابات العبور من طيران ومدفعية العدو!'}
             </p>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
-                  setTimeLeft(120);
-                  setIsDefeated(false);
-                  stateRef.current.timeLeft = 120;
-                  stateRef.current.isComplete = false;
-                  stateRef.current.pontoons.forEach((p) => {
-                    p.hp = 100;
-                  });
-                  stateRef.current.hostileBullets = [];
-                  stateRef.current.hostileBombs = [];
-                  stateRef.current.enemyPlanes = [];
-                  setBridgeIntegrity(100);
-                  setFlakCharges(15);
-                  setSmokeCharges(4);
-                  sound.playRadioTransmission();
-                }}
+                onClick={handleRestart}
                 className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center gap-2 cursor-pointer transition-colors shadow-lg active:scale-95"
               >
                 <RotateCcw className="w-4 h-4" />
-                إعادة تشييد الجسر 🔄
+                إعادة المحاولة 🔄
               </button>
               <button
                 onClick={onExit}
@@ -1415,7 +1184,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
       {/* Footer */}
       <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
-        <span>انقر في السماء لإطلاق مدافع م/ط، وانقر على الكوبري لتركيب البنتونات وإطلاق الدبابات</span>
+        <span>انقر على موقع الضربة الدقيقة بالكوبري أو اضغط زر المسافة (Space) فور ظهور العداد التنازلي</span>
         <span className="text-amber-400 font-semibold">«سلاح المهندسين.. درع النصر وجسر التحرير»</span>
       </div>
     </div>
