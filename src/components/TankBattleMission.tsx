@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Target, Shield, Rocket, Flame, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { isGamePaused } from '../game/pause';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
 interface TankBattleMissionProps {
@@ -134,6 +135,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
     if (isWon || isDefeated) return;
 
     const timer = setInterval(() => {
+      if (isGamePaused()) return;
       setTimeLeft((prev) => {
         const next = prev - 1;
         stateRef.current.timeLeft = next;
@@ -476,6 +478,10 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
     };
 
     const loop = (currTime: number) => {
+      if (isGamePaused()) {
+        animId = requestAnimationFrame(loop);
+        return;
+      }
       const dt = (currTime - lastTime) / 1000;
       lastTime = currTime;
 
