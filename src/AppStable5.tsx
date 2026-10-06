@@ -212,6 +212,25 @@ export default function App() {
     setIsFullscreen(false);
   };
 
+  const handleMissionDefeat = (mission: GameMode) => {
+    // الخسارة = إنهاء الجلسة فورًا، كتم الصوت، وإعادة البيئة للبداية بدل استمرار المؤقت/الطقس.
+    sound.playRadioTransmission();
+    sound.setMuted(true);
+    setIsMuted(true);
+    sound.stopBackgroundTheme();
+    setCurrentWeather(MISSION_WEATHER_MAP[mission] ?? 'sun_glare');
+    setSplashMission(null);
+    setBriefingMission(null);
+    setCountdownMission(null);
+    setIsStageSelectOpen(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    setIsFullscreen(false);
+    setCurrentMode('MENU');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleAddScore = (points: number) => {
     setStats((prev) => {
       const newScore = prev.score + points;
@@ -330,7 +349,7 @@ export default function App() {
               <AirStrikeMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_AIR_STRIKE', pts)}
-                onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_AIR_STRIKE')}\n                 onExit={handleExitMission}
               />
             )}
 
@@ -338,7 +357,7 @@ export default function App() {
               <CrossingMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_CROSSING', pts)}
-                onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_CROSSING')}\n                 onExit={handleExitMission}
               />
             )}
 
@@ -346,7 +365,7 @@ export default function App() {
               <BridgeMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_BRIDGE', pts)}
-                onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_BRIDGE')}\n                 onExit={handleExitMission}
               />
             )}
 
@@ -354,14 +373,14 @@ export default function App() {
               <TankBattleMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_TANK_BATTLE', pts)}
-                onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_TANK_BATTLE')}\n                 onExit={handleExitMission}
               />
             )}
 
             {currentMode === 'MISSION_FORTRESS' && (
               <FortressAssaultMission
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
-                onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_FORTRESS')}\n                 onExit={handleExitMission}
               />
             )}
           </WeatherLightingContainer>
