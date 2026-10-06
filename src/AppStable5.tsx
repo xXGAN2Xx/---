@@ -35,6 +35,7 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [isStageSelectOpen, setIsStageSelectOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const previousMuteRef = useRef(false);
   const defaultStats: PlayerStats = {
     score: 0,
     targetsDestroyed: 0,
@@ -114,6 +115,26 @@ export default function App() {
     MISSION_FORTRESS: 'tactical_dawn',   // فجر الاقتحام التكتيكي
     SURVIVAL_TACTICAL: 'sandstorm',
   };
+
+  const WEATHER_CYCLES: Record<string, WeatherType[]> = {
+    MISSION_AIR_STRIKE: ['sun_glare', 'canal_mist', 'desert_fog', 'sun_glare'],
+    MISSION_CROSSING: ['canal_mist', 'sun_glare', 'desert_fog'],
+    MISSION_BRIDGE: ['desert_fog', 'sandstorm', 'canal_mist'],
+    MISSION_TANK_BATTLE: ['sandstorm', 'tactical_dawn', 'desert_fog'],
+    MISSION_FORTRESS: ['tactical_dawn', 'sun_glare', 'sandstorm'],
+    SURVIVAL_TACTICAL: ['sandstorm', 'tactical_dawn', 'desert_fog'],
+  };
+
+  useEffect(() => {
+    if (!currentMode.startsWith('MISSION_') && currentMode !== 'SURVIVAL_TACTICAL') return;
+    const cycle = WEATHER_CYCLES[currentMode] ?? ['sun_glare', 'desert_fog'];
+    let index = Math.max(0, cycle.indexOf(currentWeather));
+    const timer = window.setInterval(() => {
+      index = (index + 1) % cycle.length;
+      setCurrentWeather(cycle[index]);
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [currentMode]);
 
   const handleReturnToMenu = () => {
     sound.playRadioTransmission();
@@ -246,7 +267,7 @@ export default function App() {
         onClose={() => {
           setIsStageSelectOpen(false);
           setGamePaused(false);
-          sound.setMuted(false);
+          sound.setMuted(previousMuteRef.current);
         }}
         onSelectStage={(m) => handleSelectMode(m)}
         currentStage={currentMode}
@@ -279,6 +300,7 @@ export default function App() {
         score={stats.score}
         rankTitle={stats.rank.title}
         onOpenStageSelect={() => {
+          previousMuteRef.current = sound.getMuted();
           sound.playRadioTransmission();
           setGamePaused(true);
           sound.setMuted(true);
