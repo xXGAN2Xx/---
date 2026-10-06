@@ -35,6 +35,7 @@ export default function App() {
   const [isStageSelectOpen, setIsStageSelectOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isPortraitMobile, setIsPortraitMobile] = useState(false);
+  const [isMobileLandscape, setIsMobileLandscape] = useState(false);
   const previousMuteRef = useRef(false);
   const defaultStats: PlayerStats = {
     score: 0,
@@ -79,7 +80,10 @@ export default function App() {
   const syncMobileOrientation = () => {
     const mobile = isMobileViewport();
     const portrait = window.innerHeight > window.innerWidth;
-    setIsPortraitMobile(mobile && portrait && currentMode.startsWith('MISSION_'));
+    const landscape = window.innerWidth > window.innerHeight;
+    const combat = currentMode.startsWith('MISSION_');
+    setIsPortraitMobile(mobile && portrait && combat);
+    setIsMobileLandscape(mobile && landscape && combat);
   };
 
   const lockMissionLandscape = async () => {
@@ -376,6 +380,7 @@ export default function App() {
       )}
 
       {/* 4. Top Navigation Bar (Clean combat HUD without stage-switching clutter during gameplay) */}
+      {!(isMobileLandscape && isCombatMode && !isStageSelectOpen && !splashMission) && (
       <Header
         currentMode={currentMode}
         onSelectMode={handleSelectMode}
@@ -393,6 +398,7 @@ export default function App() {
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
       />
+      )}
 
       <main
         className={
