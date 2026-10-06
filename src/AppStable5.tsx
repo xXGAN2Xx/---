@@ -5,7 +5,6 @@
 
 import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { GameMode, PlayerStats } from './types';
-import { Difficulty } from './game/difficulty';
 import { MISSIONS, RANKS, MEDALS, ASSET_IMAGES } from './data/historyData';
 import { sound } from './utils/audio';
 import { loadJson, saveJson } from './utils/storage';
@@ -91,11 +90,6 @@ export default function App() {
   const handleToggleSound = () => {
     const muted = sound.toggleMute();
     setIsMuted(muted);
-  };
-
-  const handleSelectDifficulty = (level: Difficulty) => {
-    setDifficulty(level);
-    sound.playRadioTransmission();
   };
 
   const THEME_MAP: Record<string, 'airStrike' | 'crossing' | 'bridge' | 'tankBattle' | 'fortress' | 'menu'> = {
@@ -522,36 +516,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Difficulty Selector */}
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-stone-400 font-medium">مستوى الصعوبة والتوجيه:</span>
-                  <div className="flex items-center gap-1 p-1 bg-stone-950/80 rounded-lg border border-stone-800">
-                    <button
-                      onClick={() => handleSelectDifficulty('easy')}
-                      className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
-                        difficulty === 'easy' ? 'bg-amber-500 text-stone-950 shadow-sm' : 'text-stone-400 hover:text-stone-200'
-                      }`}
-                    >
-                      سهل (توجيه مساعد)
-                    </button>
-                    <button
-                      onClick={() => handleSelectDifficulty('normal')}
-                      className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
-                        difficulty === 'normal' ? 'bg-amber-500 text-stone-950 shadow-sm' : 'text-stone-400 hover:text-stone-200'
-                      }`}
-                    >
-                      عادي (تاريخي متوازن)
-                    </button>
-                    <button
-                      onClick={() => handleSelectDifficulty('heroic')}
-                      className={`px-2.5 py-1 rounded text-xs font-bold transition-colors cursor-pointer ${
-                        difficulty === 'heroic' ? 'bg-amber-500 text-stone-950 shadow-sm' : 'text-stone-400 hover:text-stone-200'
-                      }`}
-                    >
-                      بطولي (أسطورة الصاعقة)
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {/* Status Ticker Inside Hero Frame */}
