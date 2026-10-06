@@ -277,6 +277,48 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     });
   };
 
+  const resetBattle = () => {
+    const state = stateRef.current;
+    state.playerTank = { x: 180, y: 380, targetY: 380, hp: 100, turretAngle: 0, vx: 0, vy: 0 };
+    state.keys.up = false;
+    state.keys.down = false;
+    state.keys.left = false;
+    state.keys.right = false;
+    state.enemyTanks = [
+      { id: 1, x: 700, y: 300, speed: -28, hp: 55, maxHp: 55, label: 'دبابة باتون M48', isPatton: true, destroyed: false },
+      { id: 2, x: 840, y: 380, speed: -30, hp: 70, maxHp: 70, label: 'دبابة سينتوريون', isPatton: false, destroyed: false },
+      { id: 3, x: 960, y: 460, speed: -24, hp: 75, maxHp: 75, label: 'دبابة لواء 190 مدرع', isPatton: false, destroyed: false },
+    ];
+    state.hostileJets = [];
+    state.guidedMissiles = [];
+    state.samRockets = [];
+    state.shells = [];
+    state.particles = [];
+    state.shockwaves = [];
+    state.floatingTexts = [];
+    state.mousePos = { x: 650, y: 350 };
+    state.screenShake = 0;
+    state.score = 0;
+    state.timeLeft = 120;
+    state.tanksDown = 0;
+    state.jetsDown = 0;
+    state.isComplete = false;
+    state.lastSpawnTime = 0;
+    state.saggerAmmo = 14;
+    state.samMissiles = 8;
+
+    setTanksDestroyed(0);
+    setJetsDowned(0);
+    setScore(0);
+    setTimeLeft(120);
+    setSaggerAmmo(14);
+    setSamMissiles(8);
+    setPlatoonHealth(100);
+    setIsWon(false);
+    setIsDefeated(false);
+    sound.playRadioTransmission();
+  };
+
   // Main Canvas Loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1488,18 +1530,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
               انقر سريعاً على الدبابات المعادية فور ظهورها لإطلاق صواريخ مالوتكا السلكية وسحقها قبل نفاد الوقت.
             </p>
             <button
-              onClick={() => {
-                setPlatoonHealth(100);
-                stateRef.current.saggerAmmo = 14;
-                stateRef.current.samMissiles = 8;
-                setSaggerAmmo(14);
-                setSamMissiles(8);
-                setTimeLeft(120);
-                setIsDefeated(false);
-                stateRef.current.playerTank.hp = 100;
-                stateRef.current.timeLeft = 120;
-                stateRef.current.isComplete = false;
-              }}
+              onClick={resetBattle}
               className="px-5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
