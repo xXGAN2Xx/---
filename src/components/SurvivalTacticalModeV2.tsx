@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Shield, Flame, RotateCcw, Crosshair, Zap, Rocket, Plus, CheckCircle2, ToggleRight } from 'lucide-react';
 import { sound } from '../utils/audio';
+import { isGamePaused } from '../game/pause';
 import { Difficulty } from '../game/difficulty';
 
 interface Props {
@@ -88,6 +89,7 @@ export const SurvivalTacticalModeV2: React.FC<Props> = ({ difficulty, onAddScore
     if (!waveActive || isGameOver) return;
 
     const interval = setInterval(() => {
+      if (isGamePaused()) return;
       const s = refs.current;
       const alive = s.units.filter((u) => u.hp > 0);
 
