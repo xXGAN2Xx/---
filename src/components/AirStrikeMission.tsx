@@ -99,7 +99,8 @@ interface FloatingText {
 
 export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onExit }) => {
   const missionDuration = 120;
-  const enemyTuning = { spawnChance: 0.024, maxJets: 5, hpScale: 1 };
+  // المرحلة الأولى أصعب من باقي الحملة، لكن تظل متوسطة ومسيطر عليها.
+  const enemyTuning = { spawnChance: 0.032, maxJets: 7, hpScale: 1.22 };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hp, setHp] = useState(180);
   const [rockets, setRockets] = useState(12);
@@ -561,7 +562,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               state.score += target.points;
               state.destroyedCount++;
               const upgrade = state.destroyedCount;
-              state.player.hp = Math.min(210, state.player.hp + 12);
+              state.player.hp = Math.min(210, state.player.hp + 10);
               setHp(state.player.hp);
               setScore(state.score);
               setTotalDestroyed(state.destroyedCount);
@@ -719,11 +720,11 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         const enemyTypes: EnemyJetType[] = ['phantom', 'mirage', 'skyhawk', 'nesher', 'super_mystere'];
         const chosenType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
         const typeStats: Record<EnemyJetType, { hp: number; speed: number }> = {
-          phantom: { hp: 42, speed: 165 },
-          mirage: { hp: 30, speed: 185 },
-          skyhawk: { hp: 46, speed: 150 },
-          nesher: { hp: 34, speed: 175 },
-          super_mystere: { hp: 50, speed: 140 },
+          phantom: { hp: 44, speed: 160 },
+          mirage: { hp: 32, speed: 178 },
+          skyhawk: { hp: 48, speed: 148 },
+          nesher: { hp: 36, speed: 168 },
+          super_mystere: { hp: 52, speed: 138 },
         };
         const tunedHp = Math.round(typeStats[chosenType].hp * enemyTuning.hpScale);
 
@@ -1172,7 +1173,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         // Timers update
         jet.burstCooldown = (jet.burstCooldown ?? (2.4 + Math.random() * 1.2)) - dt;
         jet.burstRemaining = jet.burstRemaining ?? 0;
-        jet.missileCooldown = (jet.missileCooldown ?? (10.0 + Math.random() * 4.0)) - dt;
+        jet.missileCooldown = (jet.missileCooldown ?? (8.5 + Math.random() * 3.5)) - dt;
         jet.lastBurstTime = jet.lastBurstTime ?? 0;
 
         if (isAheadOfPlayer) {
@@ -1183,7 +1184,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             Math.abs(jet.y - p.y) < 70 &&
             jet.missileCooldown <= 0
           ) {
-            jet.missileCooldown = 15.0 + Math.random() * 4.0;
+            jet.missileCooldown = 12.0 + Math.random() * 3.0;
             sound.playMissileLaunch();
             sound.playTargetLock();
             state.projectiles.push({
@@ -1201,14 +1202,14 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           // B. Predictive Autocannon Burst Firing (Deflection Shooting)
           if (distToPlayer < 800) {
             if (jet.burstRemaining > 0) {
-              const shotInterval = pattern === 'air_superiority' ? 190 : 230;
+              const shotInterval = pattern === 'air_superiority' ? 170 : 205;
               if (currentTime - jet.lastBurstTime >= shotInterval) {
                 jet.lastBurstTime = currentTime;
                 jet.burstRemaining--;
                 sound.playGunshot();
 
                 // Advanced lead calculation
-                const bulletSpeed = pattern === 'air_superiority' ? 560 : 520;
+                const bulletSpeed = pattern === 'air_superiority' ? 500 : 470;
                 const timeToTarget = distToPlayer / bulletSpeed;
                 // Predict where MiG-21 will be based on velocity
                 const predX = p.x + (p.vx || 0) * timeToTarget * 0.85;
@@ -1243,7 +1244,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               const angleToPlayer = Math.atan2(p.y - jet.y, p.x - jet.x);
               if (Math.abs(angleToPlayer - Math.PI) < 0.7 || Math.abs(angleToPlayer + Math.PI) < 0.7) {
                 jet.burstRemaining = pattern === 'air_superiority' ? 4 : 3;
-                jet.burstCooldown = pattern === 'air_superiority' ? 3.5 : (3.8 + Math.random() * 1.4);
+                jet.burstCooldown = pattern === 'air_superiority' ? 2.9 : (3.2 + Math.random() * 1.2);
                 jet.lastBurstTime = currentTime - 90;
               }
             }
@@ -1276,9 +1277,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           }
         } else if (onScreen) {
           // Active enemy ground station anti-air defense (Flak & SAM)
-          target.flakTimer = (target.flakTimer ?? (2.5 + Math.random() * 2.0)) - dt;
+          target.flakTimer = (target.flakTimer ?? (2.0 + Math.random() * 1.5)) - dt;
           if (target.flakTimer <= 0) {
-            target.flakTimer = 2.8 + Math.random() * 1.6;
+            target.flakTimer = 2.2 + Math.random() * 1.3;
             sound.playCannon();
 
             // Calculate trajectory to player's altitude
@@ -1287,7 +1288,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             const fdx = leadPx - sx;
             const fdy = leadPy - (target.y - 20);
             const fdist = Math.hypot(fdx, fdy) || 1;
-            const fSpeed = 490;
+            const fSpeed = 540;
 
             state.projectiles.push({
               x: sx,
