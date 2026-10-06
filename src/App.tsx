@@ -159,8 +159,6 @@ export default function App() {
   };
 
   const handleExitMission = () => {
-    sound.playRadioTransmission();
-    sound.playBackgroundTheme('menu');
     handleReturnToMenu();
     if (document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => {});
