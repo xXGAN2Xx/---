@@ -8,6 +8,7 @@ import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 interface TankBattleMissionProps {
   difficulty?: Difficulty;
   onComplete: (scoreEarned: number) => void;
+  onDefeat?: () => void;
   onExit: () => void;
 }
 
@@ -89,7 +90,7 @@ interface FloatingText {
   maxLife: number;
 }
 
-export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty = 'normal', onComplete, onExit }) => {
+export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty = 'normal', onComplete, onDefeat, onExit }) => {
   const missionDuration = DIFFICULTY_CONFIG[difficulty].missionDuration;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -726,6 +727,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
             if (p.hp <= 0 && !state.isComplete) {
               state.isComplete = true;
               setIsDefeated(true);
+          onDefeat?.();
               sound.playDefeatSound();
             }
           }
