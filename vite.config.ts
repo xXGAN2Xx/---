@@ -5,9 +5,10 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+  const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? 'The-Great-October-Victory-Sandoub-Complex-Kindergarten';
 
   return {
-    base: isGitHubActions ? '/---/' : '/',
+    base: isGitHubActions ? `/${repositoryName}/` : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
