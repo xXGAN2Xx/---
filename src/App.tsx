@@ -297,7 +297,6 @@ export default function App() {
 
             {currentMode === 'MISSION_CROSSING' && (
               <CrossingMission
-                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_CROSSING', pts)}
                 onExit={handleExitMission}
               />
@@ -305,7 +304,6 @@ export default function App() {
 
             {currentMode === 'MISSION_BRIDGE' && (
               <BridgeMission
-                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_BRIDGE', pts)}
                 onExit={handleExitMission}
               />
@@ -313,7 +311,6 @@ export default function App() {
 
             {currentMode === 'MISSION_TANK_BATTLE' && (
               <TankBattleMission
-                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_TANK_BATTLE', pts)}
                 onExit={handleExitMission}
               />
@@ -321,7 +318,6 @@ export default function App() {
 
             {currentMode === 'MISSION_FORTRESS' && (
               <FortressAssaultMission
-                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
                 onExit={handleExitMission}
               />
