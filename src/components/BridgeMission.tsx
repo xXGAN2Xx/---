@@ -439,6 +439,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
     let animId: number;
     let lastTime = performance.now();
+    let lastStrikeCountdownDisplay = -1;
 
     const handlePointerAction = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
@@ -602,7 +603,11 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
       // 2. Active Precision Strike Countdown Tick
       if (state.strikeActive) {
         state.strikeCountdown -= dt;
-        setStrikeCountdown(Math.max(0, state.strikeCountdown));
+        const displayCountdown = Math.max(0, Math.ceil(state.strikeCountdown * 10) / 10);
+        if (displayCountdown !== lastStrikeCountdownDisplay) {
+          lastStrikeCountdownDisplay = displayCountdown;
+          setStrikeCountdown(displayCountdown);
+        }
 
         // Urgent audio beeps when under 1.6s
         if (state.strikeCountdown < 1.6 && Math.random() < 0.08) {
@@ -959,7 +964,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
       canvas.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [timeLeft]);
+  }, []);
 
   const handleRestart = () => {
     sound.playRadioTransmission();
