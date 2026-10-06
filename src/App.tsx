@@ -110,6 +110,10 @@ export default function App() {
 
   const handleReturnToMenu = () => {
     sound.playRadioTransmission();
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    setIsFullscreen(false);
     sound.playBackgroundTheme('menu');
     setCurrentMode('MENU');
     setSplashMission(null);
@@ -327,7 +331,7 @@ export default function App() {
 
         {currentMode === 'COMIC_STORY' && (
           <ComicStoryModal
-            onSelectMission={(m) => setCurrentMode(m)}
+            onSelectMission={handleSelectMode}
             onClose={handleReturnToMenu}
           />
         )}
@@ -355,7 +359,19 @@ export default function App() {
           />
         )}
 
-        {/* Operations Room Menu (غرفة العمليات المركزية) */}
+        {currentMode !== 'MENU' && (
+          <Suspense
+            fallback={
+              <div dir="rtl" className="flex-1 min-h-[40vh] flex items-center justify-center bg-stone-950 text-stone-300">
+                <div className="text-center">
+                  <div className="text-amber-400 font-bold font-cairo mb-2">جاري تجهيز المهمة…</div>
+                  <div className="text-xs text-stone-500">تحميل عناصر المعركة</div>
+                </div>
+              </div>
+            }
+          >
+        </Suspense>
+
         {currentMode === 'MENU' && (
           <div className="space-y-12">
             {/* Hero Section */}
