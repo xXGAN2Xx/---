@@ -6,6 +6,7 @@ import { MissionDigitalTimer } from './MissionDigitalTimer';
 
 interface FortressAssaultMissionProps {
   onComplete: (scoreEarned: number) => void;
+  onDefeat?: () => void;
   onExit: () => void;
 }
 
@@ -27,7 +28,7 @@ interface EnemySentry {
   badgeShown?: boolean;
 }
 
-export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ onComplete, onExit }) => {
+export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ onComplete, onDefeat, onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [napalmPipesCut, setNapalmPipesCut] = useState(0);
@@ -525,6 +526,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               if (remHp <= 0 && !s.isComplete) {
                 s.isComplete = true;
                 setIsDefeated(true);
+          onDefeat?.();
                 sound.playDefeatSound();
               }
             }
@@ -547,6 +549,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
           if (remHp <= 0 && !s.isComplete) {
             s.isComplete = true;
             setIsDefeated(true);
+          onDefeat?.();
             sound.playDefeatSound();
             sound.playExplosion(1.0);
           }
