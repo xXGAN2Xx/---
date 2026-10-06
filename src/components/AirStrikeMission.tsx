@@ -1679,8 +1679,12 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         const jGlow = 10 + Math.sin(currentTime * 0.05) * 4;
         ctx.fillStyle = 'rgba(239, 68, 68, 0.75)';
         ctx.beginPath();
-        ctx.ellipse(-30, -5, jGlow, 3.5, 0, 0, Math.PI * 2);
-        ctx.ellipse(-30, 5, jGlow, 3.5, 0, 0, Math.PI * 2);
+        if (jet.type === 'phantom') {
+          ctx.ellipse(-30, -5, jGlow, 3.5, 0, 0, Math.PI * 2);
+          ctx.ellipse(-30, 5, jGlow, 3.5, 0, 0, Math.PI * 2);
+        } else {
+          ctx.ellipse(-30, 0, jGlow, 3.5, 0, 0, Math.PI * 2);
+        }
         ctx.fill();
 
         // 2. Fuselage (Israeli Desert Tan & Olive Camouflage)
@@ -1721,24 +1725,57 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // 4. Swept Delta Wings with October 1973 Yellow Triangles
+        // 4. Aircraft-specific wing geometry
         ctx.fillStyle = visual.wing;
-        // Top Wing
-        ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(-14, -34);
-        ctx.lineTo(-26, -30);
-        ctx.lineTo(-14, 0);
-        ctx.closePath();
-        ctx.fill();
-        // Bottom Wing
-        ctx.beginPath();
-        ctx.moveTo(10, 0);
-        ctx.lineTo(-14, 34);
-        ctx.lineTo(-26, 30);
-        ctx.lineTo(-14, 0);
-        ctx.closePath();
-        ctx.fill();
+        if (jet.type === 'skyhawk') {
+          // Compact attack aircraft: broad, shorter straight wings.
+          ctx.beginPath();
+          ctx.moveTo(14, 0);
+          ctx.lineTo(-12, -24);
+          ctx.lineTo(-30, -20);
+          ctx.lineTo(-18, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(14, 0);
+          ctx.lineTo(-12, 24);
+          ctx.lineTo(-30, 20);
+          ctx.lineTo(-18, 0);
+          ctx.closePath();
+          ctx.fill();
+        } else if (jet.type === 'phantom') {
+          // Heavy twin-engine interceptor: large swept wings.
+          ctx.beginPath();
+          ctx.moveTo(10, 0);
+          ctx.lineTo(-14, -34);
+          ctx.lineTo(-26, -30);
+          ctx.lineTo(-14, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(10, 0);
+          ctx.lineTo(-14, 34);
+          ctx.lineTo(-26, 30);
+          ctx.lineTo(-14, 0);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          // Mirage / Nesher: sharp delta-wing silhouette.
+          ctx.beginPath();
+          ctx.moveTo(12, 0);
+          ctx.lineTo(-22, -38);
+          ctx.lineTo(-30, -28);
+          ctx.lineTo(-12, 0);
+          ctx.closePath();
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(12, 0);
+          ctx.lineTo(-22, 38);
+          ctx.lineTo(-30, 28);
+          ctx.lineTo(-12, 0);
+          ctx.closePath();
+          ctx.fill();
+        }
 
         // October 1973 Yellow Identification Triangle with black border
         ctx.fillStyle = '#eab308';
