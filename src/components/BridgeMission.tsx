@@ -1023,7 +1023,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
   return (
     <div className="flex flex-col h-full bg-stone-950 text-stone-100 select-none overflow-hidden">
       {/* Top HUD */}
-      <div className="p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+      <div className="p-2 sm:p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
         <div className="flex items-center gap-2">
           <button
             onClick={onExit}
@@ -1216,7 +1216,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
       </div>
 
       {/* Footer */}
-      <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+      <div className="hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
         <span>انقر على موقع الضربة الدقيقة بالكوبري أو اضغط زر المسافة (Space) فور ظهور العداد التنازلي</span>
         <span className="text-amber-400 font-semibold">«سلاح المهندسين.. درع النصر وجسر التحرير»</span>
       </div>
