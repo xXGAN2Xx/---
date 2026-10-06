@@ -641,7 +641,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
                 state.score += 800;
                 setScore(state.score);
                 setTanksDestroyed(state.tanksDown);
-                setSaggerAmmo((prev) => Math.min(18, prev + 2));
+                state.saggerAmmo = Math.min(18, state.saggerAmmo + 2);
+            setSaggerAmmo(state.saggerAmmo);
                 addFloatingText(tank.x, tank.y - 25, `+800 صيد دبابة معادية! 💥 (+2 مالوتكا)`, '#4ade80');
 
                 if (state.tanksDown >= 6 && !state.isComplete) {
