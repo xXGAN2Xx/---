@@ -5,7 +5,7 @@ import { Difficulty } from '../game/difficulty';
 import { isGamePaused } from '../game/pause';
 import { sound } from '../utils/audio';
 
-interface CrossingMissionProps { difficulty?: Difficulty; onComplete: (scoreEarned: number) => void; onExit: () => void; }
+interface CrossingMissionProps { difficulty?: Difficulty; onComplete: (scoreEarned: number) => void; onDefeat?: () => void; onExit: () => void; }
 type Defender = { id: number; x: number; hp: number; maxHp: number; kind: 'bunker' | 'gun' | 'mortar'; cooldown: number; destroyed: boolean; };
 type Breach = { id: number; progress: number; complete: boolean; };
 type Boat = { id: number; lane: number; progress: number; hp: number; };
@@ -48,7 +48,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
       const s = stateRef.current;
       s.timeLeft = Math.max(0, s.timeLeft - 1);
       setTimeLeft(s.timeLeft);
-      if (s.timeLeft === 0) { s.defeated = true; setIsDefeated(true);
+      if (s.timeLeft === 0) { s.defeated = true; s.spraying = false; setSpraying(false); setIsDefeated(true);
           onDefeat?.(); sound.playDefeatSound(); }
     }, 1000);
     return () => window.clearInterval(timer);
@@ -82,10 +82,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
 
         for (const b of s.breaches) {
           if (s.spraying && b.id === s.selectedLane && s.water > 0 && !b.complete) {
-            b.progress = Math.min(100, b.progress + dt * 19);
+            b.progress = Math.min(100, b.progress + dt * 24);
             s.water = Math.max(0, s.water - dt * 6.2);
             if (b.progress >= 100) {
-              b.complete = true; b.progress = 100; s.score += 900;
+              b.complete = true; b.progress = 100; s.spraying = false; setSpraying(false); s.score += 900;
               sound.playWaterCannon();
               setMessage('✓ الثغرة ' + String(b.id + 1) + ' فُتحت. حرّك الخراطيم إلى الثغرة التالية.');
             }
@@ -162,7 +162,11 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
 
   const toggleSpray = () => {
     const s = stateRef.current; if (s.water <= 0 || s.won || s.defeated) return;
-    s.spraying = !s.spraying; setSpraying(s.spraying); if (s.spraying) sound.playWaterCannon();
+    const target = s.breaches[s.selectedLane];
+    if (target.complete) { setMessage('الثغرة دي مفتوحة بالفعل — اختار ثغرة تانية.'); return; }
+    s.spraying = !s.spraying; setSpraying(s.spraying);
+    setMessage(s.spraying ? 'خرطوم المية شغال — وجّه الرش على الثغرة المحددة.' : 'تم إيقاف خرطوم المية.');
+    if (s.spraying) sound.playWaterCannon();
   };
 
   return (
@@ -179,7 +183,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
         <span className='mr-auto text-[10px] text-stone-500 hidden md:inline'>{message}</span>
       </div>
       <div className='relative flex-1 min-h-0'>
-        <canvas ref={canvasRef} width={1100} height={560} className='w-full h-full object-contain touch-none' />
+        <canvas ref={canvasRef} width={1100} height={560} className='w-full h-full object-contain touch-none' aria-label='مشهد خط بارليف وخراطيم المياه' />
         {!missionWon && !isDefeated && <MissionDigitalTimer timeLeft={timeLeft} totalTime={120} label='الوقت المتبقي' position='top-center'/>}
         <div className='absolute left-3 right-3 bottom-3 flex items-center justify-between gap-2 pointer-events-none'>
           <div className='px-3 py-2 rounded-xl bg-stone-950/90 border border-stone-800 text-[11px] text-stone-200'><Target className='inline w-4 h-4 text-amber-400 ml-1'/> الهدف: فتح كل الثغرات الثلاث ثم إرسال القوارب</div>
