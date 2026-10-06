@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   isFullscreen,
   onToggleFullscreen,
 }) => {
-  const isCombatMode = currentMode.startsWith('MISSION_') || currentMode === 'SURVIVAL_TACTICAL';
+  const isCombatMode = currentMode.startsWith('MISSION_');
   const currentMission = MISSIONS.find((m) => m.id === currentMode);
 
   return (
