@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { isGamePaused } from '../game/pause';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
 interface BridgeMissionProps {
@@ -379,6 +380,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     }, 700);
 
     const timer = setInterval(() => {
+      if (isGamePaused()) return;
       setTimeLeft((prev) => {
         const next = prev - 1;
         stateRef.current.timeLeft = next;
@@ -530,6 +532,10 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     window.addEventListener('keydown', handleKeyDown);
 
     const loop = (currTime: number) => {
+      if (isGamePaused()) {
+        animId = requestAnimationFrame(loop);
+        return;
+      }
       const dt = Math.min(0.1, (currTime - lastTime) / 1000);
       lastTime = currTime;
 
