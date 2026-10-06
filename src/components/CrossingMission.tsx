@@ -22,6 +22,7 @@ import {
   Pause,
 } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { isGamePaused } from '../game/pause';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
 interface CrossingMissionProps {
@@ -286,6 +287,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
     }, 1200);
 
     const timer = setInterval(() => {
+      if (isGamePaused()) return;
       setTimeLeft((prev) => {
         const next = prev - 1;
         stateRef.current.timeLeft = next;
@@ -461,6 +463,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
     window.addEventListener('keyup', handleKeyUp);
 
     const loop = (currentTime: number) => {
+      if (isGamePaused()) {
+        animId = requestAnimationFrame(loop);
+        return;
+      }
       const dt = Math.min(0.08, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
