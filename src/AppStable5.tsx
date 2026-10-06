@@ -155,6 +155,7 @@ export default function App() {
     }
     if (mode.startsWith('MISSION_')) {
       sound.playMissionStartRadioAlert();
+      sound.stopBackgroundTheme();
       if (MISSION_WEATHER_MAP[mode]) {
         setCurrentWeather(MISSION_WEATHER_MAP[mode]);
       }
