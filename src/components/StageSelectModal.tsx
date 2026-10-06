@@ -150,27 +150,7 @@ export const StageSelectModal: React.FC<StageSelectModalProps> = ({
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Tactical Survival */}
-              <button
-                onClick={() => handlePickStage('SURVIVAL_TACTICAL')}
-                className={`p-3 rounded-xl border text-right transition-all cursor-pointer flex flex-col justify-between ${
-                  currentStage === 'SURVIVAL_TACTICAL'
-                    ? 'bg-amber-500/15 border-amber-500'
-                    : 'bg-stone-950 hover:bg-stone-800 border-stone-800 hover:border-amber-500/40'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1.5 text-amber-400">
-                  <Shield className="w-4 h-4" />
-                  <span className="text-xs font-bold font-cairo text-stone-100">طور الدفاع التكتيكي</span>
-                </div>
-                <p className="text-[10px] text-stone-400 leading-relaxed mb-2">
-                  صد موجات الهجوم المضاد ونشر الدبابات وصواريخ مالوتكا
-                </p>
-                <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1">
-                  <span>خوض التحدي</span>
-                  <Play className="w-3 h-3 fill-current" />
-                </span>
-              </button>
+
 
               {/* Comic Story */}
               <button
