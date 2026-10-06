@@ -408,6 +408,50 @@ export default function App() {
                   </button>
                 </div>
 
+                {/* Quick Stage Jump Direct Bar */}
+                <div className="mb-6 p-3 bg-stone-950/80 rounded-xl border border-stone-800/80">
+                  <div className="text-[11px] font-bold text-stone-400 mb-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span>انتقال مباشر للعمليات والمراحل:</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleSelectMode('MISSION_AIR_STRIKE')}
+                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <span>1. الضربة الجوية 🦅</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectMode('MISSION_CROSSING')}
+                      className="px-3 py-1.5 bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 hover:text-white border border-sky-800/60 rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                    >
+                      <span>2. تحطيم خط بارليف 🌊</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectMode('MISSION_BRIDGE')}
+                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <span>3. بناء الجسور 🔨</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectMode('MISSION_TANK_BATTLE')}
+                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <span>4. صراع الدبابات 🛡️</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleSelectMode('MISSION_FORTRESS')}
+                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <span>5. سقوط الحصون 🇪🇬</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Difficulty Selector */}
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-stone-400 font-medium">مستوى الصعوبة والتوجيه:</span>

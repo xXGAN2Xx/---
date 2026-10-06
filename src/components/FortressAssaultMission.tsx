@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Flag, Shield, Flame, CheckCircle2, Award, Clock, RotateCcw, MousePointer, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Flag, Shield, Flame, CheckCircle2, Award, Clock, RotateCcw, MousePointer, AlertTriangle, Zap } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 
 interface FortressAssaultMissionProps {
@@ -65,6 +65,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
     timeLeft: 120,
     screenShake: 0,
     isComplete: false,
+    lastInteractTime: 0,
   });
 
   // 2-Minute Timer
@@ -285,17 +286,31 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       }
       setNearbyAction(currentNearby);
 
-      // Auto interact if reached
-      for (const p of s.pipes) {
-        if (!p.cut && Math.hypot(c.x - p.x, c.y - p.y) < 25) handleInteract();
-      }
-      for (const b of s.bunkers) {
-        if (!b.captured && Math.hypot(c.x - b.x, c.y - b.y) < 35) handleInteract();
-      }
-      if (Math.hypot(c.x - s.flagPole.x, c.y - s.flagPole.y) < 35 && s.flagPole.hoisted < 100) {
-        const allBunkersCaptured = s.bunkers.every((b) => b.captured);
-        const allPipesCut = s.pipes.every((p) => p.cut);
-        if (allBunkersCaptured && allPipesCut) handleInteract();
+      // Auto interact if reached closely, with 500ms debounce
+      const now = performance.now();
+      if (!s.lastInteractTime || now - s.lastInteractTime > 500) {
+        for (const p of s.pipes) {
+          if (!p.cut && Math.hypot(c.x - p.x, c.y - p.y) < 30) {
+            s.lastInteractTime = now;
+            handleInteract();
+            break;
+          }
+        }
+        for (const b of s.bunkers) {
+          if (!b.captured && Math.hypot(c.x - b.x, c.y - b.y) < 40) {
+            s.lastInteractTime = now;
+            handleInteract();
+            break;
+          }
+        }
+        if (Math.hypot(c.x - s.flagPole.x, c.y - s.flagPole.y) < 45 && s.flagPole.hoisted < 100) {
+          const allBunkersCaptured = s.bunkers.every((b) => b.captured);
+          const allPipesCut = s.pipes.every((p) => p.cut);
+          if (allBunkersCaptured && allPipesCut) {
+            s.lastInteractTime = now;
+            handleInteract();
+          }
+        }
       }
 
       // Uncaptured enemy bunkers fire suppressive machine gun bursts with predictive lead
@@ -824,6 +839,57 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
             label="الزمن المتبقي للفوز"
             position="top-center"
           />
+        )}
+
+        {/* On-screen Action Button when near objective */}
+        {nearbyAction && !flagHoisted && !isTimeout && !isDefeated && (
+          <button
+            onClick={handleInteract}
+            className="absolute bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold font-cairo rounded-xl shadow-[0_0_30px_rgba(245,158,11,0.6)] border-2 border-stone-950 text-xs sm:text-sm flex items-center gap-2 cursor-pointer active:scale-95 animate-bounce z-40"
+          >
+            <Zap className="w-4 h-4 fill-current" />
+            <span>{nearbyAction} [انقر هنا أو اضغط E]</span>
+          </button>
+        )}
+
+        {/* Mobile Touch Direction Controls */}
+        {!flagHoisted && !isTimeout && !isDefeated && (
+          <div className="absolute bottom-4 right-4 flex flex-col items-center gap-1 z-30 md:hidden opacity-90">
+            <button
+              onPointerDown={() => { stateRef.current.keys.up = true; }}
+              onPointerUp={() => { stateRef.current.keys.up = false; }}
+              className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
+              aria-label="أعلى"
+            >
+              ▲
+            </button>
+            <div className="flex gap-1">
+              <button
+                onPointerDown={() => { stateRef.current.keys.left = true; }}
+                onPointerUp={() => { stateRef.current.keys.left = false; }}
+                className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
+                aria-label="يمين"
+              >
+                ▶
+              </button>
+              <button
+                onPointerDown={() => { stateRef.current.keys.down = true; }}
+                onPointerUp={() => { stateRef.current.keys.down = false; }}
+                className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
+                aria-label="أسفل"
+              >
+                ▼
+              </button>
+              <button
+                onPointerDown={() => { stateRef.current.keys.right = true; }}
+                onPointerUp={() => { stateRef.current.keys.right = false; }}
+                className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
+                aria-label="يسار"
+              >
+                ◀
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Grand Victory Modal */}

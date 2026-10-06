@@ -1,6 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Waves, Droplet, Shield, Flame, CheckCircle2, RotateCcw, Clock, Sparkles, Zap, AlertTriangle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Waves,
+  Droplet,
+  Shield,
+  Flame,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+  Zap,
+  AlertTriangle,
+  Crosshair,
+  Volume2,
+  Play,
+  Pause,
+} from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 
 interface CrossingMissionProps {
@@ -13,11 +33,11 @@ type NozzleMode = 'drill' | 'extinguish' | 'slurry';
 interface SandBreach {
   id: number;
   label: string;
+  shortLabel: string;
   x: number;
   width: number;
-  depth: number;       // 0 to 100%
+  depth: number; // 0 to 100%
   layer: 'crust' | 'gravel' | 'clay' | 'open';
-  resistance: number;  // current layer hardness
   breached: boolean;
   flagRaised: boolean;
 }
@@ -82,15 +102,19 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [nozzleMode, setNozzleMode] = useState<NozzleMode>('drill');
-  const [pressure, setPressure] = useState<number>(65); // 0 to 100 BAR
-  const [pumpHeat, setPumpHeat] = useState<number>(15);   // 0 to 100%
+  const [isAutoFiring, setIsAutoFiring] = useState<boolean>(false);
+  const [pressure, setPressure] = useState<number>(75);
+  const [pumpHeat, setPumpHeat] = useState<number>(15);
   const [boatsCrossed, setBoatsCrossed] = useState<number>(0);
   const [breachesCompleted, setBreachesCompleted] = useState<number>(0);
   const [score, setScore] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<number>(120);
   const [isWon, setIsWon] = useState<boolean>(false);
   const [isDefeated, setIsDefeated] = useState<boolean>(false);
-  const [activeAlert, setActiveAlert] = useState<string>('ابدأ تشغيل مضخات المياه التوربينية وركز تيار الضغط على الساتر الترابي!');
+  const [activeAlert, setActiveAlert] = useState<string>(
+    'وجّه خراطيم المياه التوربينية لإسقاط الساتر الترابي لخط بارليف وفتح 3 ثغرات!'
+  );
+  const [activeTarget, setActiveTarget] = useState<string>('breach1');
 
   const stateRef = useRef({
     pump: {
@@ -98,65 +122,65 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       y: 360,
       angle: -0.22,
       isFiring: false,
-      pressure: 65,
+      pressure: 75,
       heat: 15,
       nozzle: 'drill' as NozzleMode,
     },
-    aim: { x: 740, y: 320 },
+    aim: { x: 650, y: 320 },
     breaches: [
       {
         id: 1,
         label: 'ثغرة القنطرة شرق (الجيش الثاني)',
+        shortLabel: 'القنطرة شرق',
         x: 600,
-        width: 95,
+        width: 100,
         depth: 0,
         layer: 'crust' as const,
-        resistance: 1.0,
         breached: false,
         flagRaised: false,
       },
       {
         id: 2,
         label: 'ثغرة الإسماعيلية والدفرسوار (القطاع الأوسط)',
-        x: 730,
+        shortLabel: 'الإسماعيلية',
+        x: 735,
         width: 105,
         depth: 0,
         layer: 'crust' as const,
-        resistance: 1.2,
         breached: false,
         flagRaised: false,
       },
       {
         id: 3,
         label: 'ثغرة الشط والسويس (الجيش الثالث)',
-        x: 870,
-        width: 95,
+        shortLabel: 'الشط والسويس',
+        x: 875,
+        width: 100,
         depth: 0,
         layer: 'crust' as const,
-        resistance: 1.4,
         breached: false,
         flagRaised: false,
       },
     ] as SandBreach[],
     bunkers: [
-      { id: 1, x: 645, y: 155, label: 'دشمة الكيلو 19 الحصينة', hp: 100, maxHp: 100, suppressedTimer: 0, napalmCooldown: 6, destroyed: false },
-      { id: 2, x: 795, y: 155, label: 'دشمة نمرة 6 (مدفعية ونفث نابالم)', hp: 100, maxHp: 100, suppressedTimer: 0, napalmCooldown: 12, destroyed: false },
+      { id: 1, x: 650, y: 155, label: 'دشمة الكيلو 19 الحصينة', hp: 100, maxHp: 100, suppressedTimer: 0, napalmCooldown: 8, destroyed: false },
+      { id: 2, x: 805, y: 155, label: 'دشمة نمرة 6 (مدفعية ونفث نابالم)', hp: 100, maxHp: 100, suppressedTimer: 0, napalmCooldown: 14, destroyed: false },
     ] as EnemyBunker[],
     napalmSlicks: [] as NapalmSlick[],
     boats: [] as AssaultBoat[],
-    bullets: [] as { x: number; y: number; vx: number; vy: number; fromEnemy: boolean }[],
     waterParticles: [] as WaterParticle[],
     mudParticles: [] as MudParticle[],
     floatingTexts: [] as { id: number; x: number; y: number; text: string; color: string; life: number; maxLife: number }[],
     score: 0,
     boatsArrivedCount: 0,
     breachesDoneCount: 0,
-    lastBoatLaunchTime: 0,
     isComplete: false,
     screenShake: 0,
+    isMouseDown: false,
+    isAutoFiring: false,
   });
 
-  const addFloatingText = (x: number, y: number, text: string, color = '#38bdf8') => {
+  const addFloatingText = useCallback((x: number, y: number, text: string, color = '#38bdf8') => {
     stateRef.current.floatingTexts.push({
       id: Date.now() + Math.random(),
       x,
@@ -164,11 +188,11 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       text,
       color,
       life: 0,
-      maxLife: 45,
+      maxLife: 50,
     });
-  };
+  }, []);
 
-  const handleLaunchAssaultBoat = () => {
+  const handleLaunchAssaultBoat = useCallback(() => {
     const state = stateRef.current;
     if (state.boats.filter((b) => !b.arrived && !b.destroyed).length >= 4) return;
     sound.playRadioTransmission();
@@ -176,44 +200,96 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
     state.boats.push({
       id: Date.now() + Math.random(),
       x: 140,
-      y: 260 + Math.random() * 180,
-      speed: 65 + Math.random() * 25,
+      y: 270 + Math.random() * 160,
+      speed: 70 + Math.random() * 25,
       hp: 100,
       arrived: false,
       destroyed: false,
       soldiers: 8,
     });
 
-    addFloatingText(160, 280, '«الله أكبر.. انطلاق قارب عبور المشاة» 🇪🇬', '#facc15');
-  };
+    addFloatingText(160, 280, '«الله أكبر.. انطلاق قارب صاعقة» 🇪🇬', '#facc15');
+  }, [addFloatingText]);
 
-  // 2-Minute Tactical Timer & Bunkers/Boats Lifecycle
+  // Quick Target Lock Action
+  const handleQuickLock = useCallback(
+    (targetType: 'breach1' | 'breach2' | 'breach3' | 'napalm' | 'bunker') => {
+      setActiveTarget(targetType);
+      sound.playRadioClick();
+      const state = stateRef.current;
+
+      if (targetType === 'breach1') {
+        state.aim.x = 650;
+        state.aim.y = 330;
+        setActiveAlert('🎯 تم التصويب على: ثغرة القنطرة شرق (الجيش الثاني)');
+      } else if (targetType === 'breach2') {
+        state.aim.x = 785;
+        state.aim.y = 330;
+        setActiveAlert('🎯 تم التصويب على: ثغرة الإسماعيلية والدفرسوار (القطاع الأوسط)');
+      } else if (targetType === 'breach3') {
+        state.aim.x = 925;
+        state.aim.y = 330;
+        setActiveAlert('🎯 تم التصويب على: ثغرة الشط والسويس (الجيش الثالث)');
+      } else if (targetType === 'napalm') {
+        const activeSlick = state.napalmSlicks.find((s) => !s.extinguished);
+        if (activeSlick) {
+          state.aim.x = activeSlick.x;
+          state.aim.y = activeSlick.y;
+          setActiveAlert('🔥 تم توجيه تيار المياه لإخماد سائل النابالم الحارق!');
+        } else {
+          state.aim.x = 380;
+          state.aim.y = 340;
+          setActiveAlert('🌊 سطح القناة آمن حالياً من حرائق النابالم');
+        }
+      } else if (targetType === 'bunker') {
+        const activeBunker = state.bunkers.find((b) => !b.destroyed) || state.bunkers[0];
+        state.aim.x = activeBunker.x;
+        state.aim.y = activeBunker.y;
+        setActiveAlert(`💥 توجيه الضغط الهيدروليكي لدك: ${activeBunker.label}`);
+      }
+
+      // Automatically engage pump upon quick-targeting
+      state.pump.isFiring = true;
+    },
+    []
+  );
+
+  const toggleAutoFire = useCallback(() => {
+    sound.playRadioClick();
+    setIsAutoFiring((prev) => {
+      const next = !prev;
+      stateRef.current.isAutoFiring = next;
+      stateRef.current.pump.isFiring = next || stateRef.current.isMouseDown;
+      return next;
+    });
+  }, []);
+
+  // Countdown timer and game loop triggers
   useEffect(() => {
     if (isWon || isDefeated) return;
 
-    // Launch first assault boat after 1.5s
-    const firstBoatTimeout = setTimeout(() => {
+    const firstBoat = setTimeout(() => {
       handleLaunchAssaultBoat();
-    }, 1500);
+    }, 1200);
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         const next = prev - 1;
 
-        // Auto deploy assault boats periodically
+        // Auto launch boats occasionally
         const activeBoats = stateRef.current.boats.filter((b) => !b.arrived && !b.destroyed);
-        if (activeBoats.length < 3 && Math.random() < 0.7) {
+        if (activeBoats.length < 3 && Math.random() < 0.65) {
           handleLaunchAssaultBoat();
         }
 
-        // Bunkers trigger napalm fuel release pipes into canal water!
+        // Bunkers trigger napalm release pipes
         for (const bk of stateRef.current.bunkers) {
           if (!bk.destroyed && bk.suppressedTimer <= 0) {
             bk.napalmCooldown -= 1;
             if (bk.napalmCooldown <= 0) {
-              bk.napalmCooldown = 14 + Math.random() * 8;
+              bk.napalmCooldown = 15 + Math.random() * 8;
               sound.playCannon();
-              const slickX = bk.x - 120 + (Math.random() - 0.5) * 80;
+              const slickX = 260 + Math.random() * 260;
               const slickY = 280 + Math.random() * 140;
 
               stateRef.current.napalmSlicks.push({
@@ -222,17 +298,16 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
                 y: slickY,
                 width: 140,
                 life: 1,
-                maxLife: 18,
+                maxLife: 20,
                 extinguished: false,
               });
 
-              setActiveAlert('⚠️ تحذير: اشتعال بقعة نابالم على سطح القناة! ركز تيار المياه لإخمادها فوراً!');
-              addFloatingText(slickX, slickY - 20, '⚠️ أنابيب نابالم مشتعلة على القناة! أطفئها بالماء!', '#ef4444');
+              setActiveAlert('⚠️ تحذير: اشتعال سائل النابالم على القناة! وجّه الماء فوراً لإخماده!');
+              addFloatingText(slickX, slickY - 20, '⚠️ أنابيب نابالم مشتعلة! وجّه المياه لإخمادها!', '#ef4444');
             }
           }
         }
 
-        // Time out defeat condition
         if (next <= 0 && !stateRef.current.isComplete) {
           stateRef.current.isComplete = true;
           setIsDefeated(true);
@@ -245,10 +320,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
     }, 1000);
 
     return () => {
-      clearTimeout(firstBoatTimeout);
+      clearTimeout(firstBoat);
       clearInterval(timer);
     };
-  }, [isWon, isDefeated]);
+  }, [isWon, isDefeated, handleLaunchAssaultBoat, addFloatingText]);
 
   // Main Canvas & Fluid Simulation Loop
   useEffect(() => {
@@ -264,7 +339,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       const rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
 
-      // Handle letterbox/pillarbox offsets with CSS object-contain
       const canvasAspect = canvas.width / canvas.height;
       const rectAspect = rect.width / rect.height;
       let renderW = rect.width;
@@ -282,8 +356,11 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
       const scaleX = canvas.width / renderW;
       const scaleY = canvas.height / renderH;
-      stateRef.current.aim.x = Math.max(160, Math.min(canvas.width, (clientX - rect.left - offsetX) * scaleX));
-      stateRef.current.aim.y = Math.max(60, Math.min(canvas.height - 40, (clientY - rect.top - offsetY) * scaleY));
+      const targetX = (clientX - rect.left - offsetX) * scaleX;
+      const targetY = (clientY - rect.top - offsetY) * scaleY;
+
+      stateRef.current.aim.x = Math.max(160, Math.min(canvas.width - 20, targetX));
+      stateRef.current.aim.y = Math.max(60, Math.min(canvas.height - 40, targetY));
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -292,39 +369,47 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
+        stateRef.current.isMouseDown = true;
         updateAimPos(e.clientX, e.clientY);
         stateRef.current.pump.isFiring = true;
       }
     };
 
     const handleMouseUp = () => {
-      stateRef.current.pump.isFiring = false;
+      stateRef.current.isMouseDown = false;
+      if (!stateRef.current.isAutoFiring) {
+        stateRef.current.pump.isFiring = false;
+      }
     };
 
     const handleTouchStart = (e: TouchEvent) => {
-      e.preventDefault();
       if (e.touches.length > 0) {
+        stateRef.current.isMouseDown = true;
         updateAimPos(e.touches[0].clientX, e.touches[0].clientY);
         stateRef.current.pump.isFiring = true;
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      e.preventDefault();
       if (e.touches.length > 0) {
         updateAimPos(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      e.preventDefault();
-      stateRef.current.pump.isFiring = false;
+    const handleTouchEnd = () => {
+      stateRef.current.isMouseDown = false;
+      if (!stateRef.current.isAutoFiring) {
+        stateRef.current.pump.isFiring = false;
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
         stateRef.current.pump.isFiring = true;
+      }
+      if (e.key === 'c' || e.key === 'C') {
+        toggleAutoFire();
       }
       if (e.key === '1') {
         stateRef.current.pump.nozzle = 'drill';
@@ -345,21 +430,23 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === ' ' || e.key === 'Enter') {
-        stateRef.current.pump.isFiring = false;
+        if (!stateRef.current.isAutoFiring) {
+          stateRef.current.pump.isFiring = false;
+        }
       }
     };
 
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: true });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
 
     const loop = (currentTime: number) => {
-      const dt = Math.min(0.1, (currentTime - lastTime) / 1000);
+      const dt = Math.min(0.08, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
       const state = stateRef.current;
@@ -382,34 +469,33 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
       // Hydraulic pressure build-up and heat dissipation
       if (pump.isFiring) {
-        pump.heat = Math.min(100, pump.heat + dt * 5.5);
-        pump.pressure = Math.min(100, pump.pressure + dt * 45);
-        if (Math.random() < 0.22) sound.playSplash();
+        pump.heat = Math.min(100, pump.heat + dt * 4.5);
+        pump.pressure = Math.min(100, pump.pressure + dt * 40);
+        if (Math.random() < 0.2) sound.playSplash();
       } else {
         pump.heat = Math.max(10, pump.heat - dt * 25);
-        pump.pressure = Math.max(50, pump.pressure - dt * 40);
+        pump.pressure = Math.max(50, pump.pressure - dt * 35);
       }
       setPressure(Math.round(pump.pressure));
       setPumpHeat(Math.round(pump.heat));
 
-      // Overheat throttle protection (operates reliably without stalling)
-      const effectivePressure = pump.heat >= 98 ? pump.pressure * 0.65 : pump.pressure;
+      const effectivePressure = pump.heat >= 98 ? pump.pressure * 0.75 : pump.pressure;
 
-      // 1. Water Stream Particle Generation from British/German Turbine Cannon
+      // 1. Water Stream Particle Generation from High-Pressure Cannon
       if (pump.isFiring) {
         const streamCount = pump.nozzle === 'extinguish' ? 8 : pump.nozzle === 'slurry' ? 7 : 6;
-        const baseSpeed = 860 + effectivePressure * 3.8;
+        const baseSpeed = 880 + effectivePressure * 4.2;
 
         for (let i = 0; i < streamCount; i++) {
           const spread =
             pump.nozzle === 'extinguish'
               ? (Math.random() - 0.5) * 0.28
               : pump.nozzle === 'slurry'
-              ? (Math.random() - 0.5) * 0.18
-              : (Math.random() - 0.5) * 0.06;
+              ? (Math.random() - 0.5) * 0.20
+              : (Math.random() - 0.5) * 0.08;
 
           const pAngle = pump.angle + spread;
-          const speed = baseSpeed * (0.92 + Math.random() * 0.22);
+          const speed = baseSpeed * (0.94 + Math.random() * 0.2);
 
           state.waterParticles.push({
             x: pump.x + Math.cos(pump.angle) * 36,
@@ -417,10 +503,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
             vx: Math.cos(pAngle) * speed,
             vy: Math.sin(pAngle) * speed + 10,
             life: 0,
-            maxLife: 95 + Math.random() * 30, // Long-range: easily reaches all 3 breaches and crest bunkers
+            maxLife: 100 + Math.random() * 30,
             size: pump.nozzle === 'extinguish' ? 6 + Math.random() * 4 : 5 + Math.random() * 3,
-            color: Math.random() < 0.6 ? '#38bdf8' : '#e0f2fe',
-            isFoam: Math.random() < 0.35,
+            color: Math.random() < 0.65 ? '#38bdf8' : '#e0f2fe',
+            isFoam: Math.random() < 0.4,
           });
         }
       }
@@ -428,37 +514,36 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       // 2. Update Water Stream & Impacts on Sand Berm, Napalm & Bunkers
       for (let w = state.waterParticles.length - 1; w >= 0; w--) {
         const wp = state.waterParticles[w];
-        wp.vy += 110 * dt; // realistic gentle ballistic arc
+        wp.vy += 105 * dt; // gentle ballistic arc
         wp.x += wp.vx * dt;
         wp.y += wp.vy * dt;
         wp.life++;
 
         let hitSomething = false;
 
-        // A. Hit on Sand Berm (x: 580 to 990, y: 170 to 500)
-        if (wp.x >= 575 && wp.x <= 990 && wp.y >= 170 && wp.y <= 500) {
+        // A. Hit on Sand Berm (x: 575 to 1000, y: 160 to 520)
+        if (wp.x >= 575 && wp.x <= 1000 && wp.y >= 160 && wp.y <= 520) {
           hitSomething = true;
 
-          // Find targeted breach
-          const targetBreach = state.breaches.find((b) => wp.x >= b.x - 30 && wp.x <= b.x + b.width + 30);
+          const targetBreach = state.breaches.find((b) => wp.x >= b.x - 35 && wp.x <= b.x + b.width + 35);
 
           if (targetBreach && !targetBreach.breached) {
             // Erosion efficiency varies by chosen nozzle mode and layer resistance
-            let erosionRate = 0.075 * (effectivePressure / 60);
+            let erosionRate = 0.14 * (effectivePressure / 60);
             if (pump.nozzle === 'drill') {
-              erosionRate *= targetBreach.layer === 'crust' ? 2.5 : targetBreach.layer === 'gravel' ? 2.0 : 1.5;
+              erosionRate *= targetBreach.layer === 'crust' ? 2.8 : 1.8;
             } else if (pump.nozzle === 'slurry') {
-              erosionRate *= targetBreach.layer === 'clay' ? 2.8 : 1.4;
+              erosionRate *= targetBreach.layer === 'clay' ? 3.0 : 2.2;
             } else {
-              erosionRate *= 1.0;
+              erosionRate *= 1.2;
             }
 
-            targetBreach.depth += erosionRate * dt * 55;
+            targetBreach.depth += erosionRate * dt * 65;
 
-            // Update layer transition
+            // Layer transitions
             if (targetBreach.depth < 25) {
               targetBreach.layer = 'crust';
-            } else if (targetBreach.depth < 60) {
+            } else if (targetBreach.depth < 65) {
               targetBreach.layer = 'gravel';
             } else if (targetBreach.depth < 99) {
               targetBreach.layer = 'clay';
@@ -473,13 +558,14 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
                 sound.playMissionStartRadioAlert();
                 state.score += 2500;
                 setScore(state.score);
+                state.screenShake = 10;
                 addFloatingText(targetBreach.x + targetBreach.width / 2, 220, `🌟 فُتحت ${targetBreach.label} بالكامل! 🇪🇬`, '#4ade80');
                 setActiveAlert(`الله أكبر! رُفع علم مصر فوق ${targetBreach.label} وسقطت أسطورة خط بارليف!`);
 
-                // Check victory (all 3 breaches opened!)
+                // Check victory condition
                 if (state.breachesDoneCount >= 3 && !state.isComplete) {
                   state.isComplete = true;
-                  const timeBonus = timeLeft * 30;
+                  const timeBonus = timeLeft * 35;
                   state.score += timeBonus;
                   setScore(state.score);
                   setIsWon(true);
@@ -488,16 +574,16 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
               }
             }
 
-            // Spawn dynamic mud slurry run-off particles cascading down the sand slope into canal
-            if (Math.random() < 0.65) {
+            // Spawn mud cascade particles down into the canal
+            if (Math.random() < 0.7) {
               state.mudParticles.push({
                 x: wp.x + (Math.random() - 0.5) * 15,
                 y: wp.y,
-                vx: -50 - Math.random() * 70, // cascades down towards canal
-                vy: 70 + Math.random() * 90,
+                vx: -60 - Math.random() * 80,
+                vy: 80 + Math.random() * 100,
                 life: 1,
-                maxLife: 28,
-                size: 4 + Math.random() * 5,
+                maxLife: 32,
+                size: 4 + Math.random() * 6,
                 color: targetBreach.layer === 'clay' ? '#78350f' : '#b45309',
               });
             }
@@ -507,38 +593,40 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         // B. Hit on Napalm Slick on Canal surface
         if (!hitSomething) {
           for (const slick of state.napalmSlicks) {
-            if (!slick.extinguished && Math.abs(wp.x - slick.x) < slick.width / 2 && Math.abs(wp.y - slick.y) < 40) {
+            if (!slick.extinguished && Math.abs(wp.x - slick.x) < slick.width / 2 && Math.abs(wp.y - slick.y) < 45) {
               hitSomething = true;
-              slick.life += (pump.nozzle === 'extinguish' ? 6.5 : 2.5) * dt;
+              slick.life += (pump.nozzle === 'extinguish' ? 8.0 : 3.0) * dt;
               if (slick.life >= slick.maxLife) {
                 slick.extinguished = true;
                 sound.playSplash();
-                state.score += 400;
+                state.score += 500;
                 setScore(state.score);
-                addFloatingText(slick.x, slick.y - 20, '+400 إخماد أنابيب النابالم بالماء! 🌊', '#38bdf8');
+                addFloatingText(slick.x, slick.y - 20, '+500 إخماد أنابيب النابالم بالماء! 🌊', '#38bdf8');
               }
               break;
             }
           }
         }
 
-        // C. Hit on Enemy Bunkers (suppressing machine gun fire & destroying concrete)
+        // C. Hit on Enemy Bunkers
         if (!hitSomething) {
           for (const bk of state.bunkers) {
             if (!bk.destroyed && Math.hypot(wp.x - bk.x, wp.y - bk.y) < 55) {
               hitSomething = true;
-              bk.suppressedTimer = 3.5; // blinds and suppresses enemy fire
-              bk.hp -= 35 * dt;
+              bk.suppressedTimer = 3.5;
+              bk.hp -= 40 * dt;
               if (bk.hp <= 0 && !bk.destroyed) {
                 bk.destroyed = true;
                 sound.playExplosion(1.1);
                 state.score += 800;
                 setScore(state.score);
-                addFloatingText(bk.x, bk.y - 25, `+800 تدمير دشمة بارليف بالضغط الهيدروليكي! 💥`, '#4ade80');
+                addFloatingText(bk.x, bk.y - 25, `+800 دك دشمة بارليف بالضغط الهيدروليكي! 💥`, '#4ade80');
               }
               break;
             }
           }
+        }
+
         // Despawn water particle
         if (hitSomething || wp.life >= wp.maxLife || wp.y > canvas.height + 20 || wp.x > canvas.width + 40) {
           state.waterParticles.splice(w, 1);
@@ -551,7 +639,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         mp.x += mp.vx * dt;
         mp.y += mp.vy * dt;
         mp.life++;
-        if (mp.life >= mp.maxLife || mp.y > 520) {
+        if (mp.life >= mp.maxLife || mp.y > 540) {
           state.mudParticles.splice(m, 1);
         }
       }
@@ -567,9 +655,9 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
           // Check if boat enters an active flaming napalm slick
           for (const slick of state.napalmSlicks) {
             if (!slick.extinguished && Math.abs(boat.x - slick.x) < slick.width / 2 && Math.abs(boat.y - slick.y) < 30) {
-              boat.hp -= 35 * dt;
-              if (Math.random() < 0.2) {
-                addFloatingText(boat.x, boat.y - 20, '⚠️ القارب يحترق بالنابالم! أطفئه!', '#ef4444');
+              boat.hp -= 25 * dt;
+              if (Math.random() < 0.15) {
+                addFloatingText(boat.x, boat.y - 20, '⚠️ القارب يقترب من النابالم! أطفئه بالماء!', '#ef4444');
               }
               if (boat.hp <= 0) {
                 boat.destroyed = true;
@@ -584,10 +672,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
             boat.arrived = true;
             state.boatsArrivedCount++;
             setBoatsCrossed(state.boatsArrivedCount);
-            state.score += 600;
+            state.score += 800;
             setScore(state.score);
             sound.playTargetLock();
-            addFloatingText(boat.x, boat.y - 25, `+600 وصول كتيبة صاعقة إلى الشاطئ الشرقي! 🇪🇬`, '#4ade80');
+            addFloatingText(boat.x, boat.y - 25, `+800 وصول أبطال الصاعقة إلى الشاطئ الشرقي! 🇪🇬`, '#4ade80');
           }
         }
       }
@@ -602,6 +690,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       // ----------------------------------------------------
       // RENDER CANVAS SCENE (Water, Sand Berm, Bunkers, Streams)
       // ----------------------------------------------------
+      ctx.save();
+      if (state.screenShake > 0) {
+        ctx.translate((Math.random() - 0.5) * state.screenShake, (Math.random() - 0.5) * state.screenShake);
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Sky
@@ -625,9 +717,9 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       ctx.fillRect(140, 240, 460, canvas.height - 240);
 
       // Animated Water Waves
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
       ctx.lineWidth = 1.5;
-      for (let r = 260; r < canvas.height; r += 28) {
+      for (let r = 260; r < canvas.height; r += 26) {
         ctx.beginPath();
         for (let wx = 140; wx <= 600; wx += 20) {
           const waveY = r + Math.sin(wx * 0.05 + currentTime * 0.003) * 3;
@@ -639,7 +731,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
       // East Bank: The Colossal Bar Lev Sand Berm (x: 580 to 1000)
       // 20-meter high steep sloping mountain of sand (45° incline)
-      const bermGrad = ctx.createLinearGradient(580, 200, 1000, 520);
+      const bermGrad = ctx.createLinearGradient(580, 180, 1000, 520);
       bermGrad.addColorStop(0, '#f59e0b');
       bermGrad.addColorStop(0.4, '#d97706');
       bermGrad.addColorStop(1, '#78350f');
@@ -677,8 +769,9 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         }
 
         // Breach Progress Banner & Depth meter
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-        ctx.roundRect(b.x - 10, 480, b.width + 20, 36, 6);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.beginPath();
+        ctx.roundRect(b.x - 8, 480, b.width + 16, 36, 6);
         ctx.fill();
         ctx.strokeStyle = b.breached ? '#22c55e' : '#f59e0b';
         ctx.lineWidth = 1.5;
@@ -691,9 +784,9 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
         // Progress bar
         ctx.fillStyle = '#334155';
-        ctx.fillRect(b.x - 4, 502, b.width + 8, 8);
+        ctx.fillRect(b.x - 2, 502, b.width + 4, 8);
         ctx.fillStyle = b.breached ? '#22c55e' : '#38bdf8';
-        ctx.fillRect(b.x - 4, 502, ((b.width + 8) * b.depth) / 100, 8);
+        ctx.fillRect(b.x - 2, 502, ((b.width + 4) * b.depth) / 100, 8);
 
         // Raised Egyptian Flag when breach is complete!
         if (b.flagRaised) {
@@ -714,7 +807,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       // Render Napalm Slicks on canal water
       for (const slick of state.napalmSlicks) {
         if (!slick.extinguished) {
-          // Fire glow
           const glow = ctx.createRadialGradient(slick.x, slick.y, 10, slick.x, slick.y, slick.width / 2);
           glow.addColorStop(0, 'rgba(239, 68, 68, 0.9)');
           glow.addColorStop(0.5, 'rgba(249, 115, 22, 0.8)');
@@ -724,7 +816,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
           ctx.ellipse(slick.x, slick.y, slick.width / 2, 22, 0, 0, Math.PI * 2);
           ctx.fill();
 
-          // Floating Fire Tongue Text
           ctx.font = 'bold 11px Cairo, sans-serif';
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'center';
@@ -737,62 +828,67 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         ctx.save();
         ctx.translate(bk.x, bk.y);
 
-        // Concrete Pillbox
         ctx.fillStyle = bk.destroyed ? '#27272a' : '#52525b';
         ctx.fillRect(-30, -18, 60, 36);
 
-        // Firing Slit
         ctx.fillStyle = bk.suppressedTimer > 0 ? '#38bdf8' : '#000000';
         ctx.fillRect(-22, -4, 44, 8);
 
-        // Armor Plate / Reinforced Roof
-        ctx.fillStyle = '#3f3f46';
+        ctx.fillStyle = bk.destroyed ? '#18181b' : '#3f3f46';
         ctx.fillRect(-34, -22, 68, 8);
 
-        // Status Label
         ctx.font = 'bold 10px Cairo, sans-serif';
-        ctx.fillStyle = bk.suppressedTimer > 0 ? '#38bdf8' : '#f87171';
+        ctx.fillStyle = bk.destroyed ? '#ef4444' : '#e4e4e7';
         ctx.textAlign = 'center';
-        ctx.fillText(bk.destroyed ? 'مدمرة' : bk.suppressedTimer > 0 ? 'مغمورة بالمياه (صامتة)' : bk.label, 0, -28);
+        ctx.fillText(bk.destroyed ? '💥 دُمرت الدشمة' : bk.label, 0, -28);
 
+        if (!bk.destroyed) {
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(-20, 22, (40 * bk.hp) / bk.maxHp, 4);
+        }
         ctx.restore();
       }
 
       // Render Assault Boats
       for (const boat of state.boats) {
-        if (!boat.destroyed) {
-          ctx.save();
-          ctx.translate(boat.x, boat.y);
+        if (boat.destroyed) continue;
 
-          // Inflatable rubber assault boat (زورق مطاطي أسود)
-          ctx.fillStyle = '#18181b';
+        ctx.save();
+        ctx.translate(boat.x, boat.y);
+
+        // Boat Hull (Inflatable Rubber Zodiac Zodiak PMP)
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 24, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 20, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Commando Soldiers inside
+        ctx.fillStyle = '#15803d'; // Egyptian Army Olive Camouflage
+        for (let s = -12; s <= 12; s += 8) {
           ctx.beginPath();
-          ctx.ellipse(0, 0, 24, 11, 0, 0, Math.PI * 2);
+          ctx.arc(s, -2, 3.5, 0, Math.PI * 2);
           ctx.fill();
-
-          // Soldiers holding paddles & RPG
-          ctx.fillStyle = '#15803d';
-          for (let s = -12; s <= 12; s += 8) {
-            ctx.beginPath();
-            ctx.arc(s, -3, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-          }
-
-          // Small Egyptian Flag at rear of boat
-          ctx.fillStyle = '#dc2626';
-          ctx.fillRect(-20, -14, 8, 3);
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(-20, -11, 8, 3);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(-20, -8, 8, 3);
-
-          ctx.restore();
         }
+
+        // Little Egyptian Pennant on boat bow
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(16, -10, 8, 3);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(16, -7, 8, 3);
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(16, -4, 8, 3);
+
+        ctx.restore();
       }
 
-      // Render Water Spray Particles
+      // Render Water Particles
       for (const wp of state.waterParticles) {
-        ctx.fillStyle = wp.isFoam ? '#ffffff' : wp.color;
+        ctx.fillStyle = wp.color;
         ctx.beginPath();
         ctx.arc(wp.x, wp.y, wp.size, 0, Math.PI * 2);
         ctx.fill();
@@ -823,7 +919,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       // Nozzle Barrel pointing along pump.angle
       ctx.rotate(pump.angle);
 
-      // Heavy English/German High-Pressure Barrel
       ctx.fillStyle = pump.nozzle === 'drill' ? '#0284c7' : pump.nozzle === 'extinguish' ? '#0d9488' : '#b45309';
       ctx.fillRect(0, -6, 36, 12);
 
@@ -833,12 +928,12 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
       ctx.restore();
 
-      // Aiming Reticle / Crosshair on Sand Berm with Target Acquisition
+      // Aiming Reticle / Crosshair on Sand Berm
       ctx.save();
       const nozzleTipX = pump.x + Math.cos(pump.angle) * 44;
       const nozzleTipY = pump.y + Math.sin(pump.angle) * 44;
 
-      // 1. Water Stream Sightline Trajectory
+      // Sightline Trajectory
       ctx.strokeStyle = pump.isFiring ? 'rgba(56, 189, 248, 0.45)' : 'rgba(250, 204, 21, 0.25)';
       ctx.lineWidth = 1.2;
       ctx.setLineDash([6, 6]);
@@ -848,7 +943,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 2. Identify target under crosshair
+      // Identify target under crosshair
       let lockText = '';
       const hoverBreach = state.breaches.find((b) => aim.x >= b.x - 20 && aim.x <= b.x + b.width + 20 && aim.y >= 200 && aim.y <= 490);
       const hoverNapalm = state.napalmSlicks.find((s) => !s.extinguished && Math.abs(aim.x - s.x) < s.width / 2 && Math.abs(aim.y - s.y) < 35);
@@ -859,7 +954,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       } else if (hoverNapalm) {
         lockText = '🔥 إخماد سائل النابالم الحارق';
       } else if (hoverBunker) {
-        lockText = `💥 إغراق وقصف: ${hoverBunker.label}`;
+        lockText = `💥 دك وقصف: ${hoverBunker.label}`;
       }
 
       const reticleColor = hoverNapalm
@@ -870,14 +965,12 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         ? '#38bdf8'
         : '#facc15';
 
-      // 3. Central Reticle Ring & Crosshair
       ctx.strokeStyle = reticleColor;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(aim.x, aim.y, pump.isFiring ? 18 : 15, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Crosshair Ticks
       ctx.beginPath();
       ctx.moveTo(aim.x - 24, aim.y);
       ctx.lineTo(aim.x - 14, aim.y);
@@ -889,13 +982,11 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       ctx.lineTo(aim.x, aim.y + 24);
       ctx.stroke();
 
-      // Center Laser Pip
       ctx.fillStyle = reticleColor;
       ctx.beginPath();
       ctx.arc(aim.x, aim.y, 2.5, 0, Math.PI * 2);
       ctx.fill();
 
-      // Lock label badge
       if (lockText) {
         ctx.font = 'bold 11px Cairo, sans-serif';
         ctx.fillStyle = reticleColor;
@@ -923,6 +1014,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         }
       }
 
+      ctx.restore();
       animId = requestAnimationFrame(loop);
     };
 
@@ -939,7 +1031,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [timeLeft]);
+  }, [toggleAutoFire, timeLeft]);
 
   const handleRestart = () => {
     sound.playRadioTransmission();
@@ -951,31 +1043,44 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       b.breached = false;
       b.flagRaised = false;
     });
+    state.bunkers.forEach((bk) => {
+      bk.destroyed = false;
+      bk.hp = bk.maxHp;
+      bk.suppressedTimer = 0;
+    });
     state.boats = [];
     state.napalmSlicks = [];
+    state.waterParticles = [];
+    state.mudParticles = [];
+    state.floatingTexts = [];
     state.breachesDoneCount = 0;
     state.boatsArrivedCount = 0;
     state.score = 0;
+    state.pump.heat = 15;
+    state.pump.pressure = 75;
+    state.pump.isFiring = false;
+    state.isAutoFiring = false;
     setBreachesCompleted(0);
     setBoatsCrossed(0);
     setScore(0);
     setTimeLeft(120);
     setIsWon(false);
     setIsDefeated(false);
-    setActiveAlert('أعد تشغيل مضخات المياه التوربينية وركز الضغط على الساتر الترابي!');
+    setIsAutoFiring(false);
+    setActiveAlert('ابدأ تشغيل مضخات المياه التوربينية وركز تيار الضغط على الساتر الترابي!');
   };
 
   return (
-    <div className="flex flex-col h-full bg-stone-950 text-stone-100 select-none overflow-hidden">
-      {/* Top Mission HUD */}
-      <div className="p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
-        <div className="flex items-center gap-2">
+    <div dir="rtl" className="w-full h-full flex flex-col bg-stone-950 text-stone-100 select-none overflow-hidden">
+      {/* Top Header / Tactical Status */}
+      <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
           <button
             onClick={onExit}
-            className="p-1.5 bg-stone-800 hover:bg-stone-700 rounded-lg text-stone-300 hover:text-white cursor-pointer transition-colors"
-            title="العودة"
+            className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer border border-stone-700"
+            title="العودة لغرفة العمليات"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <h2 className="font-bold font-cairo text-sm sm:text-base text-amber-400">
@@ -988,22 +1093,29 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         </div>
 
         {/* Telemetry Bar */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <Droplet className="w-4 h-4 text-sky-400" />
-            <span className="text-stone-300">ضغط المضخة:</span>
+            <span className="text-stone-300">الضغط:</span>
             <span className="font-mono tabular-nums font-bold text-sky-400">{pressure} BAR</span>
           </div>
 
           <div className="flex items-center gap-1.5">
+            <span className="text-stone-300">حرارة المضخة:</span>
+            <span className={`font-mono tabular-nums font-bold ${pumpHeat > 85 ? 'text-red-400' : 'text-emerald-400'}`}>
+              {pumpHeat}%
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
             <Shield className="w-4 h-4 text-emerald-400" />
-            <span className="text-stone-300">الثغرات المفتوحة:</span>
+            <span className="text-stone-300">الثغرات:</span>
             <span className="font-mono tabular-nums font-bold text-emerald-400">{breachesCompleted} / 3</span>
           </div>
 
           <div className="flex items-center gap-1.5">
             <Waves className="w-4 h-4 text-amber-400" />
-            <span className="text-stone-300">قوارب العبور:</span>
+            <span className="text-stone-300">القوارب:</span>
             <span className="font-mono tabular-nums font-bold text-amber-400">{boatsCrossed}</span>
           </div>
 
@@ -1014,24 +1126,25 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         </div>
       </div>
 
-      {/* Control Helpers & Nozzle Switcher */}
-      <div className="px-4 py-2 bg-stone-900/90 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-stone-300">فوهة الضخ:</span>
+      {/* Control Helpers & Quick Action Toolbar */}
+      <div className="px-3 sm:px-4 py-2 bg-stone-900/90 border-b border-stone-800 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        {/* Nozzle Switcher */}
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold text-stone-300 hidden sm:inline">فوهة الضخ:</span>
           <button
             onClick={() => {
               setNozzleMode('drill');
               stateRef.current.pump.nozzle = 'drill';
               sound.playRadioClick();
             }}
-            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
               nozzleMode === 'drill'
                 ? 'bg-sky-600 text-white shadow-md'
                 : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
             }`}
           >
             <Zap className="w-3.5 h-3.5 text-sky-300" />
-            <span>[1] تيار الحفر النفاث ⚡</span>
+            <span>[1] حفر نفاث ⚡</span>
           </button>
 
           <button
@@ -1040,14 +1153,14 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
               stateRef.current.pump.nozzle = 'extinguish';
               sound.playRadioClick();
             }}
-            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
               nozzleMode === 'extinguish'
                 ? 'bg-teal-600 text-white shadow-md'
                 : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
             }`}
           >
             <Flame className="w-3.5 h-3.5 text-amber-300" />
-            <span>[2] ستارة إخماد النابالم 🌊</span>
+            <span>[2] إخماد النابالم 🌊</span>
           </button>
 
           <button
@@ -1056,34 +1169,98 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
               stateRef.current.pump.nozzle = 'slurry';
               sound.playRadioClick();
             }}
-            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
               nozzleMode === 'slurry'
                 ? 'bg-amber-600 text-stone-950 shadow-md font-black'
                 : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
             }`}
           >
             <Waves className="w-3.5 h-3.5" />
-            <span>[3] طوفان تجريف الرمال 🌪️</span>
+            <span>[3] طوفان التجريف 🌪️</span>
           </button>
         </div>
 
-        <button
-          onClick={handleLaunchAssaultBoat}
-          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow active:scale-95 transition-all"
-        >
-          <Waves className="w-3.5 h-3.5" />
-          <span>إطلاق قارب عبور صاعقة 🚣</span>
-        </button>
+        {/* Continuous Auto-Pump Toggle Button */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleAutoFire}
+            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer shadow transition-all ${
+              isAutoFiring
+                ? 'bg-sky-500 text-stone-950 ring-2 ring-sky-300 animate-pulse'
+                : 'bg-stone-800 hover:bg-stone-700 text-sky-400 border border-stone-700'
+            }`}
+            title="تشغيل أو إيقاف ضخ المياه المستمر التلقائي (اختصار C أو مسافة)"
+          >
+            {isAutoFiring ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            <span>{isAutoFiring ? 'الضخ المستمر مفعّل 🌊' : 'تشغيل ضخ مستمر [C]'}</span>
+          </button>
+
+          <button
+            onClick={handleLaunchAssaultBoat}
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow active:scale-95 transition-all"
+          >
+            <Waves className="w-3.5 h-3.5" />
+            <span>إطلاق قارب عبور 🚣</span>
+          </button>
+        </div>
       </div>
 
-      {/* Operational Dispatch Banner */}
-      <div className="px-4 py-1.5 bg-stone-950 border-b border-stone-800 flex items-center justify-between text-xs text-stone-300">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-          <span className="font-bold text-amber-400">{activeAlert}</span>
+      {/* Quick Target Selector Bar */}
+      <div className="px-3 sm:px-4 py-1.5 bg-stone-950 border-b border-stone-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-1.5">
+          <span className="text-stone-400 font-medium text-[11px] flex items-center gap-1">
+            <Crosshair className="w-3 h-3 text-amber-400" />
+            <span>تصويب سريع:</span>
+          </span>
+
+          <button
+            onClick={() => handleQuickLock('breach1')}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+              activeTarget === 'breach1' ? 'bg-amber-500 text-stone-950' : 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+            }`}
+          >
+            ثغرة 1 (القنطرة)
+          </button>
+
+          <button
+            onClick={() => handleQuickLock('breach2')}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+              activeTarget === 'breach2' ? 'bg-amber-500 text-stone-950' : 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+            }`}
+          >
+            ثغرة 2 (الإسماعيلية)
+          </button>
+
+          <button
+            onClick={() => handleQuickLock('breach3')}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+              activeTarget === 'breach3' ? 'bg-amber-500 text-stone-950' : 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+            }`}
+          >
+            ثغرة 3 (السويس)
+          </button>
+
+          <button
+            onClick={() => handleQuickLock('napalm')}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+              activeTarget === 'napalm' ? 'bg-red-500 text-white' : 'bg-stone-900 text-red-400 hover:bg-stone-800'
+            }`}
+          >
+            إطفاء النابالم 🔥
+          </button>
+
+          <button
+            onClick={() => handleQuickLock('bunker')}
+            className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+              activeTarget === 'bunker' ? 'bg-orange-500 text-white' : 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+            }`}
+          >
+            دشم بارليف 💥
+          </button>
         </div>
-        <div className="text-stone-400 font-mono text-[11px] hidden sm:block">
-          انقر أو اضغط مع التحريك للتصويب والضخ المستمر
+
+        <div className="text-amber-400 font-medium text-[11px] truncate max-w-sm sm:max-w-md">
+          {activeAlert}
         </div>
       </div>
 
@@ -1093,7 +1270,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-none select-none"
+          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
         />
 
         {/* Digital Countdown Timer */}
@@ -1101,7 +1278,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
           <MissionDigitalTimer
             timeLeft={timeLeft}
             totalTime={120}
-            label="الزمن المتبقي للنصر"
+            label="الزمن المتبقي للعبور"
             position="top-center"
           />
         )}
@@ -1116,7 +1293,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
               انهيار أسطورة خط بارليف وسقوط الساتر الترابي!
             </h3>
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
-              فتحت خراطيم المياه التوربينية 3 ممرات واسعة في أضخم ساتر ترابي في التاريخ العسكري، وعبرت قوات الصاعقة والمشاة رافعة علم جمهورية مصر العربية خفاقاً!
+              فتحت خراطيم المياه التوربينية 3 ممرات واسعة في أضخم ساتر ترابي في التاريخ العسكري، وعبرت قوات الصاعقة والمشاة رافعة علم جمهورية مصر العربية خفاقاً فوق تراب سيناء!
             </p>
 
             <div className="grid grid-cols-3 gap-3 mb-6 max-w-md w-full text-center">
@@ -1138,7 +1315,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
               onClick={() => onComplete(score)}
               className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg transition-colors cursor-pointer shadow-lg active:scale-95"
             >
-              الانتقال إلى المرحلة الثالثة: ملحمة بناء الكباري العائمة
+              الانتقال إلى المرحلة الثالثة: بناء الكباري العائمة
             </button>
           </div>
         )}
@@ -1153,7 +1330,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
               انتهت مدة الدقيقتين المخصصة لفتح الثغرات!
             </h3>
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
-              ركّز ضغط المياه النفاث باستمرار على الساتر الترابي، وأطفئ حرائق النابالم المشتعلة على سطح القناة لحماية قوارب العبور!
+              ركّز ضغط المياه النفاث باستمرار على الساتر الترابي، واستخدم وضع الضخ المستمر [C] وأطفئ حرائق النابالم لحماية قوارب العبور!
             </p>
 
             <button
@@ -1168,8 +1345,8 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       </div>
 
       {/* Footer Info */}
-      <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
-        <span>فكرة اللواء باقي زكي يوسف: مضخات مياه بريطانية وألمانية متطورة</span>
+      <div className="px-4 py-2 bg-stone-950 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+        <span>فكرة اللواء مهندس باقي زكي يوسف · مضخات مياه توربينية بريطانية وألمانية فائقة الضغط</span>
         <span className="text-amber-400 font-semibold">«بسم الله.. الله أكبر» 🇪🇬</span>
       </div>
     </div>
