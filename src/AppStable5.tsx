@@ -23,13 +23,24 @@ import { ComicMissionBriefing } from './components/ComicMissionBriefing';
 import { ComicHugeSplashModal } from './components/ComicHugeSplashModal';
 import { StageSelectModal } from './components/StageSelectModal';
 import { WeatherLightingContainer, WeatherType } from './components/WeatherLightingContainer';
-import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap, ChevronLeft, MapPin } from 'lucide-react';
+import { DefeatModal } from './components/DefeatModal';
+import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap, ChevronLeft, MapPin, Volume2, VolumeX } from 'lucide-react';
 
 export default function App() {
   const [currentMode, setCurrentMode] = useState<GameMode>('MENU');
   const [splashMission, setSplashMission] = useState<GameMode | null>(null);
   const [briefingMission, setBriefingMission] = useState<GameMode | null>(null);
   const [countdownMission, setCountdownMission] = useState<GameMode | null>(null);
+  const [defeatData, setDefeatData] = useState<{
+    mission: GameMode;
+    missionTitle: string;
+    reason?: string;
+    score?: number;
+    targetsDestroyed?: number;
+    totalTargets?: number;
+    timeElapsed?: number;
+  } | null>(null);
+  const [missionSessionKey, setMissionSessionKey] = useState(0);
   const [currentWeather, setCurrentWeather] = useState<WeatherType>('sun_glare');
   const [isMuted, setIsMuted] = useState(false);
   const [isStageSelectOpen, setIsStageSelectOpen] = useState(false);
@@ -68,26 +79,57 @@ export default function App() {
   }, [stats]);
 
   useEffect(() => {
-    setGamePaused(isStageSelectOpen || splashMission !== null);
-  }, [isStageSelectOpen, splashMission]);
+    const isPaused = isStageSelectOpen || splashMission !== null || isPortraitMobile || defeatData !== null;
+    setGamePaused(isPaused);
+
+    if (isPortraitMobile) {
+      sound.suspendAudio();
+    } else if (!isMuted && !isStageSelectOpen && splashMission === null && defeatData === null) {
+      sound.resumeAudio();
+    }
+  }, [isStageSelectOpen, splashMission, isPortraitMobile, isMuted, defeatData]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setGamePaused(true);
+        sound.suspendAudio();
+      } else {
+        if (!isPortraitMobile && !isStageSelectOpen && splashMission === null && defeatData === null) {
+          setGamePaused(false);
+          if (!isMuted) sound.resumeAudio();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isPortraitMobile, isStageSelectOpen, splashMission, isMuted, defeatData]);
 
   // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
   const difficulty = 'normal' as const;
 
-  const isMobileViewport = () =>
-    window.matchMedia('(max-width: 900px) and (pointer: coarse)').matches;
+  const isMobileDevice = () => {
+    if (typeof window === 'undefined') return false;
+    const isCoarse = window.matchMedia('(pointer: coarse)').matches;
+    const isTouch = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
+    const isSmall = Math.min(window.innerWidth, window.innerHeight) <= 960;
+    const isShortLandscape = window.innerWidth >= window.innerHeight && window.innerHeight <= 640;
+    return (isCoarse || isTouch || isShortLandscape) && (isSmall || isShortLandscape);
+  };
 
   const syncMobileOrientation = () => {
-    const mobile = isMobileViewport();
+    const mobile = isMobileDevice();
     const portrait = window.innerHeight > window.innerWidth;
-    const landscape = window.innerWidth > window.innerHeight;
+    const landscape = window.innerWidth >= window.innerHeight;
     const combat = currentMode.startsWith('MISSION_');
-    setIsPortraitMobile(mobile && portrait && combat);
-    setIsMobileLandscape(mobile && landscape && combat);
+    const isLandscapePhone = combat && landscape && (mobile || window.innerHeight <= 640);
+    const isPortraitPhone = combat && portrait && mobile;
+    setIsPortraitMobile(isPortraitPhone);
+    setIsMobileLandscape(isLandscapePhone);
   };
 
   const lockMissionLandscape = async () => {
-    if (!isMobileViewport()) return;
+    if (!isMobileDevice()) return;
 
     try {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -98,8 +140,8 @@ export default function App() {
     }
 
     try {
-      if (screen.orientation?.lock) {
-        await screen.orientation.lock('landscape');
+      if (screen.orientation && 'lock' in screen.orientation) {
+        await (screen.orientation as unknown as { lock: (orientation: string) => Promise<void> }).lock('landscape');
       }
     } catch {
       // قفل الاتجاه غير متاح في بعض المتصفحات.
@@ -110,7 +152,9 @@ export default function App() {
 
   const unlockMissionLandscape = () => {
     try {
-      screen.orientation?.unlock?.();
+      if (screen.orientation && 'unlock' in screen.orientation) {
+        (screen.orientation as unknown as { unlock: () => void }).unlock();
+      }
     } catch {
       // تجاهل المتصفحات التي لا تدعم فك قفل الاتجاه.
     }
@@ -139,17 +183,14 @@ export default function App() {
       if (requestFullscreen) {
         requestFullscreen.call(document.documentElement)
           .then(() => {
-            if (currentMode.startsWith('MISSION_')) {
+            if (isMobileDevice() && currentMode.startsWith('MISSION_')) {
               void lockMissionLandscape();
             }
           })
           .catch(() => {});
       }
-      setIsFullscreen(true);
     } else {
       document.exitFullscreen?.().catch(() => {});
-      setIsFullscreen(false);
-      syncMobileOrientation();
     }
   };
 
@@ -242,10 +283,11 @@ export default function App() {
     }
     // Start patriotic theme music for this stage!
     sound.playBackgroundTheme(THEME_MAP[target] || 'airStrike');
-    // Launch stage in fullscreen + landscape on supported mobile browsers.
+    // Launch stage in landscape on supported mobile browsers.
     setCurrentMode(target);
-    setIsFullscreen(true);
-    void lockMissionLandscape();
+    if (isMobileDevice()) {
+      void lockMissionLandscape();
+    }
   };
 
   const handleStartMissionFromBriefing = () => {
@@ -273,22 +315,45 @@ export default function App() {
     setIsFullscreen(false);
   };
 
-  const handleMissionDefeat = (mission: GameMode) => {
-    // الخسارة = إنهاء الجلسة فورًا، كتم الصوت، وإعادة البيئة للبداية بدل استمرار المؤقت/الطقس.
-    sound.setMuted(true);
-    setIsMuted(true);
+  const handleMissionDefeat = (mission: GameMode, reasonKey?: string) => {
     sound.stopBackgroundTheme();
-    setCurrentWeather(MISSION_WEATHER_MAP[mission] ?? 'sun_glare');
-    setSplashMission(null);
-    setBriefingMission(null);
-    setCountdownMission(null);
-    setIsStageSelectOpen(false);
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.().catch(() => {});
+    sound.playDefeatSound();
+
+    const title = MISSIONS.find((m) => m.id === mission)?.title || 'المهمة القتالية';
+    let detailedReason = 'تعرضت القوات لنيران معادية كثيفة أو نفد الوقت المخصص للعملية قبل حسم الأهداف.';
+
+    if (mission === 'MISSION_AIR_STRIKE') {
+      if (reasonKey === 'crash') {
+        detailedReason = 'اصطدمت المقاتلة بتضاريس الأرض أو الهضاب. احرص على مراقبة مؤشر الارتفاع وتفادي الأرض!';
+      } else if (reasonKey === 'timeout') {
+        detailedReason = 'انتهى الوقت المخصص للطلعة الجوية قبل تدمير الأهداف الاستراتيجية المحددة.';
+      } else {
+        detailedReason = 'تعرضت مقاتلتك ميج-21 لنيران كثيفة وشظايا صواريخ دفاعات العدو الجوية.';
+      }
+    } else if (mission === 'MISSION_CROSSING') {
+      detailedReason = 'نفد الوقت المخصص لفتح ثغرات الساتر الترابي بالمياه وتأمين عبور قوارب الصاعقة.';
+    } else if (mission === 'MISSION_BRIDGE') {
+      if (reasonKey === 'lost_tanks') {
+        detailedReason = 'تعرضت أرتال الدبابات لقصف معادي مركز وتكرر فقدان فرص العبور على الكوبري.';
+      } else {
+        detailedReason = 'انتهت مدة المهمة قبل إتمام تركيب كوبري العبور وتأمين وصول الدبابات لسيناء.';
+      }
+    } else if (mission === 'MISSION_TANK_BATTLE') {
+      detailedReason = 'أصيبت فصيلة الدبابات بأضرار جسيمة من قذائف مدرعات العدو وصواريخه في سيناء.';
+    } else if (mission === 'MISSION_FORTRESS') {
+      if (reasonKey === 'timeout') {
+        detailedReason = 'نفد الوقت المخصص لعملية اقتحام حصن خط بارليف قبل تعطيل الأنابيب ورفع العلم.';
+      } else {
+        detailedReason = 'استشهد بطل الصاعقة أثناء اقتحام الحصن تحت وابل نيران الرشاشات المعادية.';
+      }
     }
-    setIsFullscreen(false);
-    setCurrentMode('MENU');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    setDefeatData({
+      mission,
+      missionTitle: title,
+      reason: detailedReason,
+      score: stats.score,
+    });
   };
 
   const handleAddScore = (points: number) => {
@@ -334,19 +399,46 @@ export default function App() {
     <div
       className={
         isCombatMode
-          ? 'w-screen h-[100dvh] min-h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white fixed inset-0 z-40 overflow-hidden'
+          ? `w-full h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white fixed inset-0 z-40 overflow-hidden ${isMobileLandscape ? 'mobile-landscape-active' : ''}`
           : 'menu-app-shell min-h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white'
       }
     >
       {isPortraitMobile && isCombatMode && !isStageSelectOpen && !splashMission && (
-        <div dir="rtl" className="fixed inset-0 z-[200] bg-stone-950 flex items-center justify-center p-6 text-center">
-          <div className="max-w-sm">
-            <div className="mx-auto mb-5 w-20 h-20 rounded-3xl border-2 border-amber-500/70 bg-amber-500/10 flex items-center justify-center text-5xl">📱↔️</div>
+        <div dir="rtl" className="fixed inset-0 z-[200] bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-6 text-center animate-in fade-in duration-200">
+          <div className="max-w-sm bg-stone-900/90 border border-amber-500/40 p-6 rounded-2xl shadow-2xl">
+            <div className="mx-auto mb-4 w-20 h-20 rounded-2xl border-2 border-amber-500 bg-amber-500/10 flex items-center justify-center text-4xl shadow-[0_0_20px_rgba(245,158,11,0.3)] animate-pulse">
+              📱↔️
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold mb-3">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span>المعركة والصوت متوقفان مؤقتاً ⏸️</span>
+            </div>
             <h2 className="text-2xl font-black font-cairo text-amber-400 mb-2">لفّ الموبايل بالعرض</h2>
-            <p className="text-sm text-stone-300 leading-relaxed">اللعبة مصممة للوضع الأفقي عشان مساحة المعركة والتحكم باللمس يشتغلوا بشكل أفضل.</p>
-            <button type="button" onClick={() => void lockMissionLandscape()} className="mt-5 min-h-11 px-5 py-2.5 rounded-xl bg-amber-500 text-stone-950 font-black touch-manipulation">حاول تفعيل الوضع الأفقي</button>
+            <p className="text-sm text-stone-300 leading-relaxed mb-4">
+              أدر الهاتف للوضع الأفقي للاستمرار في المعركة — ستُستأنف اللعبة والصوت تلقائياً وبشاشة كاملة بمجرد تدوير الهاتف.
+            </p>
+            <button
+              type="button"
+              onClick={() => void lockMissionLandscape()}
+              className="w-full min-h-12 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black font-cairo transition-all shadow-lg active:scale-95 touch-manipulation cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>تفعيل الوضع الأفقي وملء الشاشة 🔄</span>
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Clear, highly visible Return Button during combat ("زر الرجوع") */}
+      {isCombatMode && !isStageSelectOpen && !splashMission && (
+        <button
+          onClick={handleReturnToMenu}
+          className="fixed top-2.5 left-2.5 z-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-stone-950/90 hover:bg-stone-900 active:scale-95 text-amber-400 hover:text-amber-300 border-2 border-amber-500/50 shadow-[0_0_20px_rgba(0,0,0,0.85)] backdrop-blur-md flex items-center gap-1.5 font-bold font-cairo text-xs sm:text-sm cursor-pointer touch-manipulation transition-all pointer-events-auto"
+          title="العودة لغرفة العمليات الرئيسية"
+          aria-label="العودة لغرفة العمليات الرئيسية"
+        >
+          <ArrowRight className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>العودة لغرفة العمليات</span>
+        </button>
       )}
 
       {/* 1. Stage Select Modal (Interactive stage menu accessible anytime) */}
@@ -379,7 +471,35 @@ export default function App() {
         />
       )}
 
-      {/* 4. Top Navigation Bar (Clean combat HUD without stage-switching clutter during gameplay) */}
+      {/* Defeat Modal for Mission Failure */}
+      {defeatData && (
+        <DefeatModal
+          isOpen={true}
+          missionId={defeatData.mission}
+          missionTitle={defeatData.missionTitle}
+          reason={defeatData.reason}
+          score={defeatData.score}
+          targetsDestroyed={defeatData.targetsDestroyed}
+          totalTargets={defeatData.totalTargets}
+          timeElapsed={defeatData.timeElapsed}
+          onRetry={() => {
+            const mission = defeatData.mission;
+            setDefeatData(null);
+            sound.setMuted(false);
+            setIsMuted(false);
+            setMissionSessionKey((prev) => prev + 1);
+            setCurrentMode(mission);
+            const theme = THEME_MAP[mission];
+            if (theme) sound.playBackgroundTheme(theme);
+          }}
+          onExit={() => {
+            setDefeatData(null);
+            handleExitMission();
+          }}
+        />
+      )}
+
+      {/* 4. Top Navigation Bar (Shown on desktop/computer and normal views, hidden in pure mobile landscape) */}
       {!(isMobileLandscape && isCombatMode && !isStageSelectOpen && !splashMission) && (
       <Header
         currentMode={currentMode}
@@ -403,7 +523,7 @@ export default function App() {
       <main
         className={
           isCombatMode
-            ? 'flex-1 w-full h-full min-h-0 flex flex-col p-0 overflow-hidden pb-[env(safe-area-inset-bottom)]'
+            ? 'flex-1 w-full h-full min-h-0 flex flex-col p-0 overflow-hidden'
             : 'menu-main flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8'
         }
       >
@@ -411,6 +531,7 @@ export default function App() {
         {/* Render Specific Active Mission with Dynamic CSS Weather Lighting Container */}
         {currentMode.startsWith('MISSION_') ? (
           <WeatherLightingContainer
+            key={`${currentMode}-${missionSessionKey}`}
             weather={currentWeather}
             onWeatherChange={setCurrentWeather}
             missionName={MISSIONS.find((m) => m.id === currentMode)?.title}
@@ -421,7 +542,7 @@ export default function App() {
               <AirStrikeMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_AIR_STRIKE', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_AIR_STRIKE')}
+                onDefeat={(reason) => handleMissionDefeat('MISSION_AIR_STRIKE', reason)}
                 onExit={handleExitMission}
               />
             )}
@@ -430,7 +551,7 @@ export default function App() {
               <CrossingMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_CROSSING', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_CROSSING')}
+                onDefeat={(reason) => handleMissionDefeat('MISSION_CROSSING', reason)}
                 onExit={handleExitMission}
               />
             )}
@@ -439,7 +560,7 @@ export default function App() {
               <BridgeMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_BRIDGE', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_BRIDGE')}
+                onDefeat={(reason) => handleMissionDefeat('MISSION_BRIDGE', reason)}
                 onExit={handleExitMission}
               />
             )}
@@ -448,7 +569,7 @@ export default function App() {
               <TankBattleMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_TANK_BATTLE', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_TANK_BATTLE')}
+                onDefeat={(reason) => handleMissionDefeat('MISSION_TANK_BATTLE', reason)}
                 onExit={handleExitMission}
               />
             )}
@@ -456,7 +577,7 @@ export default function App() {
             {currentMode === 'MISSION_FORTRESS' && (
               <FortressAssaultMission
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_FORTRESS')}
+                onDefeat={(reason) => handleMissionDefeat('MISSION_FORTRESS', reason)}
                 onExit={handleExitMission}
               />
             )}

@@ -30,8 +30,8 @@ export const Header: React.FC<HeaderProps> = ({
   const currentMission = MISSIONS.find((m) => m.id === currentMode);
 
   return (
-    <header className="w-full bg-stone-950/95 backdrop-blur-md border-b border-stone-800 sticky top-0 z-50 transition-colors">
-      <div className="max-w-7xl mx-auto px-2 sm:px-6 h-14 sm:h-16 pt-[env(safe-area-inset-top)] flex items-center justify-between gap-2 sm:gap-4">
+    <header className="w-full bg-stone-950/95 backdrop-blur-md border-b border-stone-800 shrink-0 z-50 transition-colors">
+      <div className={`max-w-7xl mx-auto px-2 sm:px-6 ${isCombatMode ? 'h-12 sm:h-14' : 'h-14 sm:h-16'} pt-[env(safe-area-inset-top)] flex items-center justify-between gap-2 sm:gap-4`}>
         {/* Zone 1: Logo or In-Combat Return Button */}
         <div className="flex items-center gap-2 sm:gap-3">
           {isCombatMode ? (

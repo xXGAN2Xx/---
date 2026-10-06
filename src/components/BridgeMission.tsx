@@ -8,7 +8,7 @@ import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 interface BridgeMissionProps {
   difficulty?: Difficulty;
   onComplete: (scoreEarned: number) => void;
-  onDefeat?: () => void;
+  onDefeat?: (reason?: string) => void;
   onExit: () => void;
 }
 
@@ -395,7 +395,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           } else {
             setDefeatReason('timeout');
             setIsDefeated(true);
-          onDefeat?.();
+            onDefeat?.('timeout');
             sound.playDefeatSound();
           }
           return 0;
@@ -652,7 +652,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
               state.isComplete = true;
               setDefeatReason('lost_tanks');
               setIsDefeated(true);
-          onDefeat?.();
+              onDefeat?.('lost_tanks');
               sound.playDefeatSound();
             } else {
               // Deploy another tank after 2.2s to try again
@@ -1023,7 +1023,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
   return (
     <div className="flex flex-col h-full bg-stone-950 text-stone-100 select-none overflow-hidden">
       {/* Top HUD */}
-      <div className="p-2 sm:p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+      <div className="desktop-only-bar p-2 sm:p-3 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm shrink-0">
         <div className="flex items-center gap-2">
           <button
             onClick={onExit}
@@ -1064,7 +1064,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
       {/* TACTICAL ACTION STRIP & PRECISION STRIKE COUNTDOWN BANNER */}
       {strikeActive ? (
-        <div className="px-4 py-2.5 bg-red-950/95 border-b-2 border-red-500 flex flex-wrap items-center justify-between gap-3 text-xs shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse">
+        <div className="desktop-only-bar px-4 py-2.5 bg-red-950/95 border-b-2 border-red-500 flex flex-wrap items-center justify-between gap-3 text-xs shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-pulse shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
             <span className="font-cairo font-black text-sm text-yellow-300">
@@ -1093,7 +1093,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           </div>
         </div>
       ) : (
-        <div className="px-4 py-2 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-300">
+        <div className="desktop-only-bar px-4 py-2 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-300 shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={handleDeploySmokeScreen}
@@ -1125,13 +1125,59 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
       )}
 
       {/* Canvas Area */}
-      <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
+      <div className="relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden">
         <canvas
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
+          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+          className="w-full h-full cursor-crosshair select-none combat-canvas block"
         />
+
+        {/* Floating Minimal HUD in Mobile Landscape ("اللعبة وبس") */}
+        <div className="mobile-landscape-hud hidden pointer-events-none absolute top-2 right-2 z-30 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
+            <span>دبابات: {tanksCrossed}/5</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-red-400">
+            <span>فرص ضائعة: {lostOpportunities}/3</span>
+          </div>
+        </div>
+
+        {/* Floating Action Buttons in Mobile Landscape */}
+        <div className="mobile-touch-action-btn hidden pointer-events-auto absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between gap-3 select-none">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDeploySmokeScreen}
+              disabled={smokeCharges <= 0 || smokeScreenActive}
+              className="px-3 py-2 rounded-xl bg-slate-800/90 active:bg-slate-700 text-stone-200 border border-slate-600 text-xs font-bold shadow-xl flex items-center gap-1.5 cursor-pointer touch-manipulation"
+            >
+              <Wind className="w-3.5 h-3.5 text-sky-400" />
+              <span>دخان [{smokeCharges}]</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleFireFlak()}
+              disabled={flakCharges <= 0}
+              className="px-3 py-2 rounded-xl bg-red-700/90 active:bg-red-600 text-white border border-red-500 text-xs font-bold shadow-xl flex items-center gap-1.5 cursor-pointer touch-manipulation"
+            >
+              <Crosshair className="w-3.5 h-3.5" />
+              <span>م/ط [{flakCharges}]</span>
+            </button>
+          </div>
+
+          {strikeActive && (
+            <button
+              type="button"
+              onClick={handleExecutePrecisionStrike}
+              className="px-5 py-2.5 rounded-xl bg-red-600 active:bg-red-500 text-white font-black text-xs shadow-2xl border-2 border-yellow-400 animate-bounce flex items-center gap-1.5 cursor-pointer touch-manipulation"
+            >
+              <Zap className="w-4 h-4 text-yellow-300" />
+              <span>ضربة دقيقة! ({strikeCountdown.toFixed(1)}s)</span>
+            </button>
+          )}
+        </div>
 
         {/* Digital Countdown Timer */}
         {!isWon && !isDefeated && (
@@ -1216,7 +1262,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
       </div>
 
       {/* Footer */}
-      <div className="hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+      <div className="desktop-only-bar hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400 shrink-0">
         <span>انقر على موقع الضربة الدقيقة بالكوبري أو اضغط زر المسافة (Space) فور ظهور العداد التنازلي</span>
         <span className="text-amber-400 font-semibold">«سلاح المهندسين.. درع النصر وجسر التحرير»</span>
       </div>

@@ -44,78 +44,24 @@ export const MissionDigitalTimer: React.FC<MissionDigitalTimerProps> = ({
   return (
     <div
       dir="rtl"
-      className={`absolute ${positionClasses} z-30 select-none transition-all duration-300 ${
-        isCritical
-          ? 'animate-pulse drop-shadow-[0_0_25px_rgba(239,68,68,1)]'
-          : isUrgent
-          ? 'drop-shadow-[0_0_20px_rgba(239,68,68,0.7)]'
-          : 'drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-      } ${className}`}
+      className={`absolute ${positionClasses} z-30 select-none pointer-events-none transition-all duration-300 ${className}`}
     >
       <div
-        className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border-2 backdrop-blur-md transition-all duration-300 flex items-center gap-3 shadow-2xl ${
-          isUrgent
-            ? 'bg-stone-950/95 border-red-500 shadow-[0_0_25px_rgba(239,68,68,0.6)]'
-            : 'bg-stone-950/90 border-emerald-500/60 shadow-[0_0_20px_rgba(16,185,129,0.25)]'
+        className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full border backdrop-blur-md flex items-center gap-1.5 shadow-md transition-colors ${
+          isCritical
+            ? 'bg-red-950/90 border-red-500 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.7)] animate-pulse'
+            : isUrgent
+            ? 'bg-red-950/80 border-red-500/70 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+            : 'bg-stone-950/85 border-stone-800 text-amber-400'
         }`}
       >
-        {/* Icon & Label */}
-        <div className="flex items-center gap-1.5">
-          {isUrgent ? (
-            <AlertTriangle className="w-4 h-4 text-red-400 animate-spin" style={{ animationDuration: '3s' }} />
-          ) : (
-            <Clock className="w-4 h-4 text-emerald-400" />
-          )}
-          <span
-            className={`text-[11px] sm:text-xs font-black font-cairo whitespace-nowrap ${
-              isUrgent ? 'text-red-400' : 'text-emerald-300'
-            }`}
-          >
-            {label}
-          </span>
-        </div>
-
-        {/* Digital Time */}
-        <div className="flex items-center gap-1">
-          <span
-            className={`font-mono font-black text-xl sm:text-2xl tabular-nums tracking-wider ${
-              isUrgent
-                ? 'text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,1)]'
-                : 'text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.85)]'
-            }`}
-          >
-            {formattedTime}
-          </span>
-        </div>
-
-        {/* Dynamic Progress Bar & Percent */}
-        <div className="hidden sm:flex flex-col gap-1 w-20">
-          <div className="w-full h-1.5 bg-stone-900 rounded-full overflow-hidden border border-stone-800">
-            <div
-              className={`h-full transition-all duration-300 rounded-full ${
-                isUrgent
-                  ? 'bg-gradient-to-r from-red-600 to-orange-500'
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-400'
-              }`}
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-          <span className="text-[9px] font-mono text-stone-400 text-left tabular-nums">
-            {Math.round(progressPercent)}%
-          </span>
-        </div>
-
-        {/* Urgency Badge */}
-        <span
-          className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full border whitespace-nowrap ${
-            isCritical
-              ? 'bg-red-600 text-white border-red-400 animate-pulse'
-              : isUrgent
-              ? 'bg-red-500/20 text-red-300 border-red-500/50'
-              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-          }`}
-        >
-          {isCritical ? 'حسم فوري!' : isUrgent ? 'اقتراب النهاية' : '2 دقيقة'}
+        {isUrgent ? (
+          <AlertTriangle className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+        ) : (
+          <Clock className="w-3.5 h-3.5 text-amber-400" />
+        )}
+        <span className="font-mono font-black text-xs sm:text-sm tabular-nums tracking-wider text-stone-100">
+          {formattedTime}
         </span>
       </div>
     </div>

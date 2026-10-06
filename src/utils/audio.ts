@@ -6,6 +6,7 @@
 class SoundSystem {
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
+  private isSuspended: boolean = false;
   private currentTheme: 'airStrike' | 'crossing' | 'bridge' | 'tankBattle' | 'fortress' | 'menu' | null = null;
   private bgIntervalId: number | null = null;
   private customAudio: HTMLAudioElement | null = null;
@@ -13,6 +14,7 @@ class SoundSystem {
   private customTrackName: string | null = null;
 
   private initCtx() {
+    if (this.isSuspended) return;
     if (!this.ctx && typeof window !== 'undefined') {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
@@ -22,11 +24,44 @@ class SoundSystem {
     }
   }
 
+  public suspendAudio(): void {
+    this.isSuspended = true;
+    if (this.ctx && this.ctx.state === 'running') {
+      try { void this.ctx.suspend(); } catch {}
+    }
+    if (this.bgIntervalId !== null) {
+      window.clearInterval(this.bgIntervalId);
+      this.bgIntervalId = null;
+    }
+    if (this.customAudio && !this.customAudio.paused) {
+      this.customAudio.pause();
+    }
+  }
+
+  public resumeAudio(): void {
+    if (!this.isSuspended) return;
+    this.isSuspended = false;
+    if (this.isMuted) return;
+
+    if (this.ctx && this.ctx.state === 'suspended') {
+      try { void this.ctx.resume(); } catch {}
+    }
+    if (this.customAudio && this.customAudio.paused) {
+      void this.customAudio.play().catch(() => {});
+    } else if (this.currentTheme && !this.bgIntervalId) {
+      this.playBackgroundTheme(this.currentTheme);
+    }
+  }
+
+  public isAudioSuspended(): boolean {
+    return this.isSuspended;
+  }
+
   public setMuted(muted: boolean) {
     this.isMuted = muted;
     if (muted) {
       this.stopBackgroundTheme(false);
-    } else if (this.currentTheme) {
+    } else if (this.currentTheme && !this.isSuspended) {
       this.playBackgroundTheme(this.currentTheme);
     }
   }
@@ -164,7 +199,7 @@ class SoundSystem {
   // Dynamic Patriotic Background Music themes changing with each stage!
   public playBackgroundTheme(theme: 'airStrike' | 'crossing' | 'bridge' | 'tankBattle' | 'fortress' | 'menu') {
     this.currentTheme = theme;
-    if (this.isMuted) return;
+    if (this.isMuted || this.isSuspended) return;
 
     // A user-provided track takes priority over the synthesized theme.
     if (this.customAudio) {

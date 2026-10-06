@@ -5,7 +5,7 @@ import { Difficulty } from '../game/difficulty';
 import { isGamePaused } from '../game/pause';
 import { sound } from '../utils/audio';
 
-interface CrossingMissionProps { difficulty?: Difficulty; onComplete: (scoreEarned: number) => void; onDefeat?: () => void; onExit: () => void; }
+interface CrossingMissionProps { difficulty?: Difficulty; onComplete: (scoreEarned: number) => void; onDefeat?: (reason?: string) => void; onExit: () => void; }
 type Defender = { id: number; x: number; hp: number; maxHp: number; kind: 'bunker' | 'gun' | 'mortar'; cooldown: number; destroyed: boolean; };
 type Breach = { id: number; progress: number; complete: boolean; };
 type Boat = { id: number; lane: number; progress: number; hp: number; };
@@ -49,7 +49,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
       s.timeLeft = Math.max(0, s.timeLeft - 1);
       setTimeLeft(s.timeLeft);
       if (s.timeLeft === 0) { s.defeated = true; s.spraying = false; setSpraying(false); setIsDefeated(true);
-          onDefeat?.(); sound.playDefeatSound(); }
+          onDefeat?.('timeout'); sound.playDefeatSound(); }
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -171,32 +171,80 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
 
   return (
     <div dir='rtl' className='w-full h-full min-h-0 flex flex-col bg-stone-950 text-stone-100 overflow-hidden'>
-      <div className='px-3 sm:px-4 py-2.5 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-2'>
+      <div className='desktop-only-bar px-3 sm:px-4 py-2.5 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-2 shrink-0'>
         <div className='flex items-center gap-2'>
-          <button type='button' onClick={onExit} className='p-2 rounded-lg bg-stone-900 border border-stone-800'><ArrowLeft className='w-4 h-4'/></button>
+          <button type='button' onClick={onExit} className='p-2 rounded-lg bg-stone-900 border border-stone-800 cursor-pointer'><ArrowLeft className='w-4 h-4'/></button>
           <div><h2 className='font-cairo font-black text-amber-400 text-sm sm:text-base'>اختراق خط بارليف · عملية فتح الثغرات</h2><p className='text-[10px] sm:text-xs text-stone-400'>دافع عن فرق المهندسين وافتح 3 ممرات آمنة لعبور القوارب</p></div>
         </div>
         <div className='flex items-center gap-2 text-[11px] sm:text-xs'><span className='px-2 py-1 rounded bg-stone-900 border border-stone-800 text-amber-300'>{score} نقطة</span><span className='px-2 py-1 rounded bg-stone-900 border border-stone-800 text-sky-300'>ماء {water}%</span><span className='px-2 py-1 rounded bg-stone-900 border border-stone-800 text-emerald-300'>ثغرات {breaches.filter((b) => b.complete).length}/3</span></div>
       </div>
-      <div className='px-3 sm:px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap gap-2 items-center'>
-        {[0,1,2].map((id) => <button key={id} type='button' onClick={() => { stateRef.current.selectedLane = id; setSelectedLane(id); }} className={'min-h-11 px-3 py-2 rounded-lg border text-xs font-bold touch-manipulation ' + (selectedLane === id ? 'bg-amber-500 text-stone-950 border-amber-300' : 'bg-stone-950 text-stone-300 border-stone-800')}>الثغرة {id + 1}</button>)}
+      <div className='desktop-only-bar px-3 sm:px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap gap-2 items-center shrink-0'>
+        {[0,1,2].map((id) => <button key={id} type='button' onClick={() => { stateRef.current.selectedLane = id; setSelectedLane(id); }} className={'min-h-11 px-3 py-2 rounded-lg border text-xs font-bold touch-manipulation cursor-pointer ' + (selectedLane === id ? 'bg-amber-500 text-stone-950 border-amber-300' : 'bg-stone-950 text-stone-300 border-stone-800')}>الثغرة {id + 1}</button>)}
         <span className='mr-auto text-[10px] text-stone-500 hidden md:inline'>{message}</span>
       </div>
-      <div className='relative flex-1 min-h-0'>
-        <canvas ref={canvasRef} width={1100} height={560} className='w-full h-full object-contain touch-none' aria-label='مشهد خط بارليف وخراطيم المياه' />
+      <div className='relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden'>
+        <canvas
+          ref={canvasRef}
+          width={1100}
+          height={560}
+          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+          className='w-full h-full touch-none combat-canvas block'
+          aria-label='مشهد خط بارليف وخراطيم المياه'
+        />
+
+        {/* Floating Minimal HUD in Mobile Landscape ("اللعبة وبس") */}
+        <div className="mobile-landscape-hud hidden pointer-events-auto absolute top-2 right-2 z-30 flex items-center gap-1.5">
+          {[0, 1, 2].map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { stateRef.current.selectedLane = id; setSelectedLane(id); }}
+              className={`px-2.5 py-1 rounded-lg border text-xs font-bold shadow-md touch-manipulation cursor-pointer ${selectedLane === id ? 'bg-amber-500 text-stone-950 border-amber-300' : 'bg-stone-950/80 text-stone-300 border-stone-800'}`}
+            >
+              ثغرة {id + 1} {breaches[id].complete ? '✓' : ''}
+            </button>
+          ))}
+          <span className="px-2 py-1 rounded-lg bg-stone-950/80 border border-stone-800 text-xs font-mono text-sky-300">
+            ماء {Math.round(water)}%
+          </span>
+        </div>
+
+        {/* Floating Touch Action Buttons for Mobile Landscape */}
+        <div className="mobile-touch-action-btn hidden pointer-events-auto absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between gap-3 select-none">
+          <button
+            type="button"
+            onClick={launchBoat}
+            disabled={!breaches[selectedLane].complete || boats.length >= 5 || missionWon || isDefeated}
+            className="px-4 py-2.5 rounded-xl bg-amber-500 active:bg-amber-400 text-stone-950 text-xs font-black disabled:opacity-40 shadow-xl border border-amber-300 flex items-center gap-1.5 cursor-pointer touch-manipulation"
+          >
+            <Waves className="w-4 h-4" />
+            <span>إرسال قارب</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={toggleSpray}
+            disabled={water <= 0 || missionWon || isDefeated}
+            className={`px-4 py-2.5 rounded-xl text-xs font-black border shadow-xl flex items-center gap-1.5 cursor-pointer touch-manipulation ${spraying ? 'bg-sky-500 text-stone-950 border-sky-300 animate-pulse' : 'bg-stone-900/90 text-stone-100 border-stone-700'}`}
+          >
+            <Droplets className="w-4 h-4" />
+            <span>{spraying ? 'إيقاف المياه' : 'تشغيل الخراطيم'}</span>
+          </button>
+        </div>
+
         {!missionWon && !isDefeated && <MissionDigitalTimer timeLeft={timeLeft} totalTime={120} label='الوقت المتبقي' position='top-center'/>}
-        <div className='absolute left-3 right-3 bottom-3 flex items-center justify-between gap-2 pointer-events-none'>
+        <div className='desktop-only-bar absolute left-3 right-3 bottom-3 flex items-center justify-between gap-2 pointer-events-none'>
           <div className='px-3 py-2 rounded-xl bg-stone-950/90 border border-stone-800 text-[11px] text-stone-200'><Target className='inline w-4 h-4 text-amber-400 ml-1'/> الهدف: فتح كل الثغرات الثلاث ثم إرسال القوارب</div>
           <div className='px-3 py-2 rounded-xl bg-stone-950/90 border border-stone-800 text-[11px] text-amber-300'><Shield className='inline w-4 h-4 ml-1'/> الدفاعات مثبتة على الأرض</div>
         </div>
-        {missionWon && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><CheckCircle2 className='w-16 h-16 mx-auto text-emerald-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-amber-400'>تم اختراق الساتر وفتح الطريق!</h3><p className='text-xs text-stone-300 mt-2 mb-5'>الثغرات الثلاث أصبحت جاهزة لعبور القوات.</p><button type='button' onClick={() => onComplete(score)} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg'>المرحلة التالية</button></div></div>}
-        {isDefeated && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><Clock3 className='w-14 h-14 mx-auto text-red-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-red-400'>انتهى وقت العملية</h3><p className='text-xs text-stone-300 mt-2 mb-5'>أعد توزيع المياه وابدأ بالثغرة الأقل تعرضًا للنيران.</p><button type='button' onClick={reset} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg inline-flex items-center gap-2'><RotateCcw className='w-4 h-4'/>إعادة العملية</button></div></div>}
+        {missionWon && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><CheckCircle2 className='w-16 h-16 mx-auto text-emerald-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-amber-400'>تم اختراق الساتر وفتح الطريق!</h3><p className='text-xs text-stone-300 mt-2 mb-5'>الثغرات الثلاث أصبحت جاهزة لعبور القوات.</p><button type='button' onClick={() => onComplete(score)} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg cursor-pointer'>المرحلة التالية</button></div></div>}
+        {isDefeated && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><Clock3 className='w-14 h-14 mx-auto text-red-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-red-400'>انتهى وقت العملية</h3><p className='text-xs text-stone-300 mt-2 mb-5'>أعد توزيع المياه وابدأ بالثغرة الأقل تعرضًا للنيران.</p><button type='button' onClick={reset} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg inline-flex items-center gap-2 cursor-pointer'><RotateCcw className='w-4 h-4'/>إعادة العملية</button></div></div>}
       </div>
-      <div className='hidden sm:flex px-3 sm:px-4 py-2.5 border-t border-stone-800 bg-stone-950 flex-wrap items-center justify-between gap-2'>
+      <div className='desktop-only-bar hidden sm:flex px-3 sm:px-4 py-2.5 border-t border-stone-800 bg-stone-950 flex-wrap items-center justify-between gap-2 shrink-0'>
         <div className='text-[11px] text-stone-400 truncate'>{message}</div>
         <div className='flex gap-2'>
-          <button type='button' onClick={toggleSpray} disabled={water <= 0 || missionWon || isDefeated} className={'min-h-11 px-4 py-2.5 rounded-lg text-xs font-bold border touch-manipulation ' + (spraying ? 'bg-sky-500 text-stone-950 border-sky-300' : 'bg-stone-800 text-stone-100 border-stone-700')}><Droplets className='inline w-4 h-4 ml-1'/>{spraying ? 'إيقاف المياه' : 'تشغيل الخراطيم'}</button>
-          <button type='button' onClick={launchBoat} disabled={!breaches[selectedLane].complete || boats.length >= 5 || missionWon || isDefeated} className='min-h-11 px-4 py-2.5 rounded-lg bg-amber-500 text-stone-950 text-xs font-black disabled:opacity-40'><Waves className='inline w-4 h-4 ml-1'/>إرسال قارب</button>
+          <button type='button' onClick={toggleSpray} disabled={water <= 0 || missionWon || isDefeated} className={'min-h-11 px-4 py-2.5 rounded-lg text-xs font-bold border touch-manipulation cursor-pointer ' + (spraying ? 'bg-sky-500 text-stone-950 border-sky-300' : 'bg-stone-800 text-stone-100 border-stone-700')}><Droplets className='inline w-4 h-4 ml-1'/>{spraying ? 'إيقاف المياه' : 'تشغيل الخراطيم'}</button>
+          <button type='button' onClick={launchBoat} disabled={!breaches[selectedLane].complete || boats.length >= 5 || missionWon || isDefeated} className='min-h-11 px-4 py-2.5 rounded-lg bg-amber-500 text-stone-950 text-xs font-black disabled:opacity-40 cursor-pointer'><Waves className='inline w-4 h-4 ml-1'/>إرسال قارب</button>
         </div>
       </div>
     </div>

@@ -229,3 +229,66 @@ canvas {
     font-size: 0.68rem !important;
   }
 }
+
+/* Combat Canvas: Full Canvas Immersion & Direct Screen Stretch */
+canvas.combat-canvas,
+.combat-canvas,
+.mobile-landscape-active canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: fill !important;
+  border-radius: 0 !important;
+  display: block !important;
+}
+
+@media (orientation: landscape) {
+  canvas.combat-canvas,
+  .combat-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: fill !important;
+  }
+}
+
+.mobile-landscape-active .desktop-only-bar {
+  display: none !important;
+}
+
+.mobile-landscape-active header {
+  display: none !important;
+}
+
+.mobile-landscape-active .mobile-landscape-hud {
+  display: flex !important;
+}
+
+.mobile-landscape-active .mobile-touch-action-btn {
+  display: flex !important;
+}
+
+@media (orientation: landscape) and (max-height: 640px) {
+  .desktop-only-bar {
+    display: none !important;
+  }
+  header {
+    display: none !important;
+  }
+  .mobile-landscape-hud {
+    display: flex !important;
+  }
+  .mobile-touch-action-btn {
+    display: flex !important;
+  }
+}
+
+/* Desktop Fullscreen & Computer Layout: Game & Top Header completely visible with zero scroll */
+@media (min-width: 901px) and (min-height: 641px) {
+  .mobile-landscape-hud {
+    display: none !important;
+  }
+}
+

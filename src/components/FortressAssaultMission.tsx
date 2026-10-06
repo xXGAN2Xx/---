@@ -6,7 +6,7 @@ import { MissionDigitalTimer } from './MissionDigitalTimer';
 
 interface FortressAssaultMissionProps {
   onComplete: (scoreEarned: number) => void;
-  onDefeat?: () => void;
+  onDefeat?: (reason?: string) => void;
   onExit: () => void;
 }
 
@@ -83,6 +83,9 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
         if (next <= 0 && !stateRef.current.isComplete) {
           stateRef.current.isComplete = true;
           setIsTimeout(true);
+          setIsDefeated(true);
+          onDefeat?.('timeout');
+          sound.playDefeatSound();
           sound.playExplosion(1.0);
           return 0;
         }
@@ -526,7 +529,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               if (remHp <= 0 && !s.isComplete) {
                 s.isComplete = true;
                 setIsDefeated(true);
-          onDefeat?.();
+                onDefeat?.('killed');
                 sound.playDefeatSound();
               }
             }
@@ -549,7 +552,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
           if (remHp <= 0 && !s.isComplete) {
             s.isComplete = true;
             setIsDefeated(true);
-          onDefeat?.();
+            onDefeat?.('killed');
             sound.playDefeatSound();
             sound.playExplosion(1.0);
           }
@@ -807,7 +810,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-stone-900 shadow-2xl">
       {/* Top HUD with 2-Minute Timer */}
-      <div className="p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
+      <div className="desktop-only-bar p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onExit}
@@ -864,7 +867,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       </div>
 
       {/* Action / Proximity Notice Bar */}
-      <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex items-center justify-between text-xs">
+      <div className="desktop-only-bar px-4 py-2 bg-stone-900 border-b border-stone-800 flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
           <MousePointer className="w-4 h-4 text-amber-400" />
           <span className="text-stone-300 font-medium">
@@ -885,13 +888,32 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       </div>
 
       {/* Canvas */}
-      <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
+      <div className="relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden">
         <canvas
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain select-none cursor-pointer"
+          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+          className="w-full h-full select-none cursor-pointer combat-canvas block"
         />
+
+        {/* Floating Minimal In-Combat HUD for Mobile Landscape ("اللعبة وبس") */}
+        <div className="mobile-landscape-hud hidden pointer-events-none absolute top-3 right-3 z-30 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
+            <Shield className="w-3.5 h-3.5" />
+            <span>{commandoHp}%</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-amber-400">
+            <span>صمامات: {napalmPipesCut}/2</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-sky-400">
+            <span>دشم: {bunkersCaptured}/2</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-red-400">
+            <Flag className="w-3.5 h-3.5" />
+            <span>{flagProgress}%</span>
+          </div>
+        </div>
 
         {/* Digital Countdown Timer at the TOP */}
         {!flagHoisted && !isTimeout && (
@@ -916,7 +938,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
 
         {/* Mobile Touch Direction Controls */}
         {!flagHoisted && !isTimeout && !isDefeated && (
-          <div className="absolute bottom-4 right-4 flex flex-col items-center gap-1 z-30 md:hidden opacity-90">
+          <div className="absolute bottom-4 right-4 flex flex-col items-center gap-1 z-30 opacity-90 mobile-touch-action-btn">
             <button
               onPointerDown={() => { stateRef.current.keys.up = true; }}
               onPointerUp={() => { stateRef.current.keys.up = false; }}
@@ -1033,7 +1055,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       </div>
 
       {/* Footer Instructions */}
-      <div className="hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+      <div className="desktop-only-bar hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400 shrink-0">
         <span>تحرك بالنقر السريع في أي مكان واقترب من الأهداف لتعطيلها ورفع العلم قبل نهاية المؤقت</span>
         <span className="text-amber-400 font-semibold">«تحيا جمهورية مصر العربية»</span>
       </div>

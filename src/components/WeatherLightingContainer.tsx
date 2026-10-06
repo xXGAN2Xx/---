@@ -106,7 +106,7 @@ export function WeatherLightingContainer({
   };
 
   return (
-    <div className={`relative w-full ${hideControls ? 'h-full flex flex-col' : ''}`}>
+    <div className={`relative w-full ${hideControls ? 'h-full min-h-0 flex flex-col flex-1' : ''}`}>
       {/* Dynamic Tactical Weather Control Bar (Hidden when in clean combat/fullscreen mode) */}
       {!hideControls && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-2">
@@ -266,7 +266,9 @@ export function WeatherLightingContainer({
         )}
 
         {/* Children (Active Mission) */}
-        <div className="relative z-10">{children}</div>
+        <div className={`relative z-10 w-full ${hideControls ? 'flex-1 min-h-0 flex flex-col h-full' : ''}`}>
+          {children}
+        </div>
 
         {/* Dynamic Weather Start Notification Toast */}
         {showNotification && (

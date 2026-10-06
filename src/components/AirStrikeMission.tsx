@@ -8,7 +8,7 @@ import { isGamePaused } from '../game/pause';
 interface AirStrikeMissionProps {
   difficulty: Difficulty;
   onComplete: (scoreEarned: number) => void;
-  onDefeat?: () => void;
+  onDefeat?: (reason?: string) => void;
   onExit: () => void;
 }
 
@@ -298,7 +298,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           stateRef.current.isComplete = true;
           setDefeatReason('timeout');
           setIsDefeated(true);
-          onDefeat?.();
+          onDefeat?.('timeout');
           sound.playDefeatSound();
           return 0;
         }
@@ -372,28 +372,10 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       const rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
 
-      // Handle letterboxing/pillarboxing caused by CSS object-contain
-      const canvasAspect = canvas.width / canvas.height;
-      const rectAspect = rect.width / rect.height;
-      let renderW = rect.width;
-      let renderH = rect.height;
-      let offsetX = 0;
-      let offsetY = 0;
-
-      if (rectAspect > canvasAspect) {
-        // Pillarboxed: empty bands on left and right
-        renderW = rect.height * canvasAspect;
-        offsetX = (rect.width - renderW) / 2;
-      } else {
-        // Letterboxed: empty bands on top and bottom
-        renderH = rect.width / canvasAspect;
-        offsetY = (rect.height - renderH) / 2;
-      }
-
-      const scaleX = canvas.width / renderW;
-      const scaleY = canvas.height / renderH;
-      const mx = (clientX - rect.left - offsetX) * scaleX;
-      const my = (clientY - rect.top - offsetY) * scaleY;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mx = (clientX - rect.left) * scaleX;
+      const my = (clientY - rect.top) * scaleY;
 
       // Full canvas reticle coverage: aim anywhere from sky to ground
       stateRef.current.mouse.x = Math.max(0, Math.min(canvas.width, mx));
@@ -908,7 +890,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               if (remainingHp <= 0 && !state.isComplete) {
                 state.isComplete = true;
                 setIsDefeated(true);
-          onDefeat?.();
+                onDefeat?.('shot_down');
                 setDefeatReason('shot_down');
                 sound.playDefeatSound();
                 sound.playExplosion(1.4);
@@ -1037,7 +1019,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             if (remainingHp <= 0 && !state.isComplete) {
               state.isComplete = true;
               setIsDefeated(true);
-          onDefeat?.();
+              onDefeat?.('shot_down');
               setDefeatReason('shot_down');
               sound.playDefeatSound();
               sound.playExplosion(1.4);
@@ -1077,7 +1059,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           if (remainingHp <= 0 && !state.isComplete) {
             state.isComplete = true;
             setIsDefeated(true);
-          onDefeat?.();
+            onDefeat?.('shot_down');
             setDefeatReason('shot_down');
             sound.playDefeatSound();
             sound.playExplosion(1.4);
@@ -2328,7 +2310,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-stone-900 shadow-2xl">
       {/* Clean Combat Top HUD */}
-      <div className="p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
+      <div className="desktop-only-bar p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onExit}
@@ -2404,7 +2386,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       </div>
 
       {/* Battle Telemetry */}
-      <div className="px-4 py-1.5 bg-stone-950 border-b border-stone-800 flex items-center justify-between text-xs text-stone-300 shrink-0">
+      <div className="desktop-only-bar px-4 py-1.5 bg-stone-950 border-b border-stone-800 flex items-center justify-between text-xs text-stone-300 shrink-0">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
           <span className="font-bold text-amber-400">{currentAlert}</span>
@@ -2415,7 +2397,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       </div>
 
       {!missionWon && !isDefeated && isCombatActive && (
-        <div className="px-3 sm:px-4 py-1.5 bg-stone-950 border-b border-stone-800/80 flex items-center gap-2 overflow-x-auto text-[10px] whitespace-nowrap">
+        <div className="desktop-only-bar px-3 sm:px-4 py-1.5 bg-stone-950 border-b border-stone-800/80 flex items-center gap-2 overflow-x-auto text-[10px] whitespace-nowrap">
           <span className="text-stone-500 font-bold">جدول الأهداف:</span>
           {SCHEDULE.map((item, index) => (
             <span
@@ -2428,18 +2410,34 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         </div>
       )}
 
-        <div className="sm:hidden px-3 py-1.5 bg-amber-500/5 border-b border-amber-500/15 text-center text-[10px] text-amber-300">
-          📱 حرّك إصبعك لتوجيه المقاتلة · اضغط زر الصاروخ · اللمس المستمر يطلق المدافع
-        </div>
+      <div className="desktop-only-bar sm:hidden px-3 py-1.5 bg-amber-500/5 border-b border-amber-500/15 text-center text-[10px] text-amber-300">
+        📱 حرّك إصبعك لتوجيه المقاتلة · اضغط زر الصاروخ · اللمس المستمر يطلق المدافع
+      </div>
 
       {/* Canvas Area */}
-      <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
+      <div className="relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden">
         <canvas
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-none select-none"
+          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+          className="w-full h-full cursor-none select-none combat-canvas block"
         />
+
+        {/* Floating Minimal In-Combat HUD for Mobile Landscape ("اللعبة وبس") */}
+        <div className="mobile-landscape-hud hidden pointer-events-none absolute top-3 right-3 z-30 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
+            <Target className="w-3.5 h-3.5" />
+            <span>{totalDestroyed} / 5</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold">
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-stone-200">{hp}</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-sky-400">
+            <span>{playerAltitude}م</span>
+          </div>
+        </div>
 
         {/* Digital Countdown Timer at the TOP */}
         {isCombatActive && !missionWon && (
@@ -2474,12 +2472,13 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
         {/* Mobile Rocket Button */}
         {!missionWon && !isDefeated && isCombatActive && (
-          <div className="absolute bottom-4 right-4 z-30 sm:hidden select-none">
+          <div className="absolute bottom-4 right-4 z-30 select-none mobile-touch-action-btn">
             <button
               type="button"
               onTouchStart={(e) => { e.preventDefault(); fireRocket(); }}
+              onClick={() => fireRocket()}
               disabled={rockets <= 0}
-              className="w-16 h-16 rounded-2xl bg-amber-500 active:bg-amber-400 disabled:opacity-40 text-stone-950 font-black flex flex-col items-center justify-center shadow-2xl border-2 border-amber-300 text-xs cursor-pointer"
+              className="w-16 h-16 rounded-2xl bg-amber-500 active:bg-amber-400 disabled:opacity-40 text-stone-950 font-black flex flex-col items-center justify-center shadow-2xl border-2 border-amber-300 text-xs cursor-pointer touch-manipulation"
             >
               <Zap className="w-5 h-5 mb-0.5" />
               <span>صاروخ [{rockets}]</span>
@@ -2587,7 +2586,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       </div>
 
       {/* Footer Info */}
-      <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+      <div className="desktop-only-bar p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
         <span>ساعة الصفر: 14:00 · الصواريخ موجهة ذاتياً نحو الأهداف</span>
         <span className="text-amber-400 font-semibold">«بسم الله.. توكلنا على الله»</span>
       </div>

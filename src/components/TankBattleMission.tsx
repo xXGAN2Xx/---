@@ -8,7 +8,7 @@ import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 interface TankBattleMissionProps {
   difficulty?: Difficulty;
   onComplete: (scoreEarned: number) => void;
-  onDefeat?: () => void;
+  onDefeat?: (reason?: string) => void;
   onExit: () => void;
 }
 
@@ -727,7 +727,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
             if (p.hp <= 0 && !state.isComplete) {
               state.isComplete = true;
               setIsDefeated(true);
-          onDefeat?.();
+              onDefeat?.('destroyed');
               sound.playDefeatSound();
             }
           }
@@ -1334,7 +1334,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
   return (
     <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-stone-900 shadow-2xl">
       {/* Top Bar HUD with 2-Minute Timer */}
-      <div className="p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
+      <div className="desktop-only-bar p-3 sm:p-4 bg-stone-950/95 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={onExit}
@@ -1388,7 +1388,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
       </div>
 
       {/* Control Helpers Bar */}
-      <div className="px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="desktop-only-bar px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => launchSaggerMissile()}
@@ -1415,13 +1415,30 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
       </div>
 
       {/* Canvas */}
-      <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
+      <div className="relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden">
         <canvas
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
+          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+          className="w-full h-full cursor-crosshair select-none combat-canvas block"
         />
+
+        {/* Floating Minimal In-Combat HUD for Mobile Landscape ("اللعبة وبس") */}
+        <div className="mobile-landscape-hud hidden pointer-events-none absolute top-3 right-3 z-30 flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
+            <Shield className="w-3.5 h-3.5" />
+            <span>{platoonHealth}%</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-amber-400">
+            <Target className="w-3.5 h-3.5 text-red-400" />
+            <span>دبابات: {tanksDestroyed}/6</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-sky-400">
+            <Rocket className="w-3.5 h-3.5" />
+            <span>طائرات: {jetsDowned}</span>
+          </div>
+        </div>
 
         {/* Digital Countdown Timer at the TOP */}
         {!isWon && !isDefeated && (
@@ -1435,7 +1452,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
 
         {/* On-screen Tank Controls for Touch & Mobile Devices */}
         {!isWon && !isDefeated && (
-          <div className="absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between sm:hidden pointer-events-none select-none">
+          <div className="absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between pointer-events-none select-none mobile-touch-action-btn">
             {/* Steering D-pad */}
             <div className="pointer-events-auto bg-stone-950/90 p-2 rounded-2xl border border-stone-700/80 backdrop-blur-md shadow-2xl">
               <div className="grid grid-cols-3 gap-1.5 w-32 h-24 text-sm font-black">
@@ -1552,7 +1569,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
       </div>
 
       {/* Footer Instructions */}
-      <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+      <div className="desktop-only-bar hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 items-center justify-between text-xs text-stone-400 shrink-0">
         <span>انقر بالماوس للتصويب وإطلاق القذائف السريعة أو توجيه صواريخ مالوتكا</span>
         <span className="text-amber-400 font-semibold">«صائد الدبابات» البطل محمد عبد العاطي والبطل محمد المصري</span>
       </div>
