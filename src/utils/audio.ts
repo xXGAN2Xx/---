@@ -72,12 +72,17 @@ class SoundSystem {
     audio.loop = true;
     audio.preload = 'metadata';
     audio.volume = 0.48;
-    audio.addEventListener('error', () => {
-      this.stopCustomBackgroundTrack();
+    audio.addEventListener('canplay', () => {
+      this.customAudio = audio;
+      this.customTrackName = name;
+      this.customObjectUrl = null;
     }, { once: true });
-    this.customAudio = audio;
-    this.customTrackName = name;
-    this.customObjectUrl = null;
+    audio.addEventListener('error', () => {
+      if (this.customAudio === audio) {
+        this.stopCustomBackgroundTrack();
+      }
+    }, { once: true });
+    audio.load();
   }
 
   public clearCustomBackgroundTrack(): void {
