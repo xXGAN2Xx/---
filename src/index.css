@@ -157,3 +157,75 @@ canvas {
   button, [role="button"] { min-height: 44px; }
   .touch-manipulation { touch-action: manipulation; }
 }
+
+
+/* Mobile landscape layout: avoid desktop breakpoints making the menu oversized on short phone screens. */
+@media (max-width: 900px) and (orientation: landscape) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 100%;
+    min-height: 100dvh;
+  }
+
+  body {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
+  }
+
+  .menu-app-shell {
+    min-height: 100dvh !important;
+    height: auto;
+  }
+
+  .menu-main {
+    max-width: none !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .menu-hero {
+    border-radius: 0.875rem;
+  }
+
+  .menu-hero-content {
+    padding: 1rem 1.25rem 0.75rem !important;
+    max-width: 100% !important;
+  }
+
+  .menu-hero-title {
+    font-size: clamp(1.65rem, 4.7vw, 2.35rem) !important;
+    line-height: 1.08 !important;
+    margin-bottom: 0.55rem !important;
+  }
+
+  .menu-hero-description {
+    font-size: 0.78rem !important;
+    line-height: 1.55 !important;
+    margin-bottom: 0.8rem !important;
+    max-width: 58rem;
+  }
+
+  .menu-hero-actions {
+    gap: 0.5rem !important;
+    margin-bottom: 0.65rem !important;
+  }
+
+  .menu-hero-actions button {
+    min-height: 38px !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .menu-hero-actions button:first-child {
+    flex: 1 1 100%;
+  }
+
+  .menu-hero-ticker {
+    padding: 0.6rem 1rem !important;
+    gap: 0.65rem !important;
+    font-size: 0.68rem !important;
+  }
+}
