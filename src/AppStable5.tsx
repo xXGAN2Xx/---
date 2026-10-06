@@ -455,6 +455,7 @@ export default function App() {
                     <span>متحف وسجل الأبطال</span>
                   </button>
                 </div>
+              </div>
 
               {/* Status Ticker Inside Hero Frame */}
               <div className="relative z-10 border-t border-stone-800/80 bg-stone-950/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-400">
