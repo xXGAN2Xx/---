@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { lazy, Suspense, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { GameMode, PlayerStats } from './types';
 import { Difficulty } from './game/difficulty';
 import { MISSIONS, RANKS, MEDALS, ASSET_IMAGES } from './data/historyData';
 import { sound } from './utils/audio';
 import { loadJson, saveJson } from './utils/storage';
+import { setGamePaused } from './game/pause';
 import { Header } from './components/Header';
 const AirStrikeMission = lazy(() => import('./components/AirStrikeMission').then((m) => ({ default: m.AirStrikeMission })));
 const CrossingMission = lazy(() => import('./components/CrossingMission').then((m) => ({ default: m.CrossingMission })));
@@ -64,22 +65,8 @@ export default function App() {
     saveJson('october-73-player-stats', stats);
   }, [stats]);
 
-  const [difficulty, setDifficulty] = useState<Difficulty>(() => {
-    try {
-      const saved = localStorage.getItem('october-73-difficulty');
-      return saved === 'easy' || saved === 'heroic' || saved === 'normal' ? saved : 'normal';
-    } catch {
-      return 'normal';
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('october-73-difficulty', difficulty);
-    } catch {
-      // Storage may be unavailable in privacy-restricted contexts.
-    }
-  }, [difficulty]);
+  // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
+  const difficulty: Difficulty = 'normal';
 
   // Sync fullscreen state with document
   React.useEffect(() => {
@@ -256,7 +243,11 @@ export default function App() {
       {/* 1. Stage Select Modal (Interactive stage menu accessible anytime) */}
       <StageSelectModal
         isOpen={isStageSelectOpen}
-        onClose={() => setIsStageSelectOpen(false)}
+        onClose={() => {
+          setIsStageSelectOpen(false);
+          setGamePaused(false);
+          sound.setMuted(false);
+        }}
         onSelectStage={(m) => handleSelectMode(m)}
         currentStage={currentMode}
         completedMissions={stats.completedMissions}
@@ -289,6 +280,8 @@ export default function App() {
         rankTitle={stats.rank.title}
         onOpenStageSelect={() => {
           sound.playRadioTransmission();
+          setGamePaused(true);
+          sound.setMuted(true);
           setIsStageSelectOpen(true);
         }}
         isFullscreen={isFullscreen}
