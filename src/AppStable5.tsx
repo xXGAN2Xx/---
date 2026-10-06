@@ -273,7 +273,7 @@ export default function App() {
     <div
       className={
         isCombatMode
-          ? 'w-screen h-screen bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white fixed inset-0 z-40 overflow-hidden'
+          ? 'w-screen h-[100dvh] min-h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white fixed inset-0 z-40 overflow-hidden'
           : 'min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white'
       }
     >
@@ -329,7 +329,7 @@ export default function App() {
       <main
         className={
           isCombatMode
-            ? 'flex-1 w-full h-full min-h-0 flex flex-col p-0 overflow-hidden'
+            ? 'flex-1 w-full h-full min-h-0 flex flex-col p-0 overflow-hidden pb-[env(safe-area-inset-bottom)]'
             : 'flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8'
         }
       >
