@@ -211,6 +211,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     if (missionWon || isDefeated) return;
 
     const countTimer = setInterval(() => {
+      if (isGamePaused()) return;
       setCountdownSec((prev) => {
         if (prev <= 1) {
           clearInterval(countTimer);
