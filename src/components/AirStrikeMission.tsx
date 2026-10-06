@@ -2353,9 +2353,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-emerald-400" />
             <div className="w-20 h-2 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
-              <div className="h-full bg-emerald-500" style={{ width: `${hp}%` }} />
+              <div className="h-full bg-emerald-500 transition-[width] duration-150" style={{ width: `${Math.min(100, (hp / 210) * 100)}%` }} />
             </div>
-            <span className="font-mono tabular-nums text-stone-200">{hp}%</span>
+            <span className="font-mono tabular-nums text-stone-200">{hp}/210</span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -2401,6 +2401,10 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           ))}
         </div>
       )}
+
+        <div className="sm:hidden px-3 py-1.5 bg-amber-500/5 border-b border-amber-500/15 text-center text-[10px] text-amber-300">
+          📱 حرّك إصبعك لتوجيه المقاتلة · اضغط زر الصاروخ · اللمس المستمر يطلق المدافع
+        </div>
 
       {/* Canvas Area */}
       <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
