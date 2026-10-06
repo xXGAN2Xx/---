@@ -229,7 +229,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               baseY: 150,
               vx: -220,
               vy: 0,
-              hp: 25,
+              hp: 30,
+              maxHp: 30,
+              type: 'phantom',
               destroyed: false,
               attackPattern: 'patrol_line',
               patternTimer: 0,
@@ -2295,6 +2297,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             <Target className="w-4 h-4 text-emerald-400" />
             <span className="text-stone-300">الأهداف:</span>
             <span className="font-mono tabular-nums font-bold text-emerald-400">{totalDestroyed} / 5</span>
+            <span className="text-[10px] text-stone-500">من 6</span>
           </div>
 
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-stone-900 border border-stone-800 text-xs">
@@ -2338,6 +2341,20 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           ✈️ تحكم مباشر بحركة الفأرة في كل الاتجاهات · انقر باليسار لإطلاق المدافع · انقر باليمين للصواريخ
         </div>
       </div>
+
+      {!missionWon && !isDefeated && isCombatActive && (
+        <div className="px-3 sm:px-4 py-1.5 bg-stone-950 border-b border-stone-800/80 flex items-center gap-2 overflow-x-auto text-[10px] whitespace-nowrap">
+          <span className="text-stone-500 font-bold">جدول الأهداف:</span>
+          {SCHEDULE.map((item, index) => (
+            <span
+              key={item.sec}
+              className={`px-2 py-0.5 rounded border ${index < totalDestroyed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : item.sec === 90 ? 'bg-amber-500/15 border-amber-500/40 text-amber-300' : 'bg-stone-900 border-stone-800 text-stone-400'}`}
+            >
+              {String(Math.floor(item.sec / 60)).padStart(2, '0')}:{String(item.sec % 60).padStart(2, '0')} · {index + 1}{index === 5 ? ' (احتياطي)' : ''}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Canvas Area */}
       <div className="relative flex-1 w-full min-h-0 bg-stone-950 flex items-center justify-center overflow-hidden">
@@ -2401,7 +2418,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <h3 className="text-2xl font-black font-cairo text-amber-400 mb-1">
-              نصر ساحق وسريع! دُمرت محطات وقواعد العدو!
+              نصر ساحق وسريع! دمرت 5 أهداف من أصل 6!
             </h3>
             <p className="text-xs text-stone-300 max-w-md mb-4">
               حققت شرط النصر: تدمير 5 أهداف من أصل 6 قبل انتهاء زمن الطلعة.
@@ -2409,7 +2426,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
             <div className="grid grid-cols-3 gap-3 mb-5 max-w-md w-full text-center">
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">المحطات المدمرة</span>
+                <span className="block text-[11px] text-stone-400 mb-1">الأهداف المدمرة</span>
                 <span className="text-base font-bold font-mono text-emerald-400">{totalDestroyed} محطات</span>
               </div>
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
