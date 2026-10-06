@@ -8,6 +8,9 @@ class SoundSystem {
   private isMuted: boolean = false;
   private currentTheme: 'airStrike' | 'crossing' | 'bridge' | 'tankBattle' | 'fortress' | 'menu' | null = null;
   private bgIntervalId: number | null = null;
+  private customAudio: HTMLAudioElement | null = null;
+  private customObjectUrl: string | null = null;
+  private customTrackName: string | null = null;
 
   private initCtx() {
     if (!this.ctx && typeof window !== 'undefined') {
@@ -35,6 +38,66 @@ class SoundSystem {
   public toggleMute(): boolean {
     this.setMuted(!this.isMuted);
     return this.isMuted;
+  }
+
+  public getCustomTrackName(): string | null {
+    return this.customTrackName;
+  }
+
+  public setCustomBackgroundTrack(file: File): string {
+    this.stopCustomBackgroundTrack();
+    const url = URL.createObjectURL(file);
+    const audio = new Audio(url);
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = 0.48;
+    audio.addEventListener('error', () => {
+      this.stopCustomBackgroundTrack();
+    });
+    this.customAudio = audio;
+    this.customObjectUrl = url;
+    this.customTrackName = file.name;
+    this.stopBackgroundTheme(false);
+    if (!this.isMuted) {
+      void audio.play().catch(() => {
+        // Browser autoplay policy may require the first play to follow a user gesture.
+      });
+    }
+    return file.name;
+  }
+
+  public loadBundledBackgroundTrack(path: string, name = 'أغنية 6 أكتوبر'): void {
+    this.stopCustomBackgroundTrack();
+    const audio = new Audio(path);
+    audio.loop = true;
+    audio.preload = 'metadata';
+    audio.volume = 0.48;
+    audio.addEventListener('error', () => {
+      this.stopCustomBackgroundTrack();
+    }, { once: true });
+    this.customAudio = audio;
+    this.customTrackName = name;
+    this.customObjectUrl = null;
+  }
+
+  public clearCustomBackgroundTrack(): void {
+    this.stopCustomBackgroundTrack();
+    if (this.currentTheme && !this.isMuted) {
+      this.playBackgroundTheme(this.currentTheme);
+    }
+  }
+
+  private stopCustomBackgroundTrack(): void {
+    if (this.customAudio) {
+      this.customAudio.pause();
+      this.customAudio.currentTime = 0;
+      this.customAudio = null;
+    }
+    if (this.customObjectUrl) {
+      URL.revokeObjectURL(this.customObjectUrl);
+      this.customObjectUrl = null;
+    }
+    this.customTrackName = null;
   }
 
   // Countdown beep (5, 4, 3, 2, 1, 0)
@@ -84,6 +147,10 @@ class SoundSystem {
       window.clearInterval(this.bgIntervalId);
       this.bgIntervalId = null;
     }
+    if (this.customAudio) {
+      this.customAudio.pause();
+      this.customAudio.currentTime = 0;
+    }
     if (clearCurrentTheme) {
       this.currentTheme = null;
     }
@@ -93,6 +160,17 @@ class SoundSystem {
   public playBackgroundTheme(theme: 'airStrike' | 'crossing' | 'bridge' | 'tankBattle' | 'fortress' | 'menu') {
     this.currentTheme = theme;
     if (this.isMuted) return;
+
+    // A user-provided track takes priority over the synthesized theme.
+    if (this.customAudio) {
+      this.stopBackgroundTheme(false);
+      this.customAudio.volume = 0.48;
+      void this.customAudio.play().catch(() => {
+        // Browser autoplay policy may require a user gesture.
+      });
+      return;
+    }
+
     this.initCtx();
     if (!this.ctx) return;
 
