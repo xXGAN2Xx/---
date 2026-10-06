@@ -289,6 +289,7 @@ export default function App() {
           >
             {currentMode === 'MISSION_AIR_STRIKE' && (
               <AirStrikeMission
+                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_AIR_STRIKE', pts)}
                 onExit={handleExitMission}
               />
@@ -296,6 +297,7 @@ export default function App() {
 
             {currentMode === 'MISSION_CROSSING' && (
               <CrossingMission
+                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_CROSSING', pts)}
                 onExit={handleExitMission}
               />
@@ -303,6 +305,7 @@ export default function App() {
 
             {currentMode === 'MISSION_BRIDGE' && (
               <BridgeMission
+                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_BRIDGE', pts)}
                 onExit={handleExitMission}
               />
@@ -310,6 +313,7 @@ export default function App() {
 
             {currentMode === 'MISSION_TANK_BATTLE' && (
               <TankBattleMission
+                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_TANK_BATTLE', pts)}
                 onExit={handleExitMission}
               />
@@ -317,6 +321,7 @@ export default function App() {
 
             {currentMode === 'MISSION_FORTRESS' && (
               <FortressAssaultMission
+                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
                 onExit={handleExitMission}
               />
@@ -340,6 +345,7 @@ export default function App() {
             className="flex-1 w-full h-full min-h-0"
           >
             <SurvivalTacticalMode
+              difficulty={difficulty}
               onAddScore={handleAddScore}
               onExit={handleReturnToMenu}
             />
