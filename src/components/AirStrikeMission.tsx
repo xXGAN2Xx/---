@@ -973,7 +973,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
                 addFloatingText(targetScreenX, target.y - 30, `+${target.points} ${target.label} مدمر! 🎯`, '#4ade80');
 
                 // FAST VICTORY CONDITION: Destroying 3 targets wins immediately!
-                if (state.destroyedCount >= 3 && !state.isComplete) {
+                if (state.destroyedCount >= 5 && !state.isComplete) {
                   state.isComplete = true;
                   const timeBonus = state.timeLeft * 25;
                   state.score += timeBonus;
