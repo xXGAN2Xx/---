@@ -624,10 +624,16 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
 
     const loop = (currentTime: number) => {
+      const state = stateRef.current;
+      if (isGamePaused()) {
+        lastTime = currentTime;
+        animId = requestAnimationFrame(loop);
+        return;
+      }
+
       const dt = (currentTime - lastTime) / 1000;
       lastTime = currentTime;
 
-      const state = stateRef.current;
       if (state.isComplete) {
         animId = requestAnimationFrame(loop);
         return;
