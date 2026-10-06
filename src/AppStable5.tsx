@@ -10,6 +10,7 @@ import { sound } from './utils/audio';
 import { loadJson, saveJson } from './utils/storage';
 import { setGamePaused } from './game/pause';
 import { Header } from './components/Header';
+import { BackgroundMusicPicker } from './components/BackgroundMusicPicker';
 const AirStrikeMission = lazy(() => import('./components/AirStrikeMission').then((m) => ({ default: m.AirStrikeMission })));
 const CrossingMission = lazy(() => import('./components/CrossingMission').then((m) => ({ default: m.CrossingMission })));
 const TankBattleMission = lazy(() => import('./components/TankBattleMission').then((m) => ({ default: m.TankBattleMission })));
@@ -456,6 +457,8 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              <BackgroundMusicPicker />
 
               {/* Status Ticker Inside Hero Frame */}
               <div className="relative z-10 border-t border-stone-800/80 bg-stone-950/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-400">
