@@ -920,7 +920,8 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
             <button
               onPointerDown={() => { stateRef.current.keys.up = true; }}
               onPointerUp={() => { stateRef.current.keys.up = false; }}
-              className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
+              onPointerCancel={() => { stateRef.current.keys.up = false; }}
+              className="w-11 h-11 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
               aria-label="أعلى"
             >
               ▲
@@ -929,6 +930,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               <button
                 onPointerDown={() => { stateRef.current.keys.left = true; }}
                 onPointerUp={() => { stateRef.current.keys.left = false; }}
+                onPointerCancel={() => { stateRef.current.keys.left = false; }}
                 className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
                 aria-label="يمين"
               >
@@ -937,6 +939,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               <button
                 onPointerDown={() => { stateRef.current.keys.down = true; }}
                 onPointerUp={() => { stateRef.current.keys.down = false; }}
+                onPointerCancel={() => { stateRef.current.keys.down = false; }}
                 className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
                 aria-label="أسفل"
               >
@@ -945,6 +948,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               <button
                 onPointerDown={() => { stateRef.current.keys.right = true; }}
                 onPointerUp={() => { stateRef.current.keys.right = false; }}
+                onPointerCancel={() => { stateRef.current.keys.right = false; }}
                 className="w-10 h-10 rounded-lg bg-stone-900/90 border border-stone-700 text-white font-bold flex items-center justify-center active:bg-amber-500 active:text-stone-950 text-base"
                 aria-label="يسار"
               >
@@ -1029,7 +1033,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
       </div>
 
       {/* Footer Instructions */}
-      <div className="p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
+      <div className="hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400">
         <span>تحرك بالنقر السريع في أي مكان واقترب من الأهداف لتعطيلها ورفع العلم قبل نهاية المؤقت</span>
         <span className="text-amber-400 font-semibold">«تحيا جمهورية مصر العربية»</span>
       </div>
