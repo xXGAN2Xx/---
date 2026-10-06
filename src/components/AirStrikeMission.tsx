@@ -1097,27 +1097,37 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           addFloatingText(jet.x, jet.y - 25, badgeMap[pattern] || 'مقاتلة معادية في الأجواء!', '#38bdf8');
         }
 
-        // Clean, structured flight mechanics without random twitching
+        // Clean, structured flight mechanics without random twitching.
+        // Every enemy type keeps its own deliberately moderate cruise speed.
+        const speedByType: Record<EnemyJetType, number> = {
+          phantom: 165,
+          mirage: 185,
+          skyhawk: 150,
+          nesher: 175,
+          super_mystere: 140,
+        };
+        const jetSpeed = speedByType[jet.type ?? 'phantom'];
+
         if (pattern === 'patrol_line') {
           // Horizontal steady patrol at set altitude with gentle aerodynamic float
           const targetY = (jet.baseY ?? 150) + Math.sin(currentTime * 0.0018 + j) * 8;
           jet.vy = (targetY - jet.y) * 3.0;
-          jet.vx = -225;
+          jet.vx = -jetSpeed;
         } else if (pattern === 'wingman_pair') {
           // Disciplined echelon pair maintaining altitude and formation
           const targetY = (jet.baseY ?? (jet.patternPhase === 0 ? 125 : 185)) + Math.sin(currentTime * 0.0015 + j) * 6;
           jet.vy = (targetY - jet.y) * 3.0;
-          jet.vx = -240;
+          jet.vx = -jetSpeed;
         } else if (pattern === 'air_superiority') {
           // High altitude interceptor staying high in the sky (Y=90 to 130)
           const targetY = (jet.baseY ?? 105) + Math.sin(currentTime * 0.002 + j) * 10;
           jet.vy = (targetY - jet.y) * 3.0;
-          jet.vx = -260;
+          jet.vx = -Math.min(190, jetSpeed + 8);
         } else {
           // Tactical sweep: Predictable, gentle mid-sky wave (amplitude 22px, period ~3.5s)
           const sweepY = (jet.baseY ?? 175) + Math.sin(currentTime * 0.0022 + j * 1.2) * 22;
           jet.vy = (sweepY - jet.y) * 2.8;
-          jet.vx = -220;
+          jet.vx = -Math.max(135, jetSpeed - 5);
         }
 
         // Defensive flares against homing rockets without erratic teleporting
@@ -1162,7 +1172,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         // Timers update
         jet.burstCooldown = (jet.burstCooldown ?? (2.4 + Math.random() * 1.2)) - dt;
         jet.burstRemaining = jet.burstRemaining ?? 0;
-        jet.missileCooldown = (jet.missileCooldown ?? (5.0 + Math.random() * 4.0)) - dt;
+        jet.missileCooldown = (jet.missileCooldown ?? (10.0 + Math.random() * 4.0)) - dt;
         jet.lastBurstTime = jet.lastBurstTime ?? 0;
 
         if (isAheadOfPlayer) {
@@ -1173,7 +1183,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             Math.abs(jet.y - p.y) < 70 &&
             jet.missileCooldown <= 0
           ) {
-            jet.missileCooldown = 13.0 + Math.random() * 3.0;
+            jet.missileCooldown = 15.0 + Math.random() * 4.0;
             sound.playMissileLaunch();
             sound.playTargetLock();
             state.projectiles.push({
@@ -1233,7 +1243,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               const angleToPlayer = Math.atan2(p.y - jet.y, p.x - jet.x);
               if (Math.abs(angleToPlayer - Math.PI) < 0.7 || Math.abs(angleToPlayer + Math.PI) < 0.7) {
                 jet.burstRemaining = pattern === 'air_superiority' ? 4 : 3;
-                jet.burstCooldown = pattern === 'air_superiority' ? 2.8 : (3.0 + Math.random() * 1.2);
+                jet.burstCooldown = pattern === 'air_superiority' ? 3.5 : (3.8 + Math.random() * 1.4);
                 jet.lastBurstTime = currentTime - 90;
               }
             }
