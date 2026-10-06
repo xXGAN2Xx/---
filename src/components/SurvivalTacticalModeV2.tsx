@@ -32,9 +32,7 @@ const BASE_UNITS: Unit[] = [
 ];
 
 const TUNING: Record<Difficulty, { supplies: number; enemyPressure: number; unitEfficiency: number }> = {
-  easy: { supplies: 600, enemyPressure: 0.72, unitEfficiency: 1.12 },
   normal: { supplies: 500, enemyPressure: 1, unitEfficiency: 1 },
-  heroic: { supplies: 450, enemyPressure: 1.35, unitEfficiency: 0.9 },
 };
 
 export const SurvivalTacticalModeV2: React.FC<Props> = ({ difficulty, onAddScore, onExit }) => {
