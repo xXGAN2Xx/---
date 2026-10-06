@@ -34,6 +34,7 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(false);
   const [isStageSelectOpen, setIsStageSelectOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPortraitMobile, setIsPortraitMobile] = useState(false);
   const previousMuteRef = useRef(false);
   const defaultStats: PlayerStats = {
     score: 0,
@@ -72,6 +73,46 @@ export default function App() {
   // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
   const difficulty = 'normal' as const;
 
+  const isMobileViewport = () =>
+    window.matchMedia('(max-width: 900px) and (pointer: coarse)').matches;
+
+  const syncMobileOrientation = () => {
+    const mobile = isMobileViewport();
+    const portrait = window.innerHeight > window.innerWidth;
+    setIsPortraitMobile(mobile && portrait && currentMode.startsWith('MISSION_'));
+  };
+
+  const lockMissionLandscape = async () => {
+    if (!isMobileViewport()) return;
+
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // بعض المتصفحات تمنع ملء الشاشة، فنستخدم شاشة تدوير الموبايل كبديل.
+    }
+
+    try {
+      if (screen.orientation?.lock) {
+        await screen.orientation.lock('landscape');
+      }
+    } catch {
+      // قفل الاتجاه غير متاح في بعض المتصفحات.
+    }
+
+    syncMobileOrientation();
+  };
+
+  const unlockMissionLandscape = () => {
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      // تجاهل المتصفحات التي لا تدعم فك قفل الاتجاه.
+    }
+    setIsPortraitMobile(false);
+  };
+
   // Sync fullscreen state with document
   React.useEffect(() => {
     const handleFsChange = () => {
@@ -90,11 +131,16 @@ export default function App() {
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
+      document.documentElement.requestFullscreen?.().then(() => {
+        if (currentMode.startsWith('MISSION_')) {
+          void lockMissionLandscape();
+        }
+      }).catch(() => {});
       setIsFullscreen(true);
     } else {
       document.exitFullscreen?.().catch(() => {});
       setIsFullscreen(false);
+      syncMobileOrientation();
     }
   };
 
