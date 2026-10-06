@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Zap, Shield, Flame, CheckCircle2, Clock, Target, RotateCcw, AlertTriangle, Radio } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
 interface AirStrikeMissionProps {
+  difficulty: Difficulty;
   onComplete: (scoreEarned: number) => void;
   onExit: () => void;
 }
@@ -90,19 +92,20 @@ interface FloatingText {
   maxLife: number;
 }
 
-export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, onExit }) => {
+export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onExit }) => {
+  const missionDuration = DIFFICULTY_CONFIG[difficulty].missionDuration;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hp, setHp] = useState(100);
   const [rockets, setRockets] = useState(12);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(120); // 2-minute timer for automatic victory
+  const [timeLeft, setTimeLeft] = useState(missionDuration); // 2-minute timer for automatic victory
   const [totalDestroyed, setTotalDestroyed] = useState(0);
   const [missionWon, setMissionWon] = useState(false);
   const [isDefeated, setIsDefeated] = useState(false);
   const [defeatReason, setDefeatReason] = useState<'shot_down' | 'crash' | 'timeout'>('shot_down');
   const [altitudeWarning, setAltitudeWarning] = useState<boolean>(false);
   const [playerAltitude, setPlayerAltitude] = useState<number>(320);
-  const [victoryReason, setVictoryReason] = useState<'fast' | 'timer'>('fast');
+  const [victoryReason, setVictoryReason] = useState<'fast'>('fast');
   const [countdownSec, setCountdownSec] = useState<number>(5);
   const [isCombatActive, setIsCombatActive] = useState<boolean>(false);
   const [currentAlert, setCurrentAlert] = useState<string>('تجهيز المقاتلة: المرحلة خالية، استعد للاشتباك خلال 5 ثوانٍ');
@@ -112,7 +115,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
     setHp(100);
     setScore(0);
     setRockets(12);
-    setTimeLeft(120);
+    setTimeLeft(missionDuration);
     setTotalDestroyed(0);
     setMissionWon(false);
     setIsDefeated(false);
@@ -242,7 +245,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       setTimeLeft((prev) => {
         const next = prev - 1;
         stateRef.current.timeLeft = next;
-        const elapsed = 120 - next;
+        const elapsed = missionDuration - next;
 
         // Pre-alert 4 seconds before next station
         const upcoming = SCHEDULE.find((s) => s.sec === elapsed + 4);
@@ -301,12 +304,12 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
           }
         }
 
-        // Automatic Victory when 2 minutes elapse!
+        // Timeout is a real mission failure: waiting must never count as victory.
         if (next <= 0 && !stateRef.current.isComplete) {
           stateRef.current.isComplete = true;
-          setVictoryReason('timer');
-          setMissionWon(true);
-          sound.playVictoryFanfare();
+          setDefeatReason('timeout');
+          setIsDefeated(true);
+          sound.playDefeatSound();
           return 0;
         }
 
@@ -2341,7 +2344,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
         {isCombatActive && !missionWon && (
           <MissionDigitalTimer
             timeLeft={timeLeft}
-            totalTime={120}
+            totalTime={missionDuration}
             label="الزمن المتبقي للنصر"
             position="top-center"
           />
@@ -2390,12 +2393,10 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <h3 className="text-2xl font-black font-cairo text-amber-400 mb-1">
-              {victoryReason === 'fast' ? 'نصر ساحق وسريع! دُمرت محطات وقواعد العدو!' : 'تمت طلعة الضربة الجوية بنجاح وتمت السيطرة على سماء سيناء!'}
+              نصر ساحق وسريع! دُمرت محطات وقواعد العدو!
             </h3>
             <p className="text-xs text-stone-300 max-w-md mb-4">
-              {victoryReason === 'fast'
-                ? 'حققت الفوز السريع بتدمير محطات الرادار ومطارات العدو في عمق سيناء بدقة استثنائية!'
-                : 'اكتملت مدة طلعة الضربة الجوية (دقيقتان كاملتان) وسيطرت القوات الجوية المصرية على سماء المعركة!'}
+              حققت الفوز السريع بتدمير المحطات المطلوبة قبل نهاية زمن الطلعة.
             </p>
 
             <div className="grid grid-cols-3 gap-3 mb-5 max-w-md w-full text-center">
@@ -2457,7 +2458,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
               </div>
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
                 <span className="block text-[11px] text-stone-400 mb-1">الوقت المنقضي</span>
-                <span className="text-base font-bold font-mono text-sky-400">{formatTimer(120 - timeLeft)}</span>
+                <span className="text-base font-bold font-mono text-sky-400">{formatTimer(missionDuration - timeLeft)}</span>
               </div>
               <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
                 <span className="block text-[11px] text-stone-400 mb-1">النقاط الكلية</span>
