@@ -275,7 +275,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           stateRef.current.targets.push({
             id: elapsed,
             x: spawnX,
-            y: scheduled.type === 'runway' ? 390 : scheduled.type === 'bunker' ? 375 : 365,
+            y: scheduled.type === 'runway' ? 465 : scheduled.type === 'bunker' ? 455 : 450,
             type: scheduled.type,
             hp: scheduled.hp,
             maxHp: scheduled.hp,
