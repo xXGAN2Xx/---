@@ -7,21 +7,19 @@ export const BackgroundMusicPicker: React.FC = () => {
   const [trackName, setTrackName] = useState<string | null>(() => sound.getCustomTrackName());
 
   useEffect(() => {
-    const storedName = window.localStorage.getItem('october-73-custom-track-name');
-    if (storedName) setTrackName(storedName);
+    sound.loadBundledBackgroundTrack('/audio/october-6.mp3', 'أغنية 6 أكتوبر');
+    return () => sound.clearCustomBackgroundTrack();
   }, []);
 
   const chooseTrack = (file: File) => {
     if (!file.type.startsWith('audio/')) return;
     const name = sound.setCustomBackgroundTrack(file);
     setTrackName(name);
-    window.localStorage.setItem('october-73-custom-track-name', name);
   };
 
   const clearTrack = () => {
     sound.clearCustomBackgroundTrack();
     setTrackName(null);
-    window.localStorage.removeItem('october-73-custom-track-name');
   };
 
   return (
