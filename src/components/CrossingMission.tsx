@@ -179,7 +179,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
         <div className='flex items-center gap-2 text-[11px] sm:text-xs'><span className='px-2 py-1 rounded bg-stone-900 border border-stone-800 text-amber-300'>{score} نقطة</span><span className='px-2 py-1 rounded bg-stone-900 border border-stone-800 text-sky-300'>ماء {water}%</span><span className='px-2 py-1 rounded bg-stone-900 border border-stone-800 text-emerald-300'>ثغرات {breaches.filter((b) => b.complete).length}/3</span></div>
       </div>
       <div className='px-3 sm:px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap gap-2 items-center'>
-        {[0,1,2].map((id) => <button key={id} type='button' onClick={() => { stateRef.current.selectedLane = id; setSelectedLane(id); }} className={'px-3 py-1.5 rounded-lg border text-xs font-bold ' + (selectedLane === id ? 'bg-amber-500 text-stone-950 border-amber-300' : 'bg-stone-950 text-stone-300 border-stone-800')}>الثغرة {id + 1}</button>)}
+        {[0,1,2].map((id) => <button key={id} type='button' onClick={() => { stateRef.current.selectedLane = id; setSelectedLane(id); }} className={'min-h-11 px-3 py-2 rounded-lg border text-xs font-bold touch-manipulation ' + (selectedLane === id ? 'bg-amber-500 text-stone-950 border-amber-300' : 'bg-stone-950 text-stone-300 border-stone-800')}>الثغرة {id + 1}</button>)}
         <span className='mr-auto text-[10px] text-stone-500 hidden md:inline'>{message}</span>
       </div>
       <div className='relative flex-1 min-h-0'>
@@ -192,11 +192,11 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
         {missionWon && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><CheckCircle2 className='w-16 h-16 mx-auto text-emerald-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-amber-400'>تم اختراق الساتر وفتح الطريق!</h3><p className='text-xs text-stone-300 mt-2 mb-5'>الثغرات الثلاث أصبحت جاهزة لعبور القوات.</p><button type='button' onClick={() => onComplete(score)} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg'>المرحلة التالية</button></div></div>}
         {isDefeated && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><Clock3 className='w-14 h-14 mx-auto text-red-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-red-400'>انتهى وقت العملية</h3><p className='text-xs text-stone-300 mt-2 mb-5'>أعد توزيع المياه وابدأ بالثغرة الأقل تعرضًا للنيران.</p><button type='button' onClick={reset} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg inline-flex items-center gap-2'><RotateCcw className='w-4 h-4'/>إعادة العملية</button></div></div>}
       </div>
-      <div className='px-3 sm:px-4 py-2.5 border-t border-stone-800 bg-stone-950 flex flex-wrap items-center justify-between gap-2'>
+      <div className='hidden sm:flex px-3 sm:px-4 py-2.5 border-t border-stone-800 bg-stone-950 flex-wrap items-center justify-between gap-2'>
         <div className='text-[11px] text-stone-400 truncate'>{message}</div>
         <div className='flex gap-2'>
-          <button type='button' onClick={toggleSpray} disabled={water <= 0 || missionWon || isDefeated} className={'px-4 py-2 rounded-lg text-xs font-bold border ' + (spraying ? 'bg-sky-500 text-stone-950 border-sky-300' : 'bg-stone-800 text-stone-100 border-stone-700')}><Droplets className='inline w-4 h-4 ml-1'/>{spraying ? 'إيقاف المياه' : 'تشغيل الخراطيم'}</button>
-          <button type='button' onClick={launchBoat} disabled={!breaches[selectedLane].complete || boats.length >= 5 || missionWon || isDefeated} className='px-4 py-2 rounded-lg bg-amber-500 text-stone-950 text-xs font-black disabled:opacity-40'><Waves className='inline w-4 h-4 ml-1'/>إرسال قارب</button>
+          <button type='button' onClick={toggleSpray} disabled={water <= 0 || missionWon || isDefeated} className={'min-h-11 px-4 py-2.5 rounded-lg text-xs font-bold border touch-manipulation ' + (spraying ? 'bg-sky-500 text-stone-950 border-sky-300' : 'bg-stone-800 text-stone-100 border-stone-700')}><Droplets className='inline w-4 h-4 ml-1'/>{spraying ? 'إيقاف المياه' : 'تشغيل الخراطيم'}</button>
+          <button type='button' onClick={launchBoat} disabled={!breaches[selectedLane].complete || boats.length >= 5 || missionWon || isDefeated} className='min-h-11 px-4 py-2.5 rounded-lg bg-amber-500 text-stone-950 text-xs font-black disabled:opacity-40'><Waves className='inline w-4 h-4 ml-1'/>إرسال قارب</button>
         </div>
       </div>
     </div>
