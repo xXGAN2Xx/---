@@ -66,7 +66,7 @@ export default function App() {
   }, [stats]);
 
   // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
-  const difficulty: Difficulty = 'normal';
+  const difficulty = 'normal' as const;
 
   // Sync fullscreen state with document
   React.useEffect(() => {
@@ -262,6 +262,7 @@ export default function App() {
           setIsStageSelectOpen(false);
           setGamePaused(false);
           sound.setMuted(previousMuteRef.current);
+          setIsMuted(previousMuteRef.current);
         }}
         onSelectStage={(m) => handleSelectMode(m)}
         currentStage={currentMode}
@@ -295,9 +296,11 @@ export default function App() {
         rankTitle={stats.rank.title}
         onOpenStageSelect={() => {
           previousMuteRef.current = sound.getMuted();
+          previousMuteRef.current = sound.getMuted();
           sound.playRadioTransmission();
           setGamePaused(true);
           sound.setMuted(true);
+          setIsMuted(true);
           setIsStageSelectOpen(true);
         }}
         isFullscreen={isFullscreen}
@@ -516,6 +519,13 @@ export default function App() {
                   </div>
                 </div>
 
+              </div>
+
+              <div className="flex items-center justify-end mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  مستوى اللعب: متوسط ثابت
+                </div>
               </div>
 
               {/* Status Ticker Inside Hero Frame */}
