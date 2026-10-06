@@ -87,12 +87,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>القصة المصورة</span>
             </button>
             <button
-              onClick={() => onSelectMode('SURVIVAL_TACTICAL')}
-              className="transition-colors hover:text-amber-400 cursor-pointer pb-1"
-            >
-              الدفاع التكتيكي
-            </button>
-            <button
               onClick={() => onSelectMode('MUSEUM')}
               className={`transition-colors hover:text-amber-400 cursor-pointer pb-1 ${
                 currentMode === 'MUSEUM' ? 'text-amber-400 border-b-2 border-amber-500' : ''
