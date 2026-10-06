@@ -121,6 +121,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
   const [activeTarget, setActiveTarget] = useState<string>('breach1');
   const [missionPhase, setMissionPhase] = useState<MissionPhase>('landing');
   const [combo, setCombo] = useState(0);
+  const comboRef = useRef(0);
 
   const stateRef = useRef({
     pump: {
@@ -216,7 +217,8 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
     });
 
     setMissionPhase('landing');
-    setCombo((value) => Math.min(5, value + 1));
+    comboRef.current = Math.min(5, comboRef.current + 1);
+    setCombo(comboRef.current);
     addFloatingText(160, 280, '«الله أكبر.. انطلاق قارب صاعقة» 🇪🇬', '#facc15');
   }, [addFloatingText]);
 
@@ -572,9 +574,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
                 state.breachesDoneCount++;
                 setBreachesCompleted(state.breachesDoneCount);
                 sound.playMissionStartRadioAlert();
-                state.score += 2500 + combo * 100;
+                state.score += 2500 + comboRef.current * 100;
                 setScore(state.score);
-                setCombo((value) => Math.min(5, value + 1));
+                comboRef.current = Math.min(5, comboRef.current + 1);
+                setCombo(comboRef.current);
                 setMissionPhase(state.breachesDoneCount >= 2 ? 'bridgehead' : 'breaching');
                 state.screenShake = 10;
                 addFloatingText(targetBreach.x + targetBreach.width / 2, 220, `🌟 فُتحت ${targetBreach.label} بالكامل! 🇪🇬`, '#4ade80');
@@ -617,9 +620,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
               if (slick.life >= slick.maxLife) {
                 slick.extinguished = true;
                 sound.playSplash();
-                state.score += 500 + combo * 50;
+                state.score += 500 + comboRef.current * 50;
                 setScore(state.score);
-                setCombo((value) => Math.min(5, value + 1));
+                comboRef.current = Math.min(5, comboRef.current + 1);
+                setCombo(comboRef.current);
                 setMissionPhase('extinguishing');
                 addFloatingText(slick.x, slick.y - 20, '+500 إخماد أنابيب النابالم بالماء! 🌊  كومبو', '#38bdf8');
               }
@@ -638,9 +642,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
               if (bk.hp <= 0 && !bk.destroyed) {
                 bk.destroyed = true;
                 sound.playExplosion(1.1);
-                state.score += 800 + combo * 75;
+                state.score += 800 + comboRef.current * 75;
                 setScore(state.score);
-                setCombo((value) => Math.min(5, value + 1));
+                comboRef.current = Math.min(5, comboRef.current + 1);
+                setCombo(comboRef.current);
                 setMissionPhase('breaching');
                 addFloatingText(bk.x, bk.y - 25, `+800 دك دشمة بارليف بالضغط الهيدروليكي! 💥  كومبو`, '#4ade80');
               }
@@ -694,9 +699,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
             boat.arrived = true;
             state.boatsArrivedCount++;
             setBoatsCrossed(state.boatsArrivedCount);
-            state.score += 800 + combo * 100;
+            state.score += 800 + comboRef.current * 100;
             setScore(state.score);
-            setCombo((value) => Math.min(5, value + 1));
+            comboRef.current = Math.min(5, comboRef.current + 1);
+            setCombo(comboRef.current);
             sound.playTargetLock();
             addFloatingText(boat.x, boat.y - 25, `+800 وصول أبطال الصاعقة إلى الشاطئ الشرقي! 🇪🇬`, '#4ade80');
           }
@@ -1081,6 +1087,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
     state.score = 0;
     state.timeLeft = missionDuration;
     setMissionPhase('landing');
+    comboRef.current = 0;
     setCombo(0);
     state.pump.heat = 15;
     state.pump.pressure = 75;
