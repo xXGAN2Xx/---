@@ -19,7 +19,7 @@ const defenderSeed: Defender[] = [
 const laneX = [725, 850, 975];
 const defenderName: Record<Defender['kind'], string> = { bunker: 'دشمة', gun: 'مدفع ميدان', mortar: 'هاون' };
 
-export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = 'normal', onComplete, onExit }) => {
+export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = 'normal', onComplete, onDefeat, onExit }) => {
   const [timeLeft, setTimeLeft] = useState(120);
   const [water, setWater] = useState(100);
   const [score, setScore] = useState(0);
@@ -48,7 +48,8 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
       const s = stateRef.current;
       s.timeLeft = Math.max(0, s.timeLeft - 1);
       setTimeLeft(s.timeLeft);
-      if (s.timeLeft === 0) { s.defeated = true; setIsDefeated(true); sound.playDefeatSound(); }
+      if (s.timeLeft === 0) { s.defeated = true; setIsDefeated(true);
+          onDefeat?.(); sound.playDefeatSound(); }
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
