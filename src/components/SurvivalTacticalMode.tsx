@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Shield, Flame, RotateCcw, Crosshair, Zap, Rocket, Plus, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Shield, Flame, RotateCcw, Crosshair, Zap, Rocket, Plus, CheckCircle2, ToggleRight } from 'lucide-react';
+import { Difficulty } from '../game/difficulty';
 
 interface SurvivalTacticalModeProps {
   onAddScore: (points: number) => void;
