@@ -214,7 +214,6 @@ export default function App() {
 
   const handleMissionDefeat = (mission: GameMode) => {
     // الخسارة = إنهاء الجلسة فورًا، كتم الصوت، وإعادة البيئة للبداية بدل استمرار المؤقت/الطقس.
-    sound.playRadioTransmission();
     sound.setMuted(true);
     setIsMuted(true);
     sound.stopBackgroundTheme();
