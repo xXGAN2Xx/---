@@ -65,6 +65,10 @@ export default function App() {
     saveJson('october-73-player-stats', stats);
   }, [stats]);
 
+  useEffect(() => {
+    setGamePaused(isStageSelectOpen || splashMission !== null);
+  }, [isStageSelectOpen, splashMission]);
+
   // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
   const difficulty = 'normal' as const;
 
@@ -155,6 +159,7 @@ export default function App() {
         setCurrentWeather(MISSION_WEATHER_MAP[mode]);
       }
       // Show HUGE comic splash poster before mission starts!
+      setCurrentMode(mode);
       setSplashMission(mode);
     } else {
       sound.playRadioTransmission();
@@ -260,7 +265,6 @@ export default function App() {
         isOpen={isStageSelectOpen}
         onClose={() => {
           setIsStageSelectOpen(false);
-          setGamePaused(false);
           sound.setMuted(previousMuteRef.current);
           setIsMuted(previousMuteRef.current);
         }}
@@ -298,7 +302,6 @@ export default function App() {
           previousMuteRef.current = sound.getMuted();
           previousMuteRef.current = sound.getMuted();
           sound.playRadioTransmission();
-          setGamePaused(true);
           sound.setMuted(true);
           setIsMuted(true);
           setIsStageSelectOpen(true);
