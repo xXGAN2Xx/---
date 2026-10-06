@@ -8,6 +8,7 @@ import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 interface BridgeMissionProps {
   difficulty?: Difficulty;
   onComplete: (scoreEarned: number) => void;
+  onDefeat?: () => void;
   onExit: () => void;
 }
 
@@ -90,7 +91,7 @@ interface FloatingText {
   maxLife: number;
 }
 
-export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'normal', onComplete, onExit }) => {
+export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'normal', onComplete, onDefeat, onExit }) => {
   const missionDuration = DIFFICULTY_CONFIG[difficulty].missionDuration;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -394,6 +395,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           } else {
             setDefeatReason('timeout');
             setIsDefeated(true);
+          onDefeat?.();
             sound.playDefeatSound();
           }
           return 0;
@@ -650,6 +652,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
               state.isComplete = true;
               setDefeatReason('lost_tanks');
               setIsDefeated(true);
+          onDefeat?.();
               sound.playDefeatSound();
             } else {
               // Deploy another tank after 2.2s to try again
