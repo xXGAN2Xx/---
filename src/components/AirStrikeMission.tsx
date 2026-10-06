@@ -8,6 +8,7 @@ import { isGamePaused } from '../game/pause';
 interface AirStrikeMissionProps {
   difficulty: Difficulty;
   onComplete: (scoreEarned: number) => void;
+  onDefeat?: () => void;
   onExit: () => void;
 }
 
@@ -97,7 +98,7 @@ interface FloatingText {
   maxLife: number;
 }
 
-export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onExit }) => {
+export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onDefeat, onExit }) => {
   const missionDuration = 120;
   // المرحلة الأولى أصعب من باقي الحملة، لكن تظل متوسطة ومسيطر عليها.
   const enemyTuning = { spawnChance: 0.032, maxJets: 7, hpScale: 1.22 };
@@ -296,6 +297,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           stateRef.current.isComplete = true;
           setDefeatReason('timeout');
           setIsDefeated(true);
+          onDefeat?.();
           sound.playDefeatSound();
           return 0;
         }
@@ -905,6 +907,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               if (remainingHp <= 0 && !state.isComplete) {
                 state.isComplete = true;
                 setIsDefeated(true);
+          onDefeat?.();
                 setDefeatReason('shot_down');
                 sound.playDefeatSound();
                 sound.playExplosion(1.4);
@@ -1033,6 +1036,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             if (remainingHp <= 0 && !state.isComplete) {
               state.isComplete = true;
               setIsDefeated(true);
+          onDefeat?.();
               setDefeatReason('shot_down');
               sound.playDefeatSound();
               sound.playExplosion(1.4);
@@ -1072,6 +1076,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           if (remainingHp <= 0 && !state.isComplete) {
             state.isComplete = true;
             setIsDefeated(true);
+          onDefeat?.();
             setDefeatReason('shot_down');
             sound.playDefeatSound();
             sound.playExplosion(1.4);
