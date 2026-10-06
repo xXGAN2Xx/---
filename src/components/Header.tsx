@@ -84,7 +84,6 @@ export const Header: React.FC<HeaderProps> = ({
                 currentMode === 'COMIC_STORY' ? 'text-amber-400 border-b-2 border-amber-500' : ''
               }`}
             >
-              <span className="px-1.5 py-0.2 bg-red-600 text-white text-[10px] rounded font-bold">جديد</span>
               <span>القصة المصورة</span>
             </button>
             <button
