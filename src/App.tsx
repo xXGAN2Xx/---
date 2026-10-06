@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { GameMode, PlayerStats } from './types';
+import { Difficulty } from './game/difficulty';
 import { MISSIONS, RANKS, MEDALS, ASSET_IMAGES } from './data/historyData';
 import { sound } from './utils/audio';
 import { Header } from './components/Header';
