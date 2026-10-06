@@ -123,6 +123,8 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     lostOpportunities: 0,
     isComplete: false,
     smokeTimeRemaining: 0,
+    smokeCharges: 4,
+    flakCharges: 18,
     strikeActive: false,
     strikeCountdown: 4.8,
     maxStrikeTime: 4.8,
@@ -294,8 +296,10 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
   // Deploy Smoke Screen to blind enemy spotters
   const handleDeploySmokeScreen = () => {
-    if (smokeCharges <= 0) return;
-    setSmokeCharges((prev) => prev - 1);
+    const state = stateRef.current;
+    if (state.smokeCharges <= 0) return;
+    state.smokeCharges -= 1;
+    setSmokeCharges(state.smokeCharges);
     setSmokeScreenActive(true);
     stateRef.current.smokeTimeRemaining = 12;
     sound.playMissileLaunch();
@@ -319,8 +323,10 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
   // Fire Anti-Aircraft Flak Gun at enemy planes or falling bombs
   const handleFireFlak = (targetX?: number, targetY?: number) => {
-    if (flakCharges <= 0) return;
-    setFlakCharges((prev) => prev - 1);
+    const state = stateRef.current;
+    if (state.flakCharges <= 0) return;
+    state.flakCharges -= 1;
+    setFlakCharges(state.flakCharges);
     sound.playGunshot();
 
     const tx = targetX ?? stateRef.current.mousePos.x;
@@ -978,6 +984,8 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     state.lostOpportunities = 0;
     state.strikeActive = false;
     state.score = 0;
+    state.smokeCharges = 4;
+    state.flakCharges = 18;
     setTanksCrossed(0);
     setLostOpportunities(0);
     setScore(0);
