@@ -122,6 +122,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     jetsDown: 0,
     isComplete: false,
     lastSpawnTime: 0,
+    saggerAmmo: 14,
+    samMissiles: 8,
   });
 
   // 2-Minute Timer
@@ -199,10 +201,11 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
 
   // Launch Sagger Missile with fast guidance and smart auto-lock
   const launchSaggerMissile = (targetTank?: EnemyTank) => {
-    if (saggerAmmo <= 0) return;
     const state = stateRef.current;
+    if (state.saggerAmmo <= 0) return;
     sound.playMissileLaunch();
-    setSaggerAmmo((a) => a - 1);
+    state.saggerAmmo -= 1;
+    setSaggerAmmo(state.saggerAmmo);
 
     // If no targetTank is explicitly clicked, automatically lock onto the closest advancing enemy tank!
     let chosenTank = targetTank;
@@ -232,8 +235,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
   };
 
   const launchSamMissile = () => {
-    if (samMissiles <= 0) return;
     const state = stateRef.current;
+    if (state.samMissiles <= 0) return;
     const targetJet = state.hostileJets.find((j) => !j.destroyed);
     if (!targetJet) {
       addFloatingText(state.playerTank.x, state.playerTank.y - 40, 'لا توجد مقاتلات فانتوم معادية حالياً', '#38bdf8');
@@ -1485,7 +1488,10 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
             <button
               onClick={() => {
                 setPlatoonHealth(100);
+                stateRef.current.saggerAmmo = 14;
+                stateRef.current.samMissiles = 8;
                 setSaggerAmmo(14);
+                setSamMissiles(8);
                 setTimeLeft(120);
                 setIsDefeated(false);
                 stateRef.current.playerTank.hp = 100;
