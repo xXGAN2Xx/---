@@ -7,7 +7,6 @@ export const BackgroundMusicPicker: React.FC = () => {
   const [trackName, setTrackName] = useState<string | null>(() => sound.getCustomTrackName());
 
   useEffect(() => {
-    sound.loadBundledBackgroundTrack('/audio/october-6.mp3', 'أغنية 6 أكتوبر');
     return () => sound.clearCustomBackgroundTrack();
   }, []);
 

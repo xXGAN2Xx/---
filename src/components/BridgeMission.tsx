@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { VictoryModal } from './VictoryModal';
 import { isGamePaused } from '../game/pause';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
@@ -1190,41 +1191,19 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         )}
 
         {/* Victory Modal */}
-        {isWon && (
-          <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3 shadow-[0_0_25px_rgba(34,197,94,0.5)]">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-black font-cairo text-amber-400 mb-2">
-              نصر عسكري مبين! عبرت أرتال الدبابات بالضربات الدقيقة!
-            </h3>
-            <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
-              سددت ضرباتك الدقيقة في التوقيت المثالي قبل فوات الأوان، مما سمح لـ 5 دبابات قتالية بالتدفق الكامل عبر كباري العبور والسيطرة على خط بارليف في سيناء!
-            </p>
-
-            <div className="grid grid-cols-3 gap-3 mb-6 max-w-md w-full text-center">
-              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">الدبابات العابرة</span>
-                <span className="text-base font-bold font-mono text-emerald-400">5 من 5</span>
-              </div>
-              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">الفرص الضائعة</span>
-                <span className="text-base font-bold font-mono text-sky-400">{lostOpportunities} / 3</span>
-              </div>
-              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">النقاط الكلية</span>
-                <span className="text-base font-bold font-mono text-amber-400">{score}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => onComplete(score)}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg transition-colors cursor-pointer shadow-lg active:scale-95"
-            >
-              الانتقال إلى المرحلة التالية: معارك الدبابات الكبرى
-            </button>
-          </div>
-        )}
+        <VictoryModal
+          isOpen={isWon}
+          missionId="MISSION_BRIDGE"
+          missionTitle="المرحلة 3: بناء الجسور والكباري العائمة"
+          congratulatoryMessage="مبروك النصر العظيم! اكتمل الكوبري وعبرت أرتال الدبابات إلى سيناء!"
+          score={score}
+          timeLeft={timeLeft}
+          targetsDestroyed={5}
+          totalTargets={5}
+          onNextMission={() => onComplete(score)}
+          onReturnToBase={onExit}
+          onReplay={handleRestart}
+        />
 
         {/* Defeat Modal */}
         {isDefeated && (

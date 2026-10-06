@@ -292,3 +292,42 @@ canvas.combat-canvas,
   }
 }
 
+/* Screen-shake animation for proximity damage / ground fire / radar detection */
+@keyframes combat-screen-shake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  20% { transform: translate(-3px, 2px) rotate(-0.4deg); }
+  40% { transform: translate(3px, -2px) rotate(0.4deg); }
+  60% { transform: translate(-2px, -2px) rotate(0.2deg); }
+  80% { transform: translate(2px, 3px) rotate(-0.2deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+@keyframes combat-screen-shake-intense {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-6px, 4px) rotate(-0.8deg); }
+  30% { transform: translate(6px, -4px) rotate(0.8deg); }
+  45% { transform: translate(-4px, -3px) rotate(-0.5deg); }
+  60% { transform: translate(4px, 5px) rotate(0.5deg); }
+  75% { transform: translate(-3px, 2px) rotate(-0.3deg); }
+  90% { transform: translate(3px, -2px) rotate(0.3deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.animate-combat-shake {
+  animation: combat-screen-shake 0.12s infinite ease-in-out;
+}
+
+.animate-combat-shake-intense {
+  animation: combat-screen-shake-intense 0.09s infinite ease-in-out;
+}
+
+/* Subtle red vignette pulsing */
+@keyframes vignette-pulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.animate-vignette-pulse {
+  animation: vignette-pulse 0.4s ease-in-out infinite;
+}
+

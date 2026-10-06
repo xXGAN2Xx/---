@@ -12,6 +12,8 @@ class SoundSystem {
   private customAudio: HTMLAudioElement | null = null;
   private customObjectUrl: string | null = null;
   private customTrackName: string | null = null;
+  private lastRadarAlarmTime: number = 0;
+  private lastGroundAlarmTime: number = 0;
 
   private initCtx() {
     if (this.isSuspended) return;
@@ -1068,6 +1070,69 @@ class SoundSystem {
     filter.connect(gain);
     gain.connect(this.ctx.destination);
     noise.start(t);
+  }
+
+  // Radar detection alarm: urgent high-frequency dual-tone alert
+  public playRadarWarningAlarm() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    if (t - this.lastRadarAlarmTime < 0.35) return;
+    this.lastRadarAlarmTime = t;
+
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(1400, t);
+    osc1.frequency.setValueAtTime(1900, t + 0.08);
+
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(950, t);
+    osc2.frequency.setValueAtTime(1250, t + 0.08);
+
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.22);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + 0.22);
+    osc2.stop(t + 0.22);
+  }
+
+  // Ground proximity danger alarm (GPWS / pull-up warning siren)
+  public playGroundProximityAlarm() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    if (t - this.lastGroundAlarmTime < 0.4) return;
+    this.lastGroundAlarmTime = t;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.linearRampToValueAtTime(540, t + 0.12);
+    osc.frequency.linearRampToValueAtTime(220, t + 0.25);
+
+    gain.gain.setValueAtTime(0.24, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.26);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.26);
   }
 }
 

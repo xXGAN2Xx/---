@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Zap, Shield, Flame, CheckCircle2, Clock, Target, RotateCcw, AlertTriangle, Radio } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { VictoryModal } from './VictoryModal';
 import { Difficulty } from '../game/difficulty';
 import { isGamePaused } from '../game/pause';
 
@@ -110,9 +111,14 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
   const [totalDestroyed, setTotalDestroyed] = useState(0);
   const [missionWon, setMissionWon] = useState(false);
   const [isDefeated, setIsDefeated] = useState(false);
-  const [defeatReason, setDefeatReason] = useState<'shot_down' | 'crash' | 'timeout'>('shot_down');
+  const [defeatReason, setDefeatReason] = useState<'shot_down' | 'crash' | 'timeout' | 'radar'>('shot_down');
   const [altitudeWarning, setAltitudeWarning] = useState<boolean>(false);
   const [playerAltitude, setPlayerAltitude] = useState<number>(320);
+  const [isGroundDanger, setIsGroundDanger] = useState<boolean>(false);
+  const [groundDangerRemaining, setGroundDangerRemaining] = useState<number>(2.5);
+  const [isRadarDanger, setIsRadarDanger] = useState<boolean>(false);
+  const [radarDangerRemaining, setRadarDangerRemaining] = useState<number>(2.5);
+  const [damageVignette, setDamageVignette] = useState<number>(0);
   const [victoryReason, setVictoryReason] = useState<'fast'>('fast');
   const [countdownSec, setCountdownSec] = useState<number>(5);
   const [isCombatActive, setIsCombatActive] = useState<boolean>(false);
@@ -129,6 +135,11 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     setIsDefeated(false);
     setDefeatReason('shot_down');
     setAltitudeWarning(false);
+    setIsGroundDanger(false);
+    setGroundDangerRemaining(2.5);
+    setIsRadarDanger(false);
+    setRadarDangerRemaining(2.5);
+    setDamageVignette(0);
     setCountdownSec(5);
     setIsCombatActive(false);
     setCurrentAlert('تجهيز المقاتلة: المرحلة خالية، استعد للاشتباك خلال 5 ثوانٍ');
@@ -136,6 +147,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     const state = stateRef.current;
     state.isCountdown = true;
     state.isComplete = false;
+    state.groundDangerTimer = 0;
+    state.radarDangerTimer = 0;
+    state.vignetteAlpha = 0;
     state.player.hp = 180;
     state.player.x = 160;
     state.player.y = 240;
@@ -156,6 +170,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
   // State: Stage starts empty, countdown 5s, then enemies, then stations after 20s
   const stateRef = useRef({
     isCountdown: true,
+    groundDangerTimer: 0,
+    radarDangerTimer: 0,
     player: {
       x: 160,
       y: 260,
@@ -176,6 +192,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       isLeftDown: false,
     },
     screenShake: 0,
+    vignetteAlpha: 0,
     // Stage starts completely empty!
     targets: [] as GroundTarget[],
     enemyJets: [] as EnemyJet[],
@@ -628,7 +645,13 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       state.radarAngle += dt * 3.5;
 
       if (state.screenShake > 0) {
-        state.screenShake = Math.max(0, state.screenShake - dt * 12);
+        state.screenShake = Math.max(0, state.screenShake - dt * 14);
+      }
+      if (state.vignetteAlpha > 0) {
+        state.vignetteAlpha = Math.max(0, state.vignetteAlpha - dt * 2.2);
+        setDamageVignette(state.vignetteAlpha);
+      } else if (damageVignette > 0) {
+        setDamageVignette(0);
       }
 
       // Direct Mouse Flight Control: Plane stays exactly on mouse position in all directions
@@ -665,6 +688,148 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         setAltitudeWarning((prev) => (prev === nextAltitudeWarning ? prev : nextAltitudeWarning));
       }
 
+      // Ground Danger check (staying on/skimming ground Y>=395 too long explodes the jet)
+      if (!state.isCountdown && !state.isComplete) {
+        if (p.y >= 395) {
+          state.groundDangerTimer += dt;
+          // Apply proximity damage from intense ground anti-aircraft machine gun and dune fire
+          p.hp = Math.max(1, p.hp - dt * 14);
+          setHp(Math.round(p.hp));
+
+          // Spawn ground fire tracers and smoke bursting up around MiG-21
+          if (Math.random() < 0.5) {
+            state.particles.push({
+              x: p.x + (Math.random() - 0.5) * 50,
+              y: p.y + 12 + Math.random() * 15,
+              vx: (Math.random() - 0.5) * 110,
+              vy: -160 - Math.random() * 90,
+              life: 1,
+              maxLife: 22,
+              color: Math.random() < 0.6 ? '#ef4444' : '#f59e0b',
+              size: 4.5,
+            });
+          }
+
+          // Apply screen-shake and subtle red vignette overlay while taking ground proximity damage!
+          state.screenShake = Math.max(state.screenShake, 9.5 + state.groundDangerTimer * 6.5);
+          state.vignetteAlpha = Math.max(state.vignetteAlpha, 0.45 + state.groundDangerTimer * 0.22);
+          setDamageVignette(state.vignetteAlpha);
+
+          if (state.groundDangerTimer > 0.25) {
+            sound.playGroundProximityAlarm();
+            setIsGroundDanger(true);
+            setGroundDangerRemaining(Math.max(0, 2.5 - state.groundDangerTimer));
+          }
+          if (state.groundDangerTimer >= 2.5) {
+            state.groundDangerTimer = 0;
+            p.hp = 0;
+            setHp(0);
+            state.isComplete = true;
+            sound.playExplosion();
+            sound.playDefeatSound();
+            for (let k = 0; k < 28; k++) {
+              state.particles.push({
+                x: p.x + (Math.random() - 0.5) * 35,
+                y: p.y + (Math.random() - 0.5) * 35,
+                vx: (Math.random() - 0.5) * 260,
+                vy: (Math.random() - 0.5) * 260,
+                life: 1,
+                maxLife: 35,
+                color: Math.random() < 0.5 ? '#ef4444' : '#f59e0b',
+                size: 8,
+              });
+            }
+            state.shockwaves.push({
+              x: p.x,
+              y: p.y,
+              radius: 10,
+              maxRadius: 160,
+              alpha: 1,
+              color: '#ef4444',
+            });
+            setIsDefeated(true);
+            setDefeatReason('crash');
+            onDefeat?.('crash');
+            return;
+          }
+        } else {
+          state.groundDangerTimer = Math.max(0, state.groundDangerTimer - dt * 2.5);
+          if (state.groundDangerTimer <= 0.1) {
+            setIsGroundDanger(false);
+          }
+        }
+
+        // Radar Danger check (flying too high in the sky Y<=95 triggers enemy Hawk radar detection)
+        if (p.y <= 95) {
+          state.radarDangerTimer += dt;
+          // Apply proximity damage from Hawk radar lock electronic jamming & anti-air flak
+          p.hp = Math.max(1, p.hp - dt * 14);
+          setHp(Math.round(p.hp));
+
+          // Spawn radar lock-on interference sparks and electronic tracking pulses
+          if (Math.random() < 0.5) {
+            state.particles.push({
+              x: p.x + (Math.random() - 0.5) * 45,
+              y: p.y + (Math.random() - 0.5) * 30,
+              vx: (Math.random() - 0.5) * 140,
+              vy: (Math.random() - 0.5) * 140,
+              life: 1,
+              maxLife: 20,
+              color: Math.random() < 0.5 ? '#f59e0b' : '#ef4444',
+              size: 4.5,
+            });
+          }
+
+          // Apply screen-shake and subtle red vignette overlay from enemy radar lock and electronic jamming!
+          state.screenShake = Math.max(state.screenShake, 9.0 + state.radarDangerTimer * 6.0);
+          state.vignetteAlpha = Math.max(state.vignetteAlpha, 0.48 + state.radarDangerTimer * 0.22);
+          setDamageVignette(state.vignetteAlpha);
+
+          if (state.radarDangerTimer > 0.25) {
+            sound.playRadarWarningAlarm();
+            setIsRadarDanger(true);
+            setRadarDangerRemaining(Math.max(0, 2.5 - state.radarDangerTimer));
+          }
+          if (state.radarDangerTimer >= 2.5) {
+            state.radarDangerTimer = 0;
+            p.hp = 0;
+            setHp(0);
+            state.isComplete = true;
+            sound.playExplosion();
+            sound.playDefeatSound();
+            for (let k = 0; k < 30; k++) {
+              state.particles.push({
+                x: p.x + (Math.random() - 0.5) * 45,
+                y: p.y + (Math.random() - 0.5) * 45,
+                vx: (Math.random() - 0.5) * 290,
+                vy: (Math.random() - 0.5) * 290,
+                life: 1,
+                maxLife: 40,
+                color: Math.random() < 0.5 ? '#f97316' : '#dc2626',
+                size: 9,
+              });
+            }
+            state.shockwaves.push({
+              x: p.x,
+              y: p.y,
+              radius: 10,
+              maxRadius: 180,
+              alpha: 1,
+              color: '#f59e0b',
+            });
+            setIsDefeated(true);
+            setDefeatReason('radar');
+            onDefeat?.('radar');
+            return;
+          }
+        } else {
+          state.radarDangerTimer = Math.max(0, state.radarDangerTimer - dt * 2.5);
+          if (state.radarDangerTimer <= 0.1) {
+            setIsRadarDanger(false);
+          }
+        }
+      }
+
       state.scrollX += (95 + state.destroyedCount * 6) * dt;
 
       // Autocannon Fire Streams directly forward from MiG-21 twin guns
@@ -693,7 +858,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         });
       }
 
-      // Spawn Enemy Interceptor Jets in disciplined formations strictly in the open sky (Y=90 to 220)
+      // Spawn Enemy Interceptor Jets in disciplined formations strictly in the balanced corridor (Y=140 to 290)
       if (!state.isCountdown && Math.random() < enemyTuning.spawnChance && state.enemyJets.length < enemyTuning.maxJets) {
         const patterns: ('patrol_line' | 'wingman_pair' | 'air_superiority' | 'tactical_sweep')[] = [
           'patrol_line',
@@ -714,11 +879,11 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         const tunedHp = Math.round(typeStats[chosenType].hp * enemyTuning.hpScale);
 
         if (chosenPattern === 'wingman_pair' && state.enemyJets.length <= enemyTuning.maxJets - 2) {
-          // Coordinated 2-plane echelon formation in the open sky
+          // Coordinated 2-plane echelon formation safely centered in sky
           state.enemyJets.push({
             x: canvas.width + 60,
-            y: 125,
-            baseY: 125,
+            y: 160,
+            baseY: 160,
             vx: -240,
             vy: 0,
             hp: tunedHp,
@@ -731,8 +896,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           });
           state.enemyJets.push({
             x: canvas.width + 120,
-            y: 185,
-            baseY: 185,
+            y: 220,
+            baseY: 220,
             vx: -240,
             vy: 0,
             hp: Math.round(22 * enemyTuning.hpScale),
@@ -744,12 +909,13 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             patternPhase: 1,
           });
         } else {
+          // Balanced corridor: Not too high (>= 150) and not too low (<= 290)
           const spawnY =
             chosenPattern === 'air_superiority'
-              ? 95 + Math.random() * 35      // High sky: 95 - 130
+              ? 150 + Math.random() * 35      // Mid-high sky: 150 - 185
               : chosenPattern === 'tactical_sweep'
-              ? 160 + Math.random() * 40     // Mid sky: 160 - 200
-              : 140 + Math.random() * 60;    // Level patrol: 140 - 200
+              ? 195 + Math.random() * 40     // Mid sky: 195 - 235
+              : 245 + Math.random() * 45;    // Mid-low sky: 245 - 290
 
           state.enemyJets.push({
             x: canvas.width + 60,
@@ -880,10 +1046,13 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               });
             }
             // Check splash damage against player MiG-21
-            if (Math.hypot(pr.x - p.x, pr.y - p.y) < 54) {
+            if (Math.hypot(pr.x - p.x, pr.y - p.y) < 65) {
               p.hp -= 12;
               const remainingHp = Math.max(0, p.hp);
               setHp(remainingHp);
+              state.screenShake = 16.0;
+              state.vignetteAlpha = 0.65;
+              setDamageVignette(0.65);
               spawnPlaneHitEffect(p.x, p.y);
               sound.playHitSound();
               addFloatingText(p.x, p.y - 25, '⚠️ شظايا مضادات أرضية (فلاك)! -12', '#ef4444');
@@ -1001,6 +1170,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             p.hp -= dmg;
             const remainingHp = Math.max(0, p.hp);
             setHp(remainingHp);
+            state.screenShake = isMissile ? 22.0 : 14.0;
+            state.vignetteAlpha = isMissile ? 0.75 : 0.55;
+            setDamageVignette(state.vignetteAlpha);
             spawnPlaneHitEffect(p.x, p.y);
             state.projectiles.splice(i, 1);
 
@@ -1099,22 +1271,22 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
         if (pattern === 'patrol_line') {
           // Horizontal steady patrol at set altitude with gentle aerodynamic float
-          const targetY = (jet.baseY ?? 150) + Math.sin(currentTime * 0.0018 + j) * 8;
+          const targetY = (jet.baseY ?? 245) + Math.sin(currentTime * 0.0018 + j) * 8;
           jet.vy = (targetY - jet.y) * 3.0;
           jet.vx = -jetSpeed;
         } else if (pattern === 'wingman_pair') {
           // Disciplined echelon pair maintaining altitude and formation
-          const targetY = (jet.baseY ?? (jet.patternPhase === 0 ? 125 : 185)) + Math.sin(currentTime * 0.0015 + j) * 6;
+          const targetY = (jet.baseY ?? (jet.patternPhase === 0 ? 160 : 220)) + Math.sin(currentTime * 0.0015 + j) * 6;
           jet.vy = (targetY - jet.y) * 3.0;
           jet.vx = -jetSpeed;
         } else if (pattern === 'air_superiority') {
-          // High altitude interceptor staying high in the sky (Y=90 to 130)
-          const targetY = (jet.baseY ?? 105) + Math.sin(currentTime * 0.002 + j) * 10;
+          // Interceptor staying comfortably in mid-high sky (Y=150 to 185)
+          const targetY = (jet.baseY ?? 165) + Math.sin(currentTime * 0.002 + j) * 10;
           jet.vy = (targetY - jet.y) * 3.0;
           jet.vx = -Math.min(190, jetSpeed + 8);
         } else {
-          // Tactical sweep: Predictable, gentle mid-sky wave (amplitude 22px, period ~3.5s)
-          const sweepY = (jet.baseY ?? 175) + Math.sin(currentTime * 0.0022 + j * 1.2) * 22;
+          // Tactical sweep: Predictable, gentle mid-sky wave (amplitude 18px)
+          const sweepY = (jet.baseY ?? 210) + Math.sin(currentTime * 0.0022 + j * 1.2) * 18;
           jet.vy = (sweepY - jet.y) * 2.8;
           jet.vx = -Math.max(135, jetSpeed - 5);
         }
@@ -1150,8 +1322,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         jet.x += jet.vx * dt;
         jet.y += jet.vy * dt;
 
-        // STRICT CORRIDOR: Always stay well above ground (ground is at Y=410, living jets stay between 75 and 255)
-        jet.y = Math.max(75, Math.min(255, jet.y));
+        // STRICT CORRIDOR: Always stay well above ground and below radar (living jets strictly stay between 135 and 310)
+        jet.y = Math.max(135, Math.min(310, jet.y));
         jet.tilt = Math.max(-0.25, Math.min(0.25, (jet.vy / 200) * 0.3));
 
         // 3. Intelligent Predictive Firing AI
@@ -1307,8 +1479,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       // Draw Scene
       ctx.save();
       if (state.screenShake > 0) {
-        const sx = (Math.random() - 0.5) * state.screenShake;
-        const sy = (Math.random() - 0.5) * state.screenShake;
+        const shakePower = Math.min(24, state.screenShake);
+        const sx = (Math.random() - 0.5) * shakePower * 1.6;
+        const sy = (Math.random() - 0.5) * shakePower * 1.6;
         ctx.translate(sx, sy);
       }
 
@@ -2281,7 +2454,22 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       ctx.textAlign = 'center';
       ctx.fillText('رادار الكشف الميداني', radarX, radarY - radarRadius - 6);
 
-
+      // Subtle Red Vignette on Canvas for Proximity Damage & Radar/Ground Danger
+      if (state.vignetteAlpha > 0.02) {
+        const vigGrad = ctx.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.height * 0.28,
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.width * 0.62
+        );
+        vigGrad.addColorStop(0, 'rgba(239, 68, 68, 0)');
+        vigGrad.addColorStop(0.65, `rgba(220, 38, 38, ${Math.min(0.35, state.vignetteAlpha * 0.45)})`);
+        vigGrad.addColorStop(1, `rgba(185, 28, 28, ${Math.min(0.75, state.vignetteAlpha * 0.85)})`);
+        ctx.fillStyle = vigGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       ctx.restore();
 
@@ -2414,8 +2602,14 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         📱 حرّك إصبعك لتوجيه المقاتلة · اضغط زر الصاروخ · اللمس المستمر يطلق المدافع
       </div>
 
-      {/* Canvas Area */}
-      <div className="relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden">
+      {/* Canvas Area with screen-shake animation and subtle red vignette overlay */}
+      <div
+        className={`relative flex-1 w-full h-full min-h-0 bg-stone-950 flex overflow-hidden ${
+          (isGroundDanger || isRadarDanger || damageVignette > 0.3)
+            ? (isGroundDanger || isRadarDanger ? 'animate-combat-shake-intense' : 'animate-combat-shake')
+            : ''
+        }`}
+      >
         <canvas
           ref={canvasRef}
           width={1000}
@@ -2423,6 +2617,19 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           style={{ width: '100%', height: '100%', objectFit: 'fill' }}
           className="w-full h-full cursor-none select-none combat-canvas block"
         />
+
+        {/* Subtle Red Vignette Overlay for Proximity Damage from Ground Fire / Radar Detection */}
+        {(damageVignette > 0.02 || isGroundDanger || isRadarDanger) && (
+          <div
+            className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-150 ${
+              isGroundDanger || isRadarDanger ? 'animate-vignette-pulse' : ''
+            }`}
+            style={{
+              background: `radial-gradient(ellipse at center, rgba(239, 68, 68, 0) 35%, rgba(220, 38, 38, ${Math.min(0.48, 0.2 + damageVignette * 0.35)}) 75%, rgba(185, 28, 28, ${Math.min(0.8, 0.35 + damageVignette * 0.45)}) 100%)`,
+              boxShadow: (isGroundDanger || isRadarDanger) ? 'inset 0 0 65px rgba(239, 68, 68, 0.7)' : undefined,
+            }}
+          />
+        )}
 
         {/* Floating Minimal In-Combat HUD for Mobile Landscape ("اللعبة وبس") */}
         <div className="mobile-landscape-hud hidden pointer-events-none absolute top-3 right-3 z-30 flex items-center gap-2">
@@ -2462,11 +2669,27 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           </div>
         )}
 
-        {/* Low Altitude Ground Warning Banner */}
-        {altitudeWarning && !missionWon && !isDefeated && isCombatActive && (
-          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex items-center gap-2 px-4 py-2 rounded-full bg-red-950/95 border-2 border-red-500 text-red-300 text-xs sm:text-sm font-black shadow-[0_0_20px_rgba(239,68,68,0.7)] animate-pulse">
-            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 animate-bounce" />
-            <span>⚠️ تحذير: اقتراب شديد من رمال الأرض! ارتفع للأعلى (PULL UP!)</span>
+        {/* Ground Proximity & Danger HUD Warning */}
+        {isGroundDanger && !missionWon && !isDefeated && isCombatActive && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex items-center gap-2 px-4 py-2 rounded-xl bg-red-950/95 border-2 border-red-500 text-red-200 text-xs sm:text-sm font-black shadow-[0_0_25px_rgba(239,68,68,0.8)] animate-bounce">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 animate-spin" />
+            <span>⚠️ خطر الاصطدام بالأرض! ارتفع فوراً! [{groundDangerRemaining.toFixed(1)} ثانية]</span>
+          </div>
+        )}
+
+        {/* High Altitude Radar Detection HUD Warning */}
+        {isRadarDanger && !missionWon && !isDefeated && isCombatActive && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-950/95 border-2 border-amber-400 text-amber-200 text-xs sm:text-sm font-black shadow-[0_0_25px_rgba(245,158,11,0.8)] animate-pulse">
+            <Radio className="w-5 h-5 text-amber-400 shrink-0 animate-ping" />
+            <span>🚨 كشف راداري معادٍ! انخفض تحت سقف الرادار فوراً! [{radarDangerRemaining.toFixed(1)} ثانية]</span>
+          </div>
+        )}
+
+        {/* General Low Altitude Altitude Warning */}
+        {!isGroundDanger && altitudeWarning && !missionWon && !isDefeated && isCombatActive && (
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-950/90 border border-red-500 text-red-300 text-xs font-bold shadow-[0_0_15px_rgba(239,68,68,0.6)]">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>⚠️ تحذير ارتفاع منخفض: اقتراب من تضاريس الأرض</span>
           </div>
         )}
 
@@ -2487,41 +2710,19 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         )}
 
         {/* Victory Overlay Modal */}
-        {missionWon && (
-          <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h3 className="text-2xl font-black font-cairo text-amber-400 mb-1">
-              نصر ساحق وسريع! دمرت 5 أهداف من أصل 6!
-            </h3>
-            <p className="text-xs text-stone-300 max-w-md mb-4">
-              حققت شرط النصر: تدمير 5 أهداف من أصل 6 قبل انتهاء زمن الطلعة.
-            </p>
-
-            <div className="grid grid-cols-3 gap-3 mb-5 max-w-md w-full text-center">
-              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">الأهداف المدمرة</span>
-                <span className="text-base font-bold font-mono text-emerald-400">{totalDestroyed} محطات</span>
-              </div>
-              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">الوقت المتبقي</span>
-                <span className="text-base font-bold font-mono text-sky-400">{formatTimer(timeLeft)}</span>
-              </div>
-              <div className="p-2.5 bg-stone-900 border border-stone-800 rounded-lg">
-                <span className="block text-[11px] text-stone-400 mb-1">النقاط الكلية</span>
-                <span className="text-base font-bold font-mono text-amber-400">{score}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => onComplete(score)}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg transition-colors cursor-pointer shadow-lg active:scale-95"
-            >
-              الانتقال إلى المرحلة التالية: معركة العبور العظيم
-            </button>
-          </div>
-        )}
+        <VictoryModal
+          isOpen={missionWon}
+          missionId="MISSION_AIR_STRIKE"
+          missionTitle="المرحلة 1: الضربة الجوية المفاجئة (ساعة الصفر)"
+          congratulatoryMessage="مبروك النصر العظيم! تم تدمير محطات ورادارات العدو بنجاح ساحق!"
+          score={score}
+          timeLeft={timeLeft}
+          targetsDestroyed={totalDestroyed}
+          totalTargets={5}
+          onNextMission={() => onComplete(score)}
+          onReturnToBase={onExit}
+          onReplay={handleRestartMission}
+        />
 
         {/* Defeat Overlay Modal when health reaches 0 or mission fails */}
         {isDefeated && (
@@ -2538,6 +2739,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             <h3 className="text-2xl sm:text-3xl font-black font-cairo text-red-500 mb-2">
               {defeatReason === 'crash'
                 ? 'فشلت المهمة: اصطدام المقاتلة بتضاريس الأرض!'
+                : defeatReason === 'radar'
+                ? 'فشلت المهمة: كشف راداري معادٍ وإسقاط بصواريخ الهوك!'
                 : defeatReason === 'timeout'
                 ? 'انتهى الوقت المخصص للطلعة الجوية!'
                 : 'فشلت المهمة: استشهاد البطل وسقوط المقاتلة!'}
@@ -2545,7 +2748,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
               {defeatReason === 'crash'
-                ? 'انخفض ارتفاع طائرتك ميج-21 عن المستوى الآمن واصطدمت برمال وهضاب سيناء. احرص على مراقبة مؤشر الارتفاع وتفادي الأرض!'
+                ? 'انخفض ارتفاع طائرتك ميج-21 عن المستوى الآمن وظللت على الأرض فترة طويلة فاصطدمت برمال وهضاب سيناء. احرص على مراقبة مؤشر الارتفاع وتفادي الأرض!'
+                : defeatReason === 'radar'
+                ? 'حلقت مقاتلتك فوق السقف الراداري المسموح لفترة طويلة، فتم كشفها برادارات العدو (أم مرجم) وأسقطتها صواريخ الدفاع الجوي المعادية. احرص على الطيران المنخفض تحت مستوى الرادار!'
                 : defeatReason === 'timeout'
                 ? 'انتهت مدة الدقيقتين المخصصة للضربة الجوية دون حسم الأهداف. أعد تنظيم صفوفك وانطلق في طلعة جديدة!'
                 : 'نفدت طاقة درع المقاتلة بعد اشتباك ضارٍ مع طائرات ودفاعات العدو الجوية. شجاعة نسور الجو مستمرة، أعد المحاولة وسدد ضرباتك بدقة!'}

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Target, Shield, Rocket, Flame, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { VictoryModal } from './VictoryModal';
 import { isGamePaused } from '../game/pause';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
@@ -1529,24 +1530,17 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ difficulty
         )}
 
         {/* Victory Modal */}
-        {isWon && (
-          <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-3">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h3 className="text-2xl font-black font-cairo text-amber-400 mb-1">تم سحق هجوم الدبابات المعادي!</h3>
-            <p className="text-xs text-stone-300 max-w-md mb-4">
-              أبيدت دبابات العدو وأُسقط طيرانه في زمن قياسي قبل انتهاء الدقيقتين بنجاح مظفر!
-            </p>
-
-            <button
-              onClick={() => onComplete(score + 2500)}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg transition-colors cursor-pointer shadow-lg active:scale-95"
-            >
-              الانتقال إلى المرحلة الرابعة: إسقاط الحصن ورفع العلم
-            </button>
-          </div>
-        )}
+        <VictoryModal
+          isOpen={isWon}
+          missionId="MISSION_TANK_BATTLE"
+          missionTitle="المرحلة 4: مقبرة الدبابات وحائط الصواريخ"
+          congratulatoryMessage="مبروك النصر العظيم! تم سحق هجوم الدبابات المعادي وتأمين سيناء!"
+          score={score + 2500}
+          timeLeft={timeLeft}
+          onNextMission={() => onComplete(score + 2500)}
+          onReturnToBase={onExit}
+          onReplay={resetBattle}
+        />
 
         {/* Defeat / Timeout Modal */}
         {isDefeated && (

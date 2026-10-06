@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Flag, Shield, Flame, CheckCircle2, Award, Clock, RotateCcw, MousePointer, AlertTriangle, Zap } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { VictoryModal } from './VictoryModal';
 
 interface FortressAssaultMissionProps {
   onComplete: (scoreEarned: number) => void;
@@ -981,30 +982,17 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
         )}
 
         {/* Grand Victory Modal */}
-        {flagHoisted && (
-          <div className="absolute inset-0 bg-stone-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 z-50">
-            <div className="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 mb-3 animate-bounce">
-              <Award className="w-12 h-12" />
-            </div>
-
-            <h3 className="text-3xl font-black font-cairo text-amber-400 mb-1">
-              الله أكبر.. عاشت مصر حرة أبية!
-            </h3>
-            <p className="text-sm text-stone-200 max-w-lg mb-1 font-medium">
-              «لقد حطمت القوات المسلحة المصرية أسطورة الجيش الذي لا يُقهر، وارتفع علم مصر خفاقاً على تراب سيناء الطاهر.»
-            </p>
-            <p className="text-xs text-amber-400 font-bold mb-5 font-mono">
-              أنجزت تحرير الحصن ورفع العلم قبل نفاد الدقيقتين بمكافأة وقت +{timeLeft * 30} نقطة!
-            </p>
-
-            <button
-              onClick={() => onComplete(score)}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg transition-colors cursor-pointer shadow-lg active:scale-95"
-            >
-              عرض سجل الشرف والأوسمة المستحقة
-            </button>
-          </div>
-        )}
+        <VictoryModal
+          isOpen={flagHoisted}
+          missionId="MISSION_FORTRESS"
+          missionTitle="المرحلة 5: سقوط الحصون ورفع العلم المصري"
+          congratulatoryMessage="مبروك النصر العظيم! الله أكبر.. رُفع علم مصر خفاقاً فوق تراب سيناء!"
+          score={score}
+          timeLeft={timeLeft}
+          onNextMission={() => onComplete(score)}
+          onReturnToBase={onExit}
+          onReplay={resetMission}
+        />
 
         {/* Timeout Modal */}
         {isTimeout && (

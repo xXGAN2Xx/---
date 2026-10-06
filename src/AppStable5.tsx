@@ -20,7 +20,7 @@ const FortressAssaultMission = lazy(() => import('./components/FortressAssaultMi
 const MuseumModal = lazy(() => import('./components/MuseumModal').then((m) => ({ default: m.MuseumModal })));
 import { CountdownOverlay } from './components/CountdownOverlay';
 import { ComicMissionBriefing } from './components/ComicMissionBriefing';
-import { ComicHugeSplashModal } from './components/ComicHugeSplashModal';
+import { MissionObjectivesModal } from './components/MissionObjectivesModal';
 import { StageSelectModal } from './components/StageSelectModal';
 import { WeatherLightingContainer, WeatherType } from './components/WeatherLightingContainer';
 import { DefeatModal } from './components/DefeatModal';
@@ -28,7 +28,7 @@ import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap,
 
 export default function App() {
   const [currentMode, setCurrentMode] = useState<GameMode>('MENU');
-  const [splashMission, setSplashMission] = useState<GameMode | null>(null);
+  const [objectivesMission, setObjectivesMission] = useState<GameMode | null>(null);
   const [briefingMission, setBriefingMission] = useState<GameMode | null>(null);
   const [countdownMission, setCountdownMission] = useState<GameMode | null>(null);
   const [defeatData, setDefeatData] = useState<{
@@ -79,15 +79,15 @@ export default function App() {
   }, [stats]);
 
   useEffect(() => {
-    const isPaused = isStageSelectOpen || splashMission !== null || isPortraitMobile || defeatData !== null;
+    const isPaused = isStageSelectOpen || objectivesMission !== null || isPortraitMobile || defeatData !== null;
     setGamePaused(isPaused);
 
     if (isPortraitMobile) {
       sound.suspendAudio();
-    } else if (!isMuted && !isStageSelectOpen && splashMission === null && defeatData === null) {
+    } else if (!isMuted && !isStageSelectOpen && objectivesMission === null && defeatData === null) {
       sound.resumeAudio();
     }
-  }, [isStageSelectOpen, splashMission, isPortraitMobile, isMuted, defeatData]);
+  }, [isStageSelectOpen, objectivesMission, isPortraitMobile, isMuted, defeatData]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -95,7 +95,7 @@ export default function App() {
         setGamePaused(true);
         sound.suspendAudio();
       } else {
-        if (!isPortraitMobile && !isStageSelectOpen && splashMission === null && defeatData === null) {
+        if (!isPortraitMobile && !isStageSelectOpen && objectivesMission === null && defeatData === null) {
           setGamePaused(false);
           if (!isMuted) sound.resumeAudio();
         }
@@ -103,7 +103,7 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isPortraitMobile, isStageSelectOpen, splashMission, isMuted, defeatData]);
+  }, [isPortraitMobile, isStageSelectOpen, objectivesMission, isMuted, defeatData]);
 
   // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
   const difficulty = 'normal' as const;
@@ -175,7 +175,7 @@ export default function App() {
       window.removeEventListener('resize', syncMobileOrientation);
       window.removeEventListener('orientationchange', syncMobileOrientation);
     };
-  }, [currentMode, isStageSelectOpen, splashMission]);
+  }, [currentMode, isStageSelectOpen, objectivesMission]);
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -244,7 +244,7 @@ export default function App() {
     setIsFullscreen(false);
     sound.playBackgroundTheme('menu');
     setCurrentMode('MENU');
-    setSplashMission(null);
+    setObjectivesMission(null);
     setBriefingMission(null);
     setIsStageSelectOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -261,9 +261,9 @@ export default function App() {
       if (MISSION_WEATHER_MAP[mode]) {
         setCurrentWeather(MISSION_WEATHER_MAP[mode]);
       }
-      // Show HUGE comic splash poster before mission starts!
+      // Open ONE single unified briefing & objectives modal with TTS narration
       setCurrentMode(mode);
-      setSplashMission(mode);
+      setObjectivesMission(mode);
     } else {
       sound.playRadioTransmission();
       sound.stopBackgroundTheme();
@@ -272,12 +272,11 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDismissSplash = () => {
-    if (!splashMission) return;
-    const target = splashMission;
+  const handleStartMissionFromObjectives = () => {
+    if (!objectivesMission) return;
+    const target = objectivesMission;
+    setObjectivesMission(null);
     sound.playRadioTransmission();
-    setSplashMission(null);
-    setBriefingMission(null);
     if (MISSION_WEATHER_MAP[target]) {
       setCurrentWeather(MISSION_WEATHER_MAP[target]);
     }
@@ -294,7 +293,7 @@ export default function App() {
     if (!briefingMission) return;
     const target = briefingMission;
     setBriefingMission(null);
-    setSplashMission(target);
+    setObjectivesMission(target);
   };
 
   const handleCountdownFinish = () => {
@@ -378,15 +377,15 @@ export default function App() {
       completedMissions: Array.from(new Set([...prev.completedMissions, mission])),
     }));
 
-    // Auto progress to next logical mission with huge comic splash
+    // Auto progress to next logical mission with single modal
     if (mission === 'MISSION_AIR_STRIKE') {
-      setSplashMission('MISSION_CROSSING');
+      setObjectivesMission('MISSION_CROSSING');
     } else if (mission === 'MISSION_CROSSING') {
-      setSplashMission('MISSION_BRIDGE');
+      setObjectivesMission('MISSION_BRIDGE');
     } else if (mission === 'MISSION_BRIDGE') {
-      setSplashMission('MISSION_TANK_BATTLE');
+      setObjectivesMission('MISSION_TANK_BATTLE');
     } else if (mission === 'MISSION_TANK_BATTLE') {
-      setSplashMission('MISSION_FORTRESS');
+      setObjectivesMission('MISSION_FORTRESS');
     } else {
       sound.playBackgroundTheme('menu');
       setCurrentMode('MUSEUM');
@@ -403,7 +402,7 @@ export default function App() {
           : 'menu-app-shell min-h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white'
       }
     >
-      {isPortraitMobile && isCombatMode && !isStageSelectOpen && !splashMission && (
+      {isPortraitMobile && isCombatMode && !isStageSelectOpen && !objectivesMission && (
         <div dir="rtl" className="fixed inset-0 z-[200] bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-6 text-center animate-in fade-in duration-200">
           <div className="max-w-sm bg-stone-900/90 border border-amber-500/40 p-6 rounded-2xl shadow-2xl">
             <div className="mx-auto mb-4 w-20 h-20 rounded-2xl border-2 border-amber-500 bg-amber-500/10 flex items-center justify-center text-4xl shadow-[0_0_20px_rgba(245,158,11,0.3)] animate-pulse">
@@ -429,7 +428,7 @@ export default function App() {
       )}
 
       {/* Clear, highly visible Return Button during combat ("زر الرجوع") */}
-      {isCombatMode && !isStageSelectOpen && !splashMission && (
+      {isCombatMode && !isStageSelectOpen && !objectivesMission && (
         <button
           onClick={handleReturnToMenu}
           className="fixed top-2.5 left-2.5 z-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-stone-950/90 hover:bg-stone-900 active:scale-95 text-amber-400 hover:text-amber-300 border-2 border-amber-500/50 shadow-[0_0_20px_rgba(0,0,0,0.85)] backdrop-blur-md flex items-center gap-1.5 font-bold font-cairo text-xs sm:text-sm cursor-pointer touch-manipulation transition-all pointer-events-auto"
@@ -454,15 +453,20 @@ export default function App() {
         completedMissions={stats.completedMissions}
       />
 
-      {/* 2. Huge Full-Screen Comic Book Splash Page (Dismisses on ANY key press or click) */}
-      {splashMission && (
-        <ComicHugeSplashModal
-          missionId={splashMission}
-          onDismiss={handleDismissSplash}
+      {/* Single Unified Mission Objectives & Historical Context Modal with Arabic TTS Narration */}
+      {objectivesMission && (
+        <MissionObjectivesModal
+          isOpen={true}
+          missionId={objectivesMission}
+          onStartMission={handleStartMissionFromObjectives}
+          onClose={() => {
+            setObjectivesMission(null);
+            handleReturnToMenu();
+          }}
         />
       )}
 
-      {/* 3. Optional Detailed Dossier Briefing */}
+      {/* 4. Optional Detailed Dossier Briefing */}
       {briefingMission && (
         <ComicMissionBriefing
           missionId={briefingMission}
@@ -500,7 +504,7 @@ export default function App() {
       )}
 
       {/* 4. Top Navigation Bar (Shown on desktop/computer and normal views, hidden in pure mobile landscape) */}
-      {!(isMobileLandscape && isCombatMode && !isStageSelectOpen && !splashMission) && (
+      {!(isMobileLandscape && isCombatMode && !isStageSelectOpen && !objectivesMission) && (
       <Header
         currentMode={currentMode}
         onSelectMode={handleSelectMode}
@@ -777,9 +781,25 @@ export default function App() {
                         </div>
 
                         {/* CTA Row */}
-                        <div className="flex items-center justify-between pt-3 border-t border-stone-800 text-xs font-semibold text-amber-400">
-                          <span>بدء العملية القتالية</span>
-                          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        <div className="flex items-center justify-between pt-3 border-t border-stone-800 text-xs font-semibold">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              sound.playRadioTransmission();
+                              setObjectivesMission(mission.id);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-amber-300 border border-amber-500/30 text-[11px] font-bold font-cairo flex items-center gap-1 cursor-pointer transition-colors"
+                            title="عرض أهداف وسياق المعركة بالتفصيل"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>الأهداف والسياق</span>
+                          </button>
+
+                          <div className="flex items-center gap-1 text-amber-400 font-bold">
+                            <span>بدء المعركة</span>
+                            <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                          </div>
                         </div>
                       </div>
                     </div>

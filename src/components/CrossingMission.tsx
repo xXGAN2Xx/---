@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Droplets, RotateCcw, Target, Waves, Shield, Zap, Clock3 } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { VictoryModal } from './VictoryModal';
 import { Difficulty } from '../game/difficulty';
 import { isGamePaused } from '../game/pause';
 import { sound } from '../utils/audio';
@@ -237,7 +238,17 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ difficulty = '
           <div className='px-3 py-2 rounded-xl bg-stone-950/90 border border-stone-800 text-[11px] text-stone-200'><Target className='inline w-4 h-4 text-amber-400 ml-1'/> الهدف: فتح كل الثغرات الثلاث ثم إرسال القوارب</div>
           <div className='px-3 py-2 rounded-xl bg-stone-950/90 border border-stone-800 text-[11px] text-amber-300'><Shield className='inline w-4 h-4 ml-1'/> الدفاعات مثبتة على الأرض</div>
         </div>
-        {missionWon && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><CheckCircle2 className='w-16 h-16 mx-auto text-emerald-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-amber-400'>تم اختراق الساتر وفتح الطريق!</h3><p className='text-xs text-stone-300 mt-2 mb-5'>الثغرات الثلاث أصبحت جاهزة لعبور القوات.</p><button type='button' onClick={() => onComplete(score)} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg cursor-pointer'>المرحلة التالية</button></div></div>}
+        <VictoryModal
+          isOpen={missionWon}
+          missionId="MISSION_CROSSING"
+          missionTitle="المرحلة 2: طوفان العبور وإسقاط أسطورة بارليف"
+          congratulatoryMessage="مبروك النصر العظيم! تم فتح الثغرات الثلاث وتدفق قوارب الأبطال!"
+          score={score}
+          timeLeft={timeLeft}
+          onNextMission={() => onComplete(score)}
+          onReturnToBase={onExit}
+          onReplay={reset}
+        />
         {isDefeated && <div className='absolute inset-0 bg-stone-950/90 flex items-center justify-center p-5 z-30'><div className='max-w-md w-full text-center'><Clock3 className='w-14 h-14 mx-auto text-red-400 mb-3'/><h3 className='text-2xl font-black font-cairo text-red-400'>انتهى وقت العملية</h3><p className='text-xs text-stone-300 mt-2 mb-5'>أعد توزيع المياه وابدأ بالثغرة الأقل تعرضًا للنيران.</p><button type='button' onClick={reset} className='px-6 py-2.5 bg-amber-500 text-stone-950 font-bold rounded-lg inline-flex items-center gap-2 cursor-pointer'><RotateCcw className='w-4 h-4'/>إعادة العملية</button></div></div>}
       </div>
       <div className='desktop-only-bar hidden sm:flex px-3 sm:px-4 py-2.5 border-t border-stone-800 bg-stone-950 flex-wrap items-center justify-between gap-2 shrink-0'>

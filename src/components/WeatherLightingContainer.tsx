@@ -266,7 +266,7 @@ export function WeatherLightingContainer({
         )}
 
         {/* Children (Active Mission) */}
-        <div className={`relative z-10 w-full ${hideControls ? 'flex-1 min-h-0 flex flex-col h-full' : ''}`}>
+        <div className={`relative z-30 w-full ${hideControls ? 'flex-1 min-h-0 flex flex-col h-full' : ''}`}>
           {children}
         </div>
 
