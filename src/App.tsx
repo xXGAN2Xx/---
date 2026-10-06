@@ -13,10 +13,10 @@ const AirStrikeMission = lazy(() => import('./components/AirStrikeMission').then
 const CrossingMission = lazy(() => import('./components/CrossingMission').then((m) => ({ default: m.CrossingMission })));
 const TankBattleMission = lazy(() => import('./components/TankBattleMission').then((m) => ({ default: m.TankBattleMission })));
 const BridgeMission = lazy(() => import('./components/BridgeMission').then((m) => ({ default: m.BridgeMission })));
-import { ComicStoryModal } from './components/ComicStoryModal';
-import { FortressAssaultMission } from './components/FortressAssaultMission';
-import { SurvivalTacticalMode } from './components/SurvivalTacticalMode';
-import { MuseumModal } from './components/MuseumModal';
+const ComicStoryModal = lazy(() => import('./components/ComicStoryModal').then((m) => ({ default: m.ComicStoryModal })));
+const FortressAssaultMission = lazy(() => import('./components/FortressAssaultMission').then((m) => ({ default: m.FortressAssaultMission })));
+const SurvivalTacticalMode = lazy(() => import('./components/SurvivalTacticalMode').then((m) => ({ default: m.SurvivalTacticalMode })));
+const MuseumModal = lazy(() => import('./components/MuseumModal').then((m) => ({ default: m.MuseumModal })));
 import { CountdownOverlay } from './components/CountdownOverlay';
 import { ComicMissionBriefing } from './components/ComicMissionBriefing';
 import { ComicHugeSplashModal } from './components/ComicHugeSplashModal';
