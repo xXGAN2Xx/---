@@ -6,7 +6,6 @@ export type GameMode =
   | 'MISSION_TANK_BATTLE'   // المرحلة 4: صد هجوم الدبابات وحائط الصواريخ
   | 'MISSION_FORTRESS'       // المرحلة 5: إسقاط الحصن ورفع العلم
   | 'COMIC_STORY'            // القصة المصورة لملحمة النصر
-  | 'SURVIVAL_TACTICAL'      // وضع البقاء التكتيكي
   | 'MUSEUM';                // متحف النصر التاريخي
 
 export interface MissionInfo {
