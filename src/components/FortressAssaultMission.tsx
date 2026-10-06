@@ -979,18 +979,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               تحرك بسرعة وانقر مباشرة على الصمامات والدشم لتعطيلها ثم اصعد فوراً لسارية العلم لرفعه خفاقاً.
             </p>
             <button
-              onClick={() => {
-                resetMission();
-                stateRef.current.commando.hp = 100;
-                stateRef.current.commando.x = 120;
-                stateRef.current.commando.y = 440;
-                stateRef.current.commando.targetX = 120;
-                stateRef.current.commando.targetY = 440;
-                stateRef.current.bullets = [];
-                stateRef.current.timeLeft = 120;
-                stateRef.current.isComplete = false;
-                sound.playRadioTransmission();
-              }}
+              onClick={resetMission}
               className="px-5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
@@ -1013,18 +1002,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
             </p>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
-                  resetMission();
-                  stateRef.current.commando.hp = 100;
-                  stateRef.current.commando.x = 120;
-                  stateRef.current.commando.y = 440;
-                  stateRef.current.commando.targetX = 120;
-                  stateRef.current.commando.targetY = 440;
-                  stateRef.current.bullets = [];
-                  stateRef.current.timeLeft = 120;
-                  stateRef.current.isComplete = false;
-                  sound.playRadioTransmission();
-                }}
+                onClick={resetMission}
                 className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center gap-2 cursor-pointer transition-colors shadow-lg active:scale-95"
               >
                 <RotateCcw className="w-4 h-4" />
