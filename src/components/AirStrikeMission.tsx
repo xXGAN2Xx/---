@@ -369,6 +369,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
 
     let animId: number;
     let lastTime = performance.now();
+    let lastAltitudeDisplayTime = 0;
 
     const updateMouse = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
@@ -667,7 +668,10 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       // Calculate altitude and telemetry
       const groundFloorY = 465;
       const altMeters = Math.max(10, Math.round((groundFloorY - p.y) * 2.2));
-      setPlayerAltitude(altMeters);
+      if (currentTime - lastAltitudeDisplayTime >= 100) {
+        lastAltitudeDisplayTime = currentTime;
+        setPlayerAltitude(altMeters);
+      }
       setAltitudeWarning(false);
 
       state.scrollX += 150 * dt;
