@@ -1,3 +1,4 @@
+import { isGamePaused } from '../game/pause';
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
 import { ArrowLeft, Flag, Shield, Flame, CheckCircle2, Award, Clock, RotateCcw, MousePointer, AlertTriangle, Zap } from 'lucide-react';
@@ -73,6 +74,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
     if (flagHoisted || isTimeout) return;
 
     const timer = setInterval(() => {
+      if (isGamePaused()) return;
       setTimeLeft((prev) => {
         const next = prev - 1;
         stateRef.current.timeLeft = next;
@@ -293,6 +295,10 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
     canvas.addEventListener('click', handleCanvasClick);
 
     const loop = (currTime: number) => {
+      if (isGamePaused()) {
+        animId = requestAnimationFrame(loop);
+        return;
+      }
       const dt = (currTime - lastTime) / 1000;
       lastTime = currTime;
 
