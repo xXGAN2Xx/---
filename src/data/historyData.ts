@@ -1,13 +1,20 @@
 import { HeroProfile, MilitaryEquipment, HistoricalBulletin, MissionInfo, MilitaryRank, Medal } from '../types';
+import crossingImage from '../assets/images/october_crossing_canal_1790971221735.jpg';
+import airStrikeImage from '../assets/images/october_air_strike_jet_1790971233734.jpg';
+import tankBattleImage from '../assets/images/october_tank_battle_sinai_1790971245310.jpg';
+import victoryFlagImage from '../assets/images/october_victory_flag_monument_1790971254826.jpg';
+import bridgeImage from '../assets/images/october_bridge_crossing_1791021175238.jpg';
+import comicImage from '../assets/images/october_comic_storyboard_1791021188895.jpg';
+import comicSplashImage from '../assets/images/october_comic_splash_art_1791022194586.jpg';
 
 export const ASSET_IMAGES = {
-  crossing: '/src/assets/images/october_crossing_canal_1790971221735.jpg',
-  airStrike: '/src/assets/images/october_air_strike_jet_1790971233734.jpg',
-  tankBattle: '/src/assets/images/october_tank_battle_sinai_1790971245310.jpg',
-  victoryFlag: '/src/assets/images/october_victory_flag_monument_1790971254826.jpg',
-  bridge: '/src/assets/images/october_bridge_crossing_1791021175238.jpg',
-  comic: '/src/assets/images/october_comic_storyboard_1791021188895.jpg',
-  comicSplash: '/src/assets/images/october_comic_splash_art_1791022194586.jpg',
+  crossing: crossingImage,
+  airStrike: airStrikeImage,
+  tankBattle: tankBattleImage,
+  victoryFlag: victoryFlagImage,
+  bridge: bridgeImage,
+  comic: comicImage,
+  comicSplash: comicSplashImage,
 };
 
 export const MISSIONS: MissionInfo[] = [
