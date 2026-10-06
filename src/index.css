@@ -107,3 +107,20 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #78716c;
 }
+
+/* Reliable touch controls for every canvas-based mission. */
+canvas {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Respect device accessibility preferences without disabling gameplay logic. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
