@@ -44,7 +44,22 @@ export default function App() {
     completedMissions: [],
   });
 
-  const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'heroic'>('normal');
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => {
+    try {
+      const saved = localStorage.getItem('october-73-difficulty');
+      return saved === 'easy' || saved === 'heroic' || saved === 'normal' ? saved : 'normal';
+    } catch {
+      return 'normal';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('october-73-difficulty', difficulty);
+    } catch {
+      // Storage may be unavailable in privacy-restricted contexts.
+    }
+  }, [difficulty]);
 
   // Sync fullscreen state with document
   React.useEffect(() => {
@@ -70,7 +85,7 @@ export default function App() {
     setIsMuted(muted);
   };
 
-  const handleSelectDifficulty = (level: 'easy' | 'normal' | 'heroic') => {
+  const handleSelectDifficulty = (level: Difficulty) => {
     setDifficulty(level);
     sound.playRadioTransmission();
   };
