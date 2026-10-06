@@ -244,7 +244,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     }
 
     sound.playMissileLaunch();
-    setSamMissiles((s) => s - 1);
+    state.samMissiles -= 1;
+    setSamMissiles(state.samMissiles);
 
     state.samRockets.push({
       x: 80,
@@ -313,7 +314,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
       for (const tank of state.enemyTanks) {
         if (!tank.destroyed && Math.hypot(mx - tank.x, my - tank.y) < 60) {
           sound.playTargetLock();
-          if (saggerAmmo > 0) {
+          if (state.saggerAmmo > 0) {
             launchSaggerMissile(tank);
           } else {
             fireTankCannon(tank.x, tank.y);
