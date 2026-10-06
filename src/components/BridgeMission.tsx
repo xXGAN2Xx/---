@@ -983,6 +983,11 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     state.tanksCrossedCount = 0;
     state.lostOpportunities = 0;
     state.strikeActive = false;
+    state.strikeCountdown = 4.8;
+    state.maxStrikeTime = 4.8;
+    state.targetBridgeIndex = 2;
+    state.bridgeLocked = true;
+    state.smokeTimeRemaining = 0;
     state.score = 0;
     state.smokeCharges = 4;
     state.flakCharges = 18;
@@ -991,6 +996,9 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     setScore(0);
     setTimeLeft(120);
     setStrikeActive(false);
+    setStrikeCountdown(4.8);
+    setMaxStrikeTime(4.8);
+    setTargetBridgeIndex(2);
     setIsWon(false);
     setIsDefeated(false);
     setFlakCharges(18);
