@@ -11,7 +11,7 @@
 سيتم نشر الموقع تلقائيًا عند كل تحديث على `main`.
 
 الرابط المتوقع:
-https://xXGAN2Xx.github.io/---/
+https://xXGAN2Xx.github.io/The-Great-October-Victory-Sandoub-Complex-Kindergarten/
 
 ## تشغيلها مباشرة من GitHub
 
