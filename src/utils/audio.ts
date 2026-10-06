@@ -1107,14 +1107,14 @@ class SoundSystem {
     osc2.stop(t + 0.22);
   }
 
-  // Ground proximity danger alarm (GPWS / pull-up warning siren)
+  // Ground proximity danger alarm (GPWS / pull-up warning siren) - toned down to be softer
   public playGroundProximityAlarm() {
     if (this.isMuted) return;
     this.initCtx();
     if (!this.ctx) return;
 
     const t = this.ctx.currentTime;
-    if (t - this.lastGroundAlarmTime < 0.4) return;
+    if (t - this.lastGroundAlarmTime < 0.45) return;
     this.lastGroundAlarmTime = t;
 
     const osc = this.ctx.createOscillator();
@@ -1122,17 +1122,72 @@ class SoundSystem {
 
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(260, t);
-    osc.frequency.linearRampToValueAtTime(540, t + 0.12);
-    osc.frequency.linearRampToValueAtTime(220, t + 0.25);
+    osc.frequency.linearRampToValueAtTime(500, t + 0.12);
+    osc.frequency.linearRampToValueAtTime(220, t + 0.22);
 
-    gain.gain.setValueAtTime(0.24, t);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.26);
+    gain.gain.setValueAtTime(0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.008, t + 0.22);
 
     osc.connect(gain);
     gain.connect(this.ctx.destination);
 
     osc.start(t);
-    osc.stop(t + 0.26);
+    osc.stop(t + 0.22);
+  }
+
+  // Pilot Comms Radio Mic Click / Squelch Burst (صوت فتح المايك اللاسلكي للطيار)
+  public playPilotRadioClick() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const squelchLen = 0.08;
+    const bufferSize = Math.floor(this.ctx.sampleRate * squelchLen);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.7;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1800, t);
+    filter.Q.value = 2.5;
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + squelchLen);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.ctx.destination);
+    noise.start(t);
+  }
+
+  // Tactical Roger Beep when pilot releases radio transmit button (نغمة روجر بنهاية بث الطيار)
+  public playPilotRogerBeep() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1850, t);
+    osc.frequency.exponentialRampToValueAtTime(1200, t + 0.06);
+
+    gain.gain.setValueAtTime(0.07, t);
+    gain.gain.exponentialRampToValueAtTime(0.005, t + 0.06);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.06);
   }
 }
 
