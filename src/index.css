@@ -124,3 +124,27 @@ canvas {
     scroll-behavior: auto !important;
   }
 }
+
+html,
+body,
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+  width: 100%;
+}
+
+button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+canvas {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  body {
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+}
