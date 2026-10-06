@@ -123,6 +123,8 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     lostOpportunities: 0,
     isComplete: false,
     smokeTimeRemaining: 0,
+    smokeCharges: 4,
+    flakCharges: 18,
     strikeActive: false,
     strikeCountdown: 4.8,
     maxStrikeTime: 4.8,
@@ -294,8 +296,10 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
   // Deploy Smoke Screen to blind enemy spotters
   const handleDeploySmokeScreen = () => {
-    if (smokeCharges <= 0) return;
-    setSmokeCharges((prev) => prev - 1);
+    const state = stateRef.current;
+    if (state.smokeCharges <= 0) return;
+    state.smokeCharges -= 1;
+    setSmokeCharges(state.smokeCharges);
     setSmokeScreenActive(true);
     stateRef.current.smokeTimeRemaining = 12;
     sound.playMissileLaunch();
@@ -319,8 +323,10 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
   // Fire Anti-Aircraft Flak Gun at enemy planes or falling bombs
   const handleFireFlak = (targetX?: number, targetY?: number) => {
-    if (flakCharges <= 0) return;
-    setFlakCharges((prev) => prev - 1);
+    const state = stateRef.current;
+    if (state.flakCharges <= 0) return;
+    state.flakCharges -= 1;
+    setFlakCharges(state.flakCharges);
     sound.playGunshot();
 
     const tx = targetX ?? stateRef.current.mousePos.x;
@@ -439,6 +445,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
 
     let animId: number;
     let lastTime = performance.now();
+    let lastStrikeCountdownDisplay = -1;
 
     const handlePointerAction = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
@@ -602,7 +609,11 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
       // 2. Active Precision Strike Countdown Tick
       if (state.strikeActive) {
         state.strikeCountdown -= dt;
-        setStrikeCountdown(Math.max(0, state.strikeCountdown));
+        const displayCountdown = Math.max(0, Math.ceil(state.strikeCountdown * 10) / 10);
+        if (displayCountdown !== lastStrikeCountdownDisplay) {
+          lastStrikeCountdownDisplay = displayCountdown;
+          setStrikeCountdown(displayCountdown);
+        }
 
         // Urgent audio beeps when under 1.6s
         if (state.strikeCountdown < 1.6 && Math.random() < 0.08) {
@@ -959,7 +970,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
       canvas.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [timeLeft]);
+  }, []);
 
   const handleRestart = () => {
     sound.playRadioTransmission();
@@ -972,12 +983,22 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ onComplete, onExit
     state.tanksCrossedCount = 0;
     state.lostOpportunities = 0;
     state.strikeActive = false;
+    state.strikeCountdown = 4.8;
+    state.maxStrikeTime = 4.8;
+    state.targetBridgeIndex = 2;
+    state.bridgeLocked = true;
+    state.smokeTimeRemaining = 0;
     state.score = 0;
+    state.smokeCharges = 4;
+    state.flakCharges = 18;
     setTanksCrossed(0);
     setLostOpportunities(0);
     setScore(0);
     setTimeLeft(120);
     setStrikeActive(false);
+    setStrikeCountdown(4.8);
+    setMaxStrikeTime(4.8);
+    setTargetBridgeIndex(2);
     setIsWon(false);
     setIsDefeated(false);
     setFlakCharges(18);

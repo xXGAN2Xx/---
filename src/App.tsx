@@ -92,6 +92,16 @@ export default function App() {
     SURVIVAL_TACTICAL: 'sandstorm',
   };
 
+  const handleReturnToMenu = () => {
+    sound.playRadioTransmission();
+    sound.playBackgroundTheme('menu');
+    setCurrentMode('MENU');
+    setSplashMission(null);
+    setBriefingMission(null);
+    setIsStageSelectOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSelectMode = (mode: GameMode) => {
     if (mode.startsWith('MISSION_')) {
       sound.playMissionStartRadioAlert();
@@ -149,9 +159,7 @@ export default function App() {
   };
 
   const handleExitMission = () => {
-    sound.playRadioTransmission();
-    sound.playBackgroundTheme('menu');
-    setCurrentMode('MENU');
+    handleReturnToMenu();
     if (document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => {});
     }
@@ -303,7 +311,7 @@ export default function App() {
         {currentMode === 'COMIC_STORY' && (
           <ComicStoryModal
             onSelectMission={(m) => setCurrentMode(m)}
-            onClose={() => setCurrentMode('MENU')}
+            onClose={handleReturnToMenu}
           />
         )}
 
@@ -317,7 +325,7 @@ export default function App() {
           >
             <SurvivalTacticalMode
               onAddScore={handleAddScore}
-              onExit={() => setCurrentMode('MENU')}
+              onExit={handleReturnToMenu}
             />
           </WeatherLightingContainer>
         )}

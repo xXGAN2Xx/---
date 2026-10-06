@@ -172,6 +172,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
     mudParticles: [] as MudParticle[],
     floatingTexts: [] as { id: number; x: number; y: number; text: string; color: string; life: number; maxLife: number }[],
     score: 0,
+    timeLeft: 120,
     boatsArrivedCount: 0,
     breachesDoneCount: 0,
     isComplete: false,
@@ -248,8 +249,10 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         setActiveAlert(`💥 توجيه الضغط الهيدروليكي لدك: ${activeBunker.label}`);
       }
 
-      // Automatically engage pump upon quick-targeting
+      // Quick-lock also enables continuous fire so the selected target is actually engaged.
+      state.isAutoFiring = true;
       state.pump.isFiring = true;
+      setIsAutoFiring(true);
     },
     []
   );
@@ -275,6 +278,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         const next = prev - 1;
+        stateRef.current.timeLeft = next;
 
         // Auto launch boats occasionally
         const activeBoats = stateRef.current.boats.filter((b) => !b.arrived && !b.destroyed);
@@ -334,6 +338,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
 
     let animId: number;
     let lastTime = performance.now();
+    let lastTelemetryDisplayTime = 0;
 
     const updateAimPos = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
@@ -476,8 +481,11 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
         pump.heat = Math.max(10, pump.heat - dt * 25);
         pump.pressure = Math.max(50, pump.pressure - dt * 35);
       }
-      setPressure(Math.round(pump.pressure));
-      setPumpHeat(Math.round(pump.heat));
+      if (currentTime - lastTelemetryDisplayTime >= 100) {
+        lastTelemetryDisplayTime = currentTime;
+        setPressure(Math.round(pump.pressure));
+        setPumpHeat(Math.round(pump.heat));
+      }
 
       const effectivePressure = pump.heat >= 98 ? pump.pressure * 0.75 : pump.pressure;
 
@@ -565,7 +573,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
                 // Check victory condition
                 if (state.breachesDoneCount >= 3 && !state.isComplete) {
                   state.isComplete = true;
-                  const timeBonus = timeLeft * 35;
+                  const timeBonus = state.timeLeft * 35;
                   state.score += timeBonus;
                   setScore(state.score);
                   setIsWon(true);
@@ -1031,7 +1039,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [toggleAutoFire, timeLeft]);
+  }, [toggleAutoFire]);
 
   const handleRestart = () => {
     sound.playRadioTransmission();
@@ -1056,6 +1064,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
     state.breachesDoneCount = 0;
     state.boatsArrivedCount = 0;
     state.score = 0;
+    state.timeLeft = 120;
     state.pump.heat = 15;
     state.pump.pressure = 75;
     state.pump.isFiring = false;
@@ -1270,7 +1279,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({ onComplete, on
           ref={canvasRef}
           width={1000}
           height={560}
-          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none"
+          className="w-full h-full max-w-full max-h-full object-contain cursor-crosshair select-none touch-none"
         />
 
         {/* Digital Countdown Timer */}

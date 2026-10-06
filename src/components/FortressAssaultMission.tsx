@@ -91,6 +91,59 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
     return () => clearInterval(timer);
   }, [flagHoisted, isTimeout]);
 
+  const resetMission = () => {
+    const initialState = stateRef.current;
+    initialState.commando.x = 120;
+    initialState.commando.y = 440;
+    initialState.commando.targetX = 120;
+    initialState.commando.targetY = 440;
+    initialState.commando.hp = 100;
+    initialState.keys.up = false;
+    initialState.keys.down = false;
+    initialState.keys.left = false;
+    initialState.keys.right = false;
+    initialState.pipes.forEach((p) => { p.cut = false; });
+    initialState.bunkers.forEach((b) => {
+      b.captured = false;
+      b.hp = 100;
+      b.burstRemaining = 0;
+      b.burstCooldown = 0;
+      b.lastBurstTime = 0;
+      b.specialPatternTimer = b.id === 1 ? 4.0 : 6.5;
+    });
+    initialState.enemySentries.forEach((s) => {
+      s.destroyed = false;
+      s.hp = s.maxHp;
+      s.isTakingCover = false;
+      s.evasionTimer = 0;
+      s.burstCooldown = s.id === 1 ? 1.8 : 2.5;
+      s.patternTimer = 0;
+      s.badgeShown = false;
+    });
+    initialState.bullets = [];
+    initialState.particles = [];
+    initialState.shockwaves = [];
+    initialState.floatingTexts = [];
+    initialState.flagPole.hoisted = 0;
+    initialState.score = 0;
+    initialState.timeLeft = 120;
+    initialState.screenShake = 0;
+    initialState.isComplete = false;
+    initialState.lastInteractTime = 0;
+
+    setNapalmPipesCut(0);
+    setBunkersCaptured(0);
+    setFlagProgress(0);
+    setFlagHoisted(false);
+    setCommandoHp(100);
+    setScore(0);
+    setTimeLeft(120);
+    setNearbyAction(null);
+    setIsTimeout(false);
+    setIsDefeated(false);
+    sound.playRadioTransmission();
+  };
+
   const addFloatingText = (x: number, y: number, text: string, color = '#facc15') => {
     stateRef.current.floatingTexts.push({
       id: Date.now() + Math.random(),
@@ -926,20 +979,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
               تحرك بسرعة وانقر مباشرة على الصمامات والدشم لتعطيلها ثم اصعد فوراً لسارية العلم لرفعه خفاقاً.
             </p>
             <button
-              onClick={() => {
-                setTimeLeft(120);
-                setIsTimeout(false);
-                setCommandoHp(100);
-                stateRef.current.commando.hp = 100;
-                stateRef.current.commando.x = 120;
-                stateRef.current.commando.y = 440;
-                stateRef.current.commando.targetX = 120;
-                stateRef.current.commando.targetY = 440;
-                stateRef.current.bullets = [];
-                stateRef.current.timeLeft = 120;
-                stateRef.current.isComplete = false;
-                sound.playRadioTransmission();
-              }}
+              onClick={resetMission}
               className="px-5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
@@ -962,20 +1002,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({ 
             </p>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
-                  setTimeLeft(120);
-                  setCommandoHp(100);
-                  setIsDefeated(false);
-                  stateRef.current.commando.hp = 100;
-                  stateRef.current.commando.x = 120;
-                  stateRef.current.commando.y = 440;
-                  stateRef.current.commando.targetX = 120;
-                  stateRef.current.commando.targetY = 440;
-                  stateRef.current.bullets = [];
-                  stateRef.current.timeLeft = 120;
-                  stateRef.current.isComplete = false;
-                  sound.playRadioTransmission();
-                }}
+                onClick={resetMission}
                 className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg flex items-center gap-2 cursor-pointer transition-colors shadow-lg active:scale-95"
               >
                 <RotateCcw className="w-4 h-4" />

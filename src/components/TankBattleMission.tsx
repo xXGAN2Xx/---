@@ -122,6 +122,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     jetsDown: 0,
     isComplete: false,
     lastSpawnTime: 0,
+    saggerAmmo: 14,
+    samMissiles: 8,
   });
 
   // 2-Minute Timer
@@ -199,10 +201,11 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
 
   // Launch Sagger Missile with fast guidance and smart auto-lock
   const launchSaggerMissile = (targetTank?: EnemyTank) => {
-    if (saggerAmmo <= 0) return;
     const state = stateRef.current;
+    if (state.saggerAmmo <= 0) return;
     sound.playMissileLaunch();
-    setSaggerAmmo((a) => a - 1);
+    state.saggerAmmo -= 1;
+    setSaggerAmmo(state.saggerAmmo);
 
     // If no targetTank is explicitly clicked, automatically lock onto the closest advancing enemy tank!
     let chosenTank = targetTank;
@@ -232,8 +235,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
   };
 
   const launchSamMissile = () => {
-    if (samMissiles <= 0) return;
     const state = stateRef.current;
+    if (state.samMissiles <= 0) return;
     const targetJet = state.hostileJets.find((j) => !j.destroyed);
     if (!targetJet) {
       addFloatingText(state.playerTank.x, state.playerTank.y - 40, 'لا توجد مقاتلات فانتوم معادية حالياً', '#38bdf8');
@@ -241,7 +244,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
     }
 
     sound.playMissileLaunch();
-    setSamMissiles((s) => s - 1);
+    state.samMissiles -= 1;
+    setSamMissiles(state.samMissiles);
 
     state.samRockets.push({
       x: 80,
@@ -271,6 +275,48 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
       vy: Math.sin(angle) * 850,
       fromPlayer: true,
     });
+  };
+
+  const resetBattle = () => {
+    const state = stateRef.current;
+    state.playerTank = { x: 180, y: 380, targetY: 380, hp: 100, turretAngle: 0, vx: 0, vy: 0 };
+    state.keys.up = false;
+    state.keys.down = false;
+    state.keys.left = false;
+    state.keys.right = false;
+    state.enemyTanks = [
+      { id: 1, x: 700, y: 300, speed: -28, hp: 55, maxHp: 55, label: 'دبابة باتون M48', isPatton: true, destroyed: false },
+      { id: 2, x: 840, y: 380, speed: -30, hp: 70, maxHp: 70, label: 'دبابة سينتوريون', isPatton: false, destroyed: false },
+      { id: 3, x: 960, y: 460, speed: -24, hp: 75, maxHp: 75, label: 'دبابة لواء 190 مدرع', isPatton: false, destroyed: false },
+    ];
+    state.hostileJets = [];
+    state.guidedMissiles = [];
+    state.samRockets = [];
+    state.shells = [];
+    state.particles = [];
+    state.shockwaves = [];
+    state.floatingTexts = [];
+    state.mousePos = { x: 650, y: 350 };
+    state.screenShake = 0;
+    state.score = 0;
+    state.timeLeft = 120;
+    state.tanksDown = 0;
+    state.jetsDown = 0;
+    state.isComplete = false;
+    state.lastSpawnTime = 0;
+    state.saggerAmmo = 14;
+    state.samMissiles = 8;
+
+    setTanksDestroyed(0);
+    setJetsDowned(0);
+    setScore(0);
+    setTimeLeft(120);
+    setSaggerAmmo(14);
+    setSamMissiles(8);
+    setPlatoonHealth(100);
+    setIsWon(false);
+    setIsDefeated(false);
+    sound.playRadioTransmission();
   };
 
   // Main Canvas Loop
@@ -310,7 +356,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
       for (const tank of state.enemyTanks) {
         if (!tank.destroyed && Math.hypot(mx - tank.x, my - tank.y) < 60) {
           sound.playTargetLock();
-          if (saggerAmmo > 0) {
+          if (state.saggerAmmo > 0) {
             launchSaggerMissile(tank);
           } else {
             fireTankCannon(tank.x, tank.y);
@@ -638,7 +684,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
                 state.score += 800;
                 setScore(state.score);
                 setTanksDestroyed(state.tanksDown);
-                setSaggerAmmo((prev) => Math.min(18, prev + 2));
+                state.saggerAmmo = Math.min(18, state.saggerAmmo + 2);
+            setSaggerAmmo(state.saggerAmmo);
                 addFloatingText(tank.x, tank.y - 25, `+800 صيد دبابة معادية! 💥 (+2 مالوتكا)`, '#4ade80');
 
                 if (state.tanksDown >= 6 && !state.isComplete) {
@@ -1483,15 +1530,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({ onComplete
               انقر سريعاً على الدبابات المعادية فور ظهورها لإطلاق صواريخ مالوتكا السلكية وسحقها قبل نفاد الوقت.
             </p>
             <button
-              onClick={() => {
-                setPlatoonHealth(100);
-                setSaggerAmmo(14);
-                setTimeLeft(120);
-                setIsDefeated(false);
-                stateRef.current.playerTank.hp = 100;
-                stateRef.current.timeLeft = 120;
-                stateRef.current.isComplete = false;
-              }}
+              onClick={resetBattle}
               className="px-5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
             >
               <RotateCcw className="w-4 h-4" />

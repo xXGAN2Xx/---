@@ -319,8 +319,14 @@ export const SurvivalTacticalMode: React.FC<SurvivalTacticalModeProps> = ({ onAd
                 setBridgeIntegrity(100);
                 setSupplies(500);
                 setWave(1);
+                setScore(0);
+                setEnemiesRemaining(6);
                 setIsGameOver(false);
                 setWaveActive(false);
+                setCombatLogs([
+                  'تم تأمين رأس جسر القناة والتحصن في الساتر الشرقي.',
+                  'وحدات الاستطلاع ترصد تحركات مدرعات معادية في عمق الممرات.',
+                ]);
               }}
               className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-lg cursor-pointer transition-colors flex items-center gap-2"
             >
