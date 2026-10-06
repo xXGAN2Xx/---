@@ -136,6 +136,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
     state.floatingTexts = [];
     state.scrollX = 0;
     state.score = 0;
+    state.rockets = 12;
     state.destroyedCount = 0;
     state.spawnedTimes = new Set<number>();
     sound.playBackgroundTheme('airStrike');
@@ -175,6 +176,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
     lastShotTime: 0,
     lastRocketTime: 0,
     score: 0,
+    rockets: 12,
     timeLeft: 120,
     destroyedCount: 0,
     isComplete: false,
@@ -337,6 +339,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
     const state = stateRef.current;
     if (now - state.lastRocketTime < 320) return;
 
+    if (state.rockets <= 0) return;
     setRockets((prev) => {
       if (prev > 0) {
         state.lastRocketTime = now;
@@ -354,7 +357,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
         });
 
         addFloatingText(p.x, p.y - 20, 'صاروخ ذاتي التوجيه 🚀', '#f59e0b');
-        return prev - 1;
+        state.rockets -= 1;
+        return state.rockets;
       }
       return 0;
     });
