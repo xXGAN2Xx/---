@@ -3,16 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { GameMode, PlayerStats } from './types';
 import { Difficulty } from './game/difficulty';
 import { MISSIONS, RANKS, MEDALS, ASSET_IMAGES } from './data/historyData';
 import { sound } from './utils/audio';
 import { Header } from './components/Header';
-import { AirStrikeMission } from './components/AirStrikeMission';
-import { CrossingMission } from './components/CrossingMission';
-import { TankBattleMission } from './components/TankBattleMission';
-import { BridgeMission } from './components/BridgeMission';
+const AirStrikeMission = lazy(() => import('./components/AirStrikeMission').then((m) => ({ default: m.AirStrikeMission })));
+const CrossingMission = lazy(() => import('./components/CrossingMission').then((m) => ({ default: m.CrossingMission })));
+const TankBattleMission = lazy(() => import('./components/TankBattleMission').then((m) => ({ default: m.TankBattleMission })));
+const BridgeMission = lazy(() => import('./components/BridgeMission').then((m) => ({ default: m.BridgeMission })));
 import { ComicStoryModal } from './components/ComicStoryModal';
 import { FortressAssaultMission } from './components/FortressAssaultMission';
 import { SurvivalTacticalMode } from './components/SurvivalTacticalMode';
