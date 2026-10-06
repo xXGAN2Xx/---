@@ -331,7 +331,7 @@ export default function App() {
       className={
         isCombatMode
           ? 'w-screen h-[100dvh] min-h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white fixed inset-0 z-40 overflow-hidden'
-          : 'min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white'
+          : 'menu-app-shell min-h-[100dvh] bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white'
       }
     >
       {isPortraitMobile && isCombatMode && !isStageSelectOpen && !splashMission && (
@@ -398,7 +398,7 @@ export default function App() {
         className={
           isCombatMode
             ? 'flex-1 w-full h-full min-h-0 flex flex-col p-0 overflow-hidden pb-[env(safe-area-inset-bottom)]'
-            : 'flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8'
+            : 'menu-main flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8'
         }
       >
         <Suspense fallback={<div dir="rtl" className="flex-1 min-h-[40vh] flex items-center justify-center bg-stone-950 text-stone-300"><div className="text-center"><div className="text-amber-400 font-bold font-cairo mb-2">جاري تجهيز المهمة…</div><div className="text-xs text-stone-500">تحميل عناصر المعركة</div></div></div>}>
@@ -478,7 +478,7 @@ export default function App() {
         {currentMode === 'MENU' && (
           <div className="space-y-12">
             {/* Hero Section */}
-            <div className="relative rounded-2xl overflow-hidden border border-stone-800 bg-stone-900 shadow-2xl">
+            <div className="menu-hero relative rounded-2xl overflow-hidden border border-stone-800 bg-stone-900 shadow-2xl">
               {/* Background Hero Image */}
               <div className="absolute inset-0">
                 <img
@@ -491,7 +491,7 @@ export default function App() {
               </div>
 
               {/* Hero Content */}
-              <div className="relative z-10 p-6 sm:p-10 lg:p-12 max-w-3xl">
+              <div className="menu-hero-content relative z-10 p-6 sm:p-10 lg:p-12 max-w-3xl">
                 <div className="flex items-center gap-3 text-xs font-semibold text-amber-400 mb-3">
                   <span>العاشر من رمضان 1393هـ</span>
                   <span aria-hidden="true" className="text-stone-600">·</span>
@@ -500,15 +500,15 @@ export default function App() {
                   <span className="text-stone-300 font-mono">14:00 ساعة الصفر</span>
                 </div>
 
-                <h1 className="text-3xl sm:text-5xl font-black font-cairo text-stone-100 tracking-tight leading-tight mb-4 text-balance">
+                <h1 className="menu-hero-title text-3xl sm:text-5xl font-black font-cairo text-stone-100 tracking-tight leading-tight mb-4 text-balance">
                   ملحمة نصر أكتوبر 1973: ملحمة العبور واستعادة الكرامة
                 </h1>
 
-                <p className="text-sm sm:text-base text-stone-300 leading-relaxed mb-8">
+                <p className="menu-hero-description text-sm sm:text-base text-stone-300 leading-relaxed mb-8">
                   عش أعظم معارك التاريخ العسكري الحديث: الضربة الجوية المفاجئة، عبور قناة السويس تحت صيحات "الله أكبر"، إسقاط خط بارليف بخراطيم المياه العبقرية، معارك الدبابات وحائط الصواريخ، وتحرير سيناء ورفع العلم المصري خفاقاً!
                 </p>
 
-                <div className="flex flex-wrap items-center gap-4 mb-6">
+                <div className="menu-hero-actions flex flex-wrap items-center gap-4 mb-6">
                   <button
                     onClick={() => handleSelectMode('MISSION_AIR_STRIKE')}
                     className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold font-cairo rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer flex items-center gap-2"
@@ -551,7 +551,7 @@ export default function App() {
               <BackgroundMusicPicker />
 
               {/* Status Ticker Inside Hero Frame */}
-              <div className="relative z-10 border-t border-stone-800/80 bg-stone-950/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-400">
+              <div className="menu-hero-ticker relative z-10 border-t border-stone-800/80 bg-stone-950/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-400">
                 <div className="flex items-center gap-6">
                   <div>
                     <span className="text-stone-500 block text-[11px]">الرتبة العسكرية</span>
