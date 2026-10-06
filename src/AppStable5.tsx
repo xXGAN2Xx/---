@@ -76,10 +76,17 @@ export default function App() {
   React.useEffect(() => {
     const handleFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
+      syncMobileOrientation();
     };
     document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
+    window.addEventListener('resize', syncMobileOrientation);
+    window.addEventListener('orientationchange', syncMobileOrientation);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      window.removeEventListener('resize', syncMobileOrientation);
+      window.removeEventListener('orientationchange', syncMobileOrientation);
+    };
+  }, [currentMode, isStageSelectOpen, splashMission]);
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -133,6 +140,7 @@ export default function App() {
   }, [currentMode]);
 
   const handleReturnToMenu = () => {
+    unlockMissionLandscape();
     sound.playRadioTransmission();
     if (document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => {});
@@ -179,12 +187,10 @@ export default function App() {
     }
     // Start patriotic theme music for this stage!
     sound.playBackgroundTheme(THEME_MAP[target] || 'airStrike');
-    // Launch stage in fullscreen!
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
-    }
-    setIsFullscreen(true);
+    // Launch stage in fullscreen + landscape on supported mobile browsers.
     setCurrentMode(target);
+    setIsFullscreen(true);
+    void lockMissionLandscape();
   };
 
   const handleStartMissionFromBriefing = () => {
@@ -277,6 +283,17 @@ export default function App() {
           : 'min-h-screen bg-stone-950 text-stone-100 flex flex-col font-sans selection:bg-amber-600 selection:text-white'
       }
     >
+      {isPortraitMobile && isCombatMode && !isStageSelectOpen && !splashMission && (
+        <div dir="rtl" className="fixed inset-0 z-[200] bg-stone-950 flex items-center justify-center p-6 text-center">
+          <div className="max-w-sm">
+            <div className="mx-auto mb-5 w-20 h-20 rounded-3xl border-2 border-amber-500/70 bg-amber-500/10 flex items-center justify-center text-5xl">📱↔️</div>
+            <h2 className="text-2xl font-black font-cairo text-amber-400 mb-2">لفّ الموبايل بالعرض</h2>
+            <p className="text-sm text-stone-300 leading-relaxed">اللعبة مصممة للوضع الأفقي عشان مساحة المعركة والتحكم باللمس يشتغلوا بشكل أفضل.</p>
+            <button type="button" onClick={() => void lockMissionLandscape()} className="mt-5 min-h-11 px-5 py-2.5 rounded-xl bg-amber-500 text-stone-950 font-black touch-manipulation">حاول تفعيل الوضع الأفقي</button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Stage Select Modal (Interactive stage menu accessible anytime) */}
       <StageSelectModal
         isOpen={isStageSelectOpen}
