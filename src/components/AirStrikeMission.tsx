@@ -675,8 +675,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ onComplete, 
       if (currentTime - lastAltitudeDisplayTime >= 100) {
         lastAltitudeDisplayTime = currentTime;
         setPlayerAltitude(altMeters);
+        const nextAltitudeWarning = altMeters < 120;
+        setAltitudeWarning((prev) => (prev === nextAltitudeWarning ? prev : nextAltitudeWarning));
       }
-      setAltitudeWarning(false);
 
       state.scrollX += 150 * dt;
 
