@@ -560,6 +560,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               spawnExplosion(targetScreenX, target.y, '#f59e0b', 28, true);
               state.score += target.points;
               state.destroyedCount++;
+              const upgrade = state.destroyedCount;
+              state.player.hp = Math.min(210, state.player.hp + 12);
+              setHp(state.player.hp);
               setScore(state.score);
               setTotalDestroyed(state.destroyedCount);
               addFloatingText(targetScreenX, target.y - 30, `+${target.points} ${target.label} مدمر! 🎯`, '#4ade80');
