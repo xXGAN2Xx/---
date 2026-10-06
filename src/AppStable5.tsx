@@ -317,7 +317,6 @@ export default function App() {
         rankTitle={stats.rank.title}
         onOpenStageSelect={() => {
           previousMuteRef.current = sound.getMuted();
-          previousMuteRef.current = sound.getMuted();
           sound.playRadioTransmission();
           sound.setMuted(true);
           setIsMuted(true);
@@ -348,7 +347,8 @@ export default function App() {
               <AirStrikeMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_AIR_STRIKE', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_AIR_STRIKE')}\n                 onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_AIR_STRIKE')}
+                onExit={handleExitMission}
               />
             )}
 
@@ -356,7 +356,8 @@ export default function App() {
               <CrossingMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_CROSSING', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_CROSSING')}\n                 onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_CROSSING')}
+                onExit={handleExitMission}
               />
             )}
 
@@ -364,7 +365,8 @@ export default function App() {
               <BridgeMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_BRIDGE', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_BRIDGE')}\n                 onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_BRIDGE')}
+                onExit={handleExitMission}
               />
             )}
 
@@ -372,14 +374,16 @@ export default function App() {
               <TankBattleMission
                 difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_TANK_BATTLE', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_TANK_BATTLE')}\n                 onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_TANK_BATTLE')}
+                onExit={handleExitMission}
               />
             )}
 
             {currentMode === 'MISSION_FORTRESS' && (
               <FortressAssaultMission
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
-                onDefeat={() => handleMissionDefeat('MISSION_FORTRESS')}\n                 onExit={handleExitMission}
+                onDefeat={() => handleMissionDefeat('MISSION_FORTRESS')}
+                onExit={handleExitMission}
               />
             )}
           </WeatherLightingContainer>
