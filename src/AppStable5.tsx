@@ -16,7 +16,6 @@ const TankBattleMission = lazy(() => import('./components/TankBattleMission').th
 const BridgeMission = lazy(() => import('./components/BridgeMission').then((m) => ({ default: m.BridgeMission })));
 const ComicStoryModal = lazy(() => import('./components/ComicStoryModal').then((m) => ({ default: m.ComicStoryModal })));
 const FortressAssaultMission = lazy(() => import('./components/FortressAssaultMission').then((m) => ({ default: m.FortressAssaultMission })));
-const SurvivalTacticalModeV2 = lazy(() => import('./components/SurvivalTacticalModeV2').then((m) => ({ default: m.SurvivalTacticalModeV2 })));
 const MuseumModal = lazy(() => import('./components/MuseumModal').then((m) => ({ default: m.MuseumModal })));
 import { CountdownOverlay } from './components/CountdownOverlay';
 import { ComicMissionBriefing } from './components/ComicMissionBriefing';
@@ -111,7 +110,6 @@ export default function App() {
     MISSION_BRIDGE: 'desert_fog',        // ضباب الصحراء الصباحي
     MISSION_TANK_BATTLE: 'sandstorm',    // عاصفة غبار وغسق المعركة
     MISSION_FORTRESS: 'tactical_dawn',   // فجر الاقتحام التكتيكي
-    SURVIVAL_TACTICAL: 'sandstorm',
   };
 
   const WEATHER_CYCLES: Record<string, WeatherType[]> = {
@@ -120,11 +118,10 @@ export default function App() {
     MISSION_BRIDGE: ['desert_fog', 'sandstorm', 'canal_mist'],
     MISSION_TANK_BATTLE: ['sandstorm', 'tactical_dawn', 'desert_fog'],
     MISSION_FORTRESS: ['tactical_dawn', 'sun_glare', 'sandstorm'],
-    SURVIVAL_TACTICAL: ['sandstorm', 'tactical_dawn', 'desert_fog'],
   };
 
   useEffect(() => {
-    if (!currentMode.startsWith('MISSION_') && currentMode !== 'SURVIVAL_TACTICAL') return;
+    if (!currentMode.startsWith('MISSION_')) return;
     const cycle = WEATHER_CYCLES[currentMode] ?? ['sun_glare', 'desert_fog'];
     let index = Math.max(0, cycle.indexOf(currentWeather));
     const timer = window.setInterval(() => {
@@ -251,7 +248,7 @@ export default function App() {
     }
   };
 
-  const isCombatMode = currentMode.startsWith('MISSION_') || currentMode === 'SURVIVAL_TACTICAL';
+  const isCombatMode = currentMode.startsWith('MISSION_');
 
   return (
     <div
@@ -376,21 +373,7 @@ export default function App() {
           />
         )}
 
-        {currentMode === 'SURVIVAL_TACTICAL' && (
-          <WeatherLightingContainer
-            weather={currentWeather}
-            onWeatherChange={setCurrentWeather}
-            missionName="طور الصمود التكتيكي"
-            hideControls={true}
-            className="flex-1 w-full h-full min-h-0"
-          >
-            <SurvivalTacticalModeV2
-              difficulty={difficulty}
-              onAddScore={handleAddScore}
-              onExit={handleReturnToMenu}
-            />
-          </WeatherLightingContainer>
-        )}
+
 
         {currentMode === 'MUSEUM' && (
           <MuseumModal
@@ -462,13 +445,7 @@ export default function App() {
                     <span>📖 القصة المصورة (ملحمة النصر)</span>
                   </button>
 
-                  <button
-                    onClick={() => handleSelectMode('SURVIVAL_TACTICAL')}
-                    className="px-5 py-3 bg-stone-900/90 hover:bg-stone-800 text-stone-200 border border-stone-700 font-bold font-cairo rounded-xl transition-all cursor-pointer flex items-center gap-2"
-                  >
-                    <Shield className="w-4 h-4 text-amber-500" />
-                    <span>وضع الدفاع التكتيكي</span>
-                  </button>
+
 
                   <button
                     onClick={() => handleSelectMode('MUSEUM')}
@@ -478,59 +455,6 @@ export default function App() {
                     <span>متحف وسجل الأبطال</span>
                   </button>
                 </div>
-
-                {/* Quick Stage Jump Direct Bar */}
-                <div className="mb-6 p-3 bg-stone-950/80 rounded-xl border border-stone-800/80">
-                  <div className="text-[11px] font-bold text-stone-400 mb-2 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    <span>انتقال مباشر للعمليات والمراحل:</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => handleSelectMode('MISSION_AIR_STRIKE')}
-                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                    >
-                      <span>1. الضربة الجوية 🦅</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleSelectMode('MISSION_CROSSING')}
-                      className="px-3 py-1.5 bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 hover:text-white border border-sky-800/60 rounded-lg text-xs font-bold font-cairo transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
-                    >
-                      <span>2. تحطيم خط بارليف 🌊</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleSelectMode('MISSION_BRIDGE')}
-                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                    >
-                      <span>3. بناء الجسور 🔨</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleSelectMode('MISSION_TANK_BATTLE')}
-                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                    >
-                      <span>4. صراع الدبابات 🛡️</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleSelectMode('MISSION_FORTRESS')}
-                      className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-stone-300 hover:text-amber-400 border border-stone-800 rounded-lg text-xs font-semibold font-cairo transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
-                    >
-                      <span>5. سقوط الحصون 🇪🇬</span>
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="flex items-center justify-end mb-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  مستوى اللعب: متوسط ثابت
-                </div>
-              </div>
 
               {/* Status Ticker Inside Hero Frame */}
               <div className="relative z-10 border-t border-stone-800/80 bg-stone-950/80 px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-stone-400">
