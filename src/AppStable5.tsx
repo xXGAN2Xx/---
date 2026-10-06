@@ -131,11 +131,16 @@ export default function App() {
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().then(() => {
-        if (currentMode.startsWith('MISSION_')) {
-          void lockMissionLandscape();
-        }
-      }).catch(() => {});
+      const requestFullscreen = document.documentElement.requestFullscreen;
+      if (requestFullscreen) {
+        requestFullscreen.call(document.documentElement)
+          .then(() => {
+            if (currentMode.startsWith('MISSION_')) {
+              void lockMissionLandscape();
+            }
+          })
+          .catch(() => {});
+      }
       setIsFullscreen(true);
     } else {
       document.exitFullscreen?.().catch(() => {});
