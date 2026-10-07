@@ -3,8 +3,9 @@ import { sound } from '../utils/audio';
 import { ArrowLeft, Zap, Shield, Flame, CheckCircle2, Clock, Target, RotateCcw, AlertTriangle, Radio } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
-import { Difficulty } from '../game/difficulty';
+import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 import { isGamePaused } from '../game/pause';
+import { pilotComms, PilotRadioMessage } from '../utils/pilotComms';
 
 interface AirStrikeMissionProps {
   difficulty: Difficulty;
@@ -100,14 +101,21 @@ interface FloatingText {
 }
 
 export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onDefeat, onExit }) => {
-  const missionDuration = 120;
-  // المرحلة الأولى أصعب من باقي الحملة، لكن تظل متوسطة ومسيطر عليها.
-  const enemyTuning = { spawnChance: 0.032, maxJets: 7, hpScale: 1.22 };
+  const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
+  const targetStationsRequired = config.requiredAirStrikeStations; // سهل: 3، متوسط: 4، صعب: 5
+  const totalStations = config.totalAirStrikeStations; // 6
+  const missionDuration = config.missionDuration;
+  // المرحلة الأولى متوازنة حسب مستوى الصعوبة
+  const enemyTuning = {
+    spawnChance: 0.032 * config.enemySpawnRateMultiplier,
+    maxJets: difficulty === 'easy' ? 5 : difficulty === 'hard' ? 8 : 7,
+    hpScale: difficulty === 'easy' ? 1.0 : difficulty === 'hard' ? 1.35 : 1.22,
+  };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hp, setHp] = useState(180);
-  const [rockets, setRockets] = useState(12);
+  const [rockets, setRockets] = useState(8);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(missionDuration); // 2-minute timer for automatic victory
+  const [timeLeft, setTimeLeft] = useState(missionDuration); // Timer for combat
   const [totalDestroyed, setTotalDestroyed] = useState(0);
   const [missionWon, setMissionWon] = useState(false);
   const [isDefeated, setIsDefeated] = useState(false);
@@ -122,12 +130,18 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
   const [countdownSec, setCountdownSec] = useState<number>(5);
   const [isCombatActive, setIsCombatActive] = useState<boolean>(false);
   const [currentAlert, setCurrentAlert] = useState<string>('تجهيز المقاتلة: المرحلة خالية، استعد للاشتباك خلال 5 ثوانٍ');
+  const [radioMessage, setRadioMessage] = useState<PilotRadioMessage | null>(null);
+
+  useEffect(() => {
+    return pilotComms.subscribe((msg) => setRadioMessage(msg));
+  }, []);
 
   const handleRestartMission = () => {
+    pilotComms.clear();
     sound.playRadioTransmission();
     setHp(180);
     setScore(0);
-    setRockets(12);
+    setRockets(8);
     setTimeLeft(missionDuration);
     setTotalDestroyed(0);
     setMissionWon(false);
@@ -159,7 +173,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     state.floatingTexts = [];
     state.scrollX = 0;
     state.score = 0;
-    state.rockets = 12;
+    state.rockets = 8;
     state.destroyedCount = 0;
     state.spawnedTimes = new Set<number>();
     sound.playBackgroundTheme('airStrike');
@@ -202,7 +216,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     lastShotTime: 0,
     lastRocketTime: 0,
     score: 0,
-    rockets: 12,
+    rockets: 8,
     timeLeft: 120,
     destroyedCount: 0,
     isComplete: false,
@@ -234,6 +248,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           setIsCombatActive(true);
           sound.playCountdownBeep(true);
           setCurrentAlert('⚠️ رصد مقاتلات معادية اعتراضية في المدى الجوي - ابدأ الاشتباك!');
+          pilotComms.trigger('mission_start');
 
           // Spawn first enemy interceptor immediately when 5 seconds end!
           const canvas = canvasRef.current;
@@ -279,6 +294,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         if (upcoming) {
           setCurrentAlert(`🎯 رصد راداري: ${upcoming.label} تقترب`);
           sound.playTargetLock();
+          pilotComms.trigger('engaging_target');
         }
 
         // Spawn only the six planned targets; there are no bonus ground targets.
@@ -364,7 +380,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           fromPlayer: true,
         });
 
-        addFloatingText(p.x, p.y - 20, 'صاروخ ذاتي التوجيه 🚀', '#f59e0b');
+        addFloatingText(p.x, p.y - 20, 'صاروخ موجه للمحطات 🚀', '#f59e0b');
+        pilotComms.trigger('rocket_launch');
         state.rockets -= 1;
         return state.rockets;
       }
@@ -706,9 +723,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             });
           }
 
-          // Apply subtle, toned-down screen-shake and soft red vignette overlay
-          state.screenShake = Math.max(state.screenShake, 1.2 + state.groundDangerTimer * 0.8);
-          state.vignetteAlpha = Math.max(state.vignetteAlpha, 0.16 + state.groundDangerTimer * 0.1);
+          // Apply subtle, gentle screen-shake and soft red vignette overlay
+          state.screenShake = Math.max(state.screenShake, 0.35 + state.groundDangerTimer * 0.2);
+          state.vignetteAlpha = Math.max(state.vignetteAlpha, 0.06 + state.groundDangerTimer * 0.04);
           setDamageVignette(state.vignetteAlpha);
 
           if (state.groundDangerTimer > 0.25) {
@@ -776,15 +793,16 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             });
           }
 
-          // Apply subtle screen-shake and red vignette from enemy radar lock
-          state.screenShake = Math.max(state.screenShake, 1.4 + state.radarDangerTimer * 0.8);
-          state.vignetteAlpha = Math.max(state.vignetteAlpha, 0.18 + state.radarDangerTimer * 0.1);
+          // Apply subtle, gentle screen-shake and soft red vignette from enemy radar lock
+          state.screenShake = Math.max(state.screenShake, 0.45 + state.radarDangerTimer * 0.25);
+          state.vignetteAlpha = Math.max(state.vignetteAlpha, 0.08 + state.radarDangerTimer * 0.05);
           setDamageVignette(state.vignetteAlpha);
 
           if (state.radarDangerTimer > 0.25) {
             sound.playRadarWarningAlarm();
             setIsRadarDanger(true);
             setRadarDangerRemaining(Math.max(0, 2.5 - state.radarDangerTimer));
+            pilotComms.trigger('radar_warning');
           }
           if (state.radarDangerTimer >= 2.5) {
             state.radarDangerTimer = 0;
@@ -960,33 +978,19 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             let targetX = 0;
             let targetY = 0;
             let foundTarget = false;
-            let minDist = 1400;
+            let minDist = 3000;
 
-            // Priority 1: Active enemy jets
-            for (const jet of state.enemyJets) {
-              if (jet.destroyed) continue;
-              const d = Math.hypot(jet.x - pr.x, jet.y - pr.y);
-              if (d < minDist) {
-                minDist = d;
-                targetX = jet.x;
-                targetY = jet.y;
-                foundTarget = true;
-              }
-            }
-
-            // Priority 2: Ground target stations on screen
-            if (!foundTarget || minDist > 450) {
-              for (const st of state.targets) {
-                if (st.destroyed) continue;
-                const sx = st.x - state.scrollX;
-                if (sx > 20 && sx < canvas.width + 120) {
-                  const d = Math.hypot(sx - pr.x, st.y - pr.y);
-                  if (d < minDist) {
-                    minDist = d;
-                    targetX = sx;
-                    targetY = st.y;
-                    foundTarget = true;
-                  }
+            // Guided rockets track EXCLUSIVELY ground target stations!
+            for (const st of state.targets) {
+              if (st.destroyed) continue;
+              const sx = st.x - state.scrollX;
+              if (sx > -80 && sx < canvas.width + 600) {
+                const d = Math.hypot(sx - pr.x, st.y - pr.y);
+                if (d < minDist) {
+                  minDist = d;
+                  targetX = sx;
+                  targetY = st.y;
+                  foundTarget = true;
                 }
               }
             }
@@ -995,12 +999,12 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               const dx = targetX - pr.x;
               const dy = targetY - pr.y;
               const dist = Math.hypot(dx, dy) || 1;
-              const rocketSpeed = 760;
+              const rocketSpeed = 780;
               const targetVx = (dx / dist) * rocketSpeed;
               const targetVy = (dy / dist) * rocketSpeed;
-              // Smooth homing turn
-              pr.vx += (targetVx - pr.vx) * 9 * dt;
-              pr.vy += (targetVy - pr.vy) * 9 * dt;
+              // Smooth, sharp homing turn directly down towards the ground station
+              pr.vx += (targetVx - pr.vx) * 12 * dt;
+              pr.vy += (targetVy - pr.vy) * 12 * dt;
             }
 
             // Smoke puff and flame particles behind rocket
@@ -1046,12 +1050,13 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               p.hp -= 12;
               const remainingHp = Math.max(0, p.hp);
               setHp(remainingHp);
-              state.screenShake = 3.5;
-              state.vignetteAlpha = 0.32;
-              setDamageVignette(0.32);
+              state.screenShake = 1.0;
+              state.vignetteAlpha = 0.14;
+              setDamageVignette(0.14);
               spawnPlaneHitEffect(p.x, p.y);
               sound.playHitSound();
               addFloatingText(p.x, p.y - 25, '⚠️ شظايا مضادات أرضية (فلاك)! -12', '#ef4444');
+              pilotComms.trigger('taking_heavy_fire');
               if (remainingHp <= 0 && !state.isComplete) {
                 state.isComplete = true;
                 setIsDefeated(true);
@@ -1108,6 +1113,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               const damage = pr.isRocket ? 55 : 18;
               target.hp -= damage;
               sound.playHitSound();
+              pilotComms.trigger('engaging_target');
               spawnExplosion(pr.x, pr.y, '#f97316', pr.isRocket ? 16 : 7, pr.isRocket);
               state.projectiles.splice(i, 1);
 
@@ -1122,9 +1128,10 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
                 setScore(state.score);
                 setTotalDestroyed(state.destroyedCount);
                 addFloatingText(targetScreenX, target.y - 30, `+${target.points} ${target.label} مدمر! 🎯`, '#4ade80');
+                pilotComms.trigger('station_destroyed');
 
                 // FAST VICTORY CONDITION: Destroying targets wins immediately!
-                if (state.destroyedCount >= 5 && !state.isComplete) {
+                if (state.destroyedCount >= targetStationsRequired && !state.isComplete) {
                   state.isComplete = true;
                   const timeBonus = state.timeLeft * 25;
                   state.score += timeBonus;
@@ -1132,29 +1139,32 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
                   setVictoryReason('fast');
                   setMissionWon(true);
                   sound.playVictoryFanfare();
+                  pilotComms.trigger('mission_won', true);
                 }
               }
               break;
             }
           }
 
-          // Check enemy jets
-          for (const jet of state.enemyJets) {
-            if (jet.destroyed) continue;
-            if (Math.hypot(pr.x - jet.x, pr.y - jet.y) < 32) {
-              const damage = pr.isRocket ? 60 : 25;
-              jet.hp -= damage;
-              spawnPlaneHitEffect(pr.x, pr.y);
-              state.projectiles.splice(i, 1);
+          // Check enemy jets (cannons hit jets, guided rockets are reserved exclusively for stations)
+          if (!pr.isRocket) {
+            for (const jet of state.enemyJets) {
+              if (jet.destroyed) continue;
+              if (Math.hypot(pr.x - jet.x, pr.y - jet.y) < 32) {
+                const damage = 25;
+                jet.hp -= damage;
+                spawnPlaneHitEffect(pr.x, pr.y);
+                state.projectiles.splice(i, 1);
 
-              if (jet.hp <= 0 && !jet.destroyed) {
-                jet.destroyed = true;
-                spawnPlaneDestroyEffect(jet.x, jet.y);
-                state.score += 500;
-                setScore(state.score);
-                addFloatingText(jet.x, jet.y - 20, '+500 إسقاط مقاتلة! 🦅', '#38bdf8');
+                if (jet.hp <= 0 && !jet.destroyed) {
+                  jet.destroyed = true;
+                  spawnPlaneDestroyEffect(jet.x, jet.y);
+                  state.score += 500;
+                  setScore(state.score);
+                  addFloatingText(jet.x, jet.y - 20, '+500 إسقاط مقاتلة! 🦅', '#38bdf8');
+                }
+                break;
               }
-              break;
             }
           }
         } else {
@@ -1166,10 +1176,11 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             p.hp -= dmg;
             const remainingHp = Math.max(0, p.hp);
             setHp(remainingHp);
-            state.screenShake = isMissile ? 5.0 : 2.5;
-            state.vignetteAlpha = isMissile ? 0.36 : 0.22;
+            state.screenShake = isMissile ? 1.4 : 0.7;
+            state.vignetteAlpha = isMissile ? 0.16 : 0.10;
             setDamageVignette(state.vignetteAlpha);
             spawnPlaneHitEffect(p.x, p.y);
+            pilotComms.trigger('taking_heavy_fire');
             state.projectiles.splice(i, 1);
 
             if (isMissile) {
@@ -1475,9 +1486,9 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
       // Draw Scene
       ctx.save();
       if (state.screenShake > 0) {
-        const shakePower = Math.min(4.5, state.screenShake);
-        const sx = (Math.random() - 0.5) * shakePower * 0.6;
-        const sy = (Math.random() - 0.5) * shakePower * 0.6;
+        const shakePower = Math.min(1.4, state.screenShake);
+        const sx = (Math.random() - 0.5) * shakePower * 0.25;
+        const sy = (Math.random() - 0.5) * shakePower * 0.25;
         ctx.translate(sx, sy);
       }
 
@@ -2530,10 +2541,14 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
           <div className="flex items-center gap-2">
             <Target className="w-4 h-4 text-emerald-400" />
-            <span className="text-stone-300">الأهداف:</span>
-            <span className="font-mono tabular-nums font-bold text-emerald-400">{totalDestroyed} / 5</span>
-            <span className="text-[10px] text-stone-500">من 6</span>
+            <span className="text-stone-300">المحطات المطلوبة:</span>
+            <span className="font-mono tabular-nums font-bold text-emerald-400">{totalDestroyed} / {targetStationsRequired}</span>
+            <span className="text-[10px] text-stone-500">من {totalStations}</span>
           </div>
+
+          <span className="px-2 py-0.5 rounded bg-stone-900 border border-stone-800 text-[10px] font-bold text-amber-300 font-mono">
+            {config.badge}
+          </span>
 
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded bg-stone-900 border border-stone-800 text-xs">
             <span className="text-stone-400">الارتفاع:</span>
@@ -2564,7 +2579,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow active:scale-95"
           >
             <Zap className="w-3.5 h-3.5" />
-            <span>صاروخ موجه تلقائياً [{rockets}]</span>
+            <span>صاروخ موجه للمحطات [{rockets}]</span>
           </button>
         </div>
       </div>
@@ -2619,8 +2634,8 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
               isRadarDanger ? 'animate-vignette-pulse' : ''
             }`}
             style={{
-              background: `radial-gradient(ellipse at center, rgba(239, 68, 68, 0) 45%, rgba(220, 38, 38, ${Math.min(0.24, damageVignette * 0.38)}) 80%, rgba(185, 28, 28, ${Math.min(0.4, damageVignette * 0.58)}) 100%)`,
-              boxShadow: (isRadarDanger) ? 'inset 0 0 35px rgba(239, 68, 68, 0.4)' : undefined,
+              background: `radial-gradient(ellipse at center, rgba(239, 68, 68, 0) 55%, rgba(220, 38, 38, ${Math.min(0.12, damageVignette * 0.25)}) 85%, rgba(185, 28, 28, ${Math.min(0.2, damageVignette * 0.35)}) 100%)`,
+              boxShadow: (isRadarDanger) ? 'inset 0 0 20px rgba(239, 68, 68, 0.25)' : undefined,
             }}
           />
         )}
@@ -2629,7 +2644,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
         <div className="mobile-landscape-hud hidden pointer-events-none absolute top-3 right-3 z-30 flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
             <Target className="w-3.5 h-3.5" />
-            <span>{totalDestroyed} / 5</span>
+            <span>{totalDestroyed} / {targetStationsRequired}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
@@ -2639,6 +2654,29 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             <span>{playerAltitude}م</span>
           </div>
         </div>
+
+        {/* Cockpit Radio Comms Transmission Banner */}
+        {radioMessage && (
+          <div className="absolute bottom-16 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none max-w-lg w-[92%] sm:w-auto animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-stone-950/95 border-2 border-emerald-500/70 shadow-[0_0_30px_rgba(16,185,129,0.35)] backdrop-blur-md">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-lg shrink-0">
+                👨‍✈️
+              </div>
+              <div className="text-right flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>بث لاسلكي · {radioMessage.callsign}</span>
+                  </span>
+                  <span className="text-[9px] font-mono text-stone-500">VHF-CH4</span>
+                </div>
+                <p className="text-xs sm:text-sm font-bold font-cairo text-stone-100 truncate">
+                  "{radioMessage.text}"
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Digital Countdown Timer at the TOP */}
         {isCombatActive && !missionWon && (
@@ -2707,7 +2745,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           score={score}
           timeLeft={timeLeft}
           targetsDestroyed={totalDestroyed}
-          totalTargets={5}
+          totalTargets={targetStationsRequired}
           onNextMission={() => onComplete(score)}
           onReturnToBase={onExit}
           onReplay={handleRestartMission}

@@ -132,7 +132,7 @@ export const StageSelectModal: React.FC<StageSelectModalProps> = ({
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-stone-500 font-mono">{mission.timeLabel}</span>
                         <span className="font-bold text-amber-400 flex items-center gap-1 group-hover:translate-x-[-3px] transition-transform">
-                          <span>{isCurrent ? 'أنت هنا الآن' : 'بدء المرحلة'}</span>
+                          <span>{isCurrent ? 'أنت هنا الآن' : 'دخول المرحلة'}</span>
                           <Play className="w-3 h-3 fill-current" />
                         </span>
                       </div>

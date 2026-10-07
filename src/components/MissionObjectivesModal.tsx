@@ -4,10 +4,12 @@ import { narration } from '../utils/narration';
 import { GameMode } from '../types';
 import { MISSIONS } from '../data/historyData';
 import { Target, BookOpen, Shield, Crosshair, ArrowRight, Play, Sparkles, X, Volume2, VolumeX, Image as ImageIcon, FileText, Radio } from 'lucide-react';
+import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
 
 interface MissionObjectivesModalProps {
   isOpen: boolean;
   missionId: GameMode;
+  difficulty?: Difficulty;
   onStartMission: () => void;
   onClose: () => void;
 }
@@ -15,14 +17,16 @@ interface MissionObjectivesModalProps {
 export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
   isOpen,
   missionId,
+  difficulty = 'normal',
   onStartMission,
   onClose,
 }) => {
   const [imageOnlyMode, setImageOnlyMode] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isTtsEnabled, setIsTtsEnabled] = useState(narration.isEnabled());
 
   const mission = MISSIONS.find((m) => m.id === missionId) || MISSIONS[0];
+  const diffConfig = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
 
   const TACTICAL_TIPS: Record<string, { controls: string; proTip: string; dangerNote: string }> = {
     MISSION_AIR_STRIKE: {
@@ -56,12 +60,14 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
 
   // Text-to-Speech briefing narration script with immersive 1973 military command styling
   const getNarrationScript = () => {
-    const obj1 = mission.objectives[0] || 'تدمير الأهداف المحددة';
+    const obj1 = missionId === 'MISSION_AIR_STRIKE'
+      ? `تدمير ${diffConfig.requiredAirStrikeStations} محطات رادار ودشم أرضية من أصل 6 محطات لتحقيق النصر الحاسم`
+      : (mission.objectives[0] || 'تدمير الأهداف المحددة');
     const obj2 = mission.objectives[1] || 'حماية القوات المتقدمة';
     const obj3 = mission.objectives[2] || 'تحقيق النصر التام';
 
     if (missionId === 'MISSION_AIR_STRIKE') {
-      return `بيان القيادة العامة للقوات المسلحة. ساعة الصفر: السادس من أكتوبر 1973، الساعة الثانية ظهراً. المهمة الأولى: الضربة الجوية الافتتاحية الكبرى. نسور القوات الجوية المصرية، إليكم الأهداف الاستراتيجية المحددة: أولاً: ${obj1}. ثانياً: ${obj2}. ثالثاً: ${obj3}. تنبيه عملياتي بالغ الأهمية: تجنبوا البقاء على مستوى الأرض لتفادي الاصطدام والانفجار، وتفادوا التحليق الشاهق فوق سقف الأمان لتجنب كشف رادارات العدو وصواريخ الهوك. خلفية تاريخية: شلّت الضربة الجوية مطارات وقواعد رادارات العدو في عمق سيناء خلال عشرين دقيقة. توكلوا على الله، الله أكبر، والنصر لمصر!`;
+      return `بيان القيادة العامة للقوات المسلحة. ساعة الصفر: السادس من أكتوبر 1973، الساعة الثانية ظهراً. المهمة الأولى: الضربة الجوية الافتتاحية الكبرى. مستوى الصعوبة: ${diffConfig.label}. نسور القوات الجوية المصرية، شرط النصر الوحيد هو تدمير ${diffConfig.requiredAirStrikeStations} محطات من أصل 6 محطات رادار ودشم أرضية للعدو. تنبيه عملياتي بالغ الأهمية: احذروا الاصطدام بالأرض، وتفادوا التحليق الشاهق لتجنب كشف رادارات العدو. توكلوا على الله، الله أكبر، والنصر لمصر!`;
     } else if (missionId === 'MISSION_CROSSING') {
       return `بيان عسكري. المرحلة الثانية: طوفان العبور واقتحام الساتر الترابي لخط بارليف. رجال سلاح المهندسين والمشاة البواسل، إليكم أهداف العملية: أولاً: ${obj1}. ثانياً: ${obj2}. ثالثاً: ${obj3}. وجهوا مضخات مياه القناة التوربينية لفتح الثغرات ودكوا دشم العدو لتأمين عبور قوارب الصاعقة. الله أكبر، فوق كيد المعتدي!`;
     } else if (missionId === 'MISSION_BRIDGE') {
@@ -73,7 +79,7 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
     }
   };
 
-  // Start TTS narration when modal opens
+  // Start TTS narration when modal opens (ONLY if TTS is enabled by user)
   useEffect(() => {
     if (!isOpen) {
       narration.stop();
@@ -81,8 +87,13 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
       return;
     }
 
+    // Respect user's choice: do NOT auto-play if TTS is disabled
+    if (!narration.isEnabled()) {
+      setIsSpeaking(false);
+      return;
+    }
+
     const script = getNarrationScript();
-    // Brief military radio chime before speech
     sound.playRadioClick();
 
     const timer = setTimeout(() => {
@@ -97,18 +108,39 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
       narration.stop();
       setIsSpeaking(false);
     };
-  }, [isOpen, missionId]);
+  }, [isOpen, missionId, difficulty]);
 
   if (!isOpen) return null;
 
   const handleToggleNarration = () => {
+    narration.unlockMobile();
     sound.playRadioClick();
+
     if (isSpeaking) {
       narration.stop();
       setIsSpeaking(false);
-      setIsMuted(true);
     } else {
-      setIsMuted(false);
+      // If currently disabled, re-enable it
+      if (!narration.isEnabled()) {
+        narration.setEnabled(true);
+        setIsTtsEnabled(true);
+      }
+      narration.speak(getNarrationScript(), {
+        onStart: () => setIsSpeaking(true),
+        onEnd: () => setIsSpeaking(false),
+      });
+    }
+  };
+
+  const handleToggleTtsMaster = () => {
+    narration.unlockMobile();
+    sound.playRadioClick();
+    const next = narration.toggleEnabled();
+    setIsTtsEnabled(next);
+    if (!next) {
+      narration.stop();
+      setIsSpeaking(false);
+    } else {
       narration.speak(getNarrationScript(), {
         onStart: () => setIsSpeaking(true),
         onEnd: () => setIsSpeaking(false),
@@ -117,6 +149,7 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
   };
 
   const handleStart = () => {
+    narration.unlockMobile();
     narration.stop();
     setIsSpeaking(false);
     sound.playCountdownBeep(false);
@@ -152,27 +185,27 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Audio Voice Narration Toggle Button */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
+            {/* Optional Master TTS Narration Switch */}
             <button
               type="button"
-              onClick={handleToggleNarration}
+              onClick={handleToggleTtsMaster}
               className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold font-cairo flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 shadow ${
-                isSpeaking
-                  ? 'bg-red-600 text-white border-red-400 animate-pulse'
-                  : 'bg-stone-950 text-amber-300 hover:text-white border-amber-400/80'
+                isTtsEnabled
+                  ? (isSpeaking ? 'bg-red-600 text-white border-red-400 animate-pulse' : 'bg-emerald-950 text-emerald-300 border-emerald-500/80')
+                  : 'bg-stone-900 text-stone-400 border-stone-700'
               }`}
-              title={isSpeaking ? 'إيقاف الراوي الصوتي' : 'الاستماع لتوجيهات القيادة'}
+              title={isTtsEnabled ? 'الراوي الصوتي مفعل (انقر للتعطيل)' : 'الراوي الصوتي معطل (انقر للتفعيل)'}
             >
-              {isSpeaking ? (
+              {isTtsEnabled ? (
                 <>
-                  <VolumeX className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline">إيقاف الراوي</span>
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden xs:inline">{isSpeaking ? 'جاري التلاوة...' : 'الراوي: مفعّل'}</span>
                 </>
               ) : (
                 <>
-                  <Volume2 className="w-3.5 h-3.5" />
-                  <span className="hidden xs:inline">استماع للتوجيهات</span>
+                  <VolumeX className="w-3.5 h-3.5 text-stone-400" />
+                  <span className="hidden xs:inline">الراوي: معطّل</span>
                 </>
               )}
             </button>
@@ -219,7 +252,13 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
               <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
               <span>🎙️ القيادة العامة تتلو الأهداف والتوجيهات العسكرية الآن...</span>
             </div>
-            <span className="text-[10px] text-stone-400">انقر على الزر بالأعلى لكتم الصوت</span>
+            <button
+              type="button"
+              onClick={handleToggleNarration}
+              className="text-[10px] text-stone-300 bg-stone-900 px-2 py-0.5 rounded border border-stone-700 hover:text-white"
+            >
+              إيقاف الصوت ⏸️
+            </button>
           </div>
         )}
 
@@ -286,6 +325,24 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
                   <span>{isSpeaking ? 'إيقاف الراوي الصوتي ⏸️' : 'استمع لأهداف المعركة 🎙️'}</span>
                 </button>
               </div>
+              {/* Air Strike Specific Station Objective Callout */}
+              {missionId === 'MISSION_AIR_STRIKE' && (
+                <div className="bg-red-950/40 p-2.5 rounded-lg border border-red-500/60 mb-2.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-red-300 mb-1 flex-wrap gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span>شرط النصر الحاسم: تدمير محطات العدو الأرضية</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-red-900/80 text-white px-2 py-0.5 rounded border border-red-500">
+                      المطلوب: {diffConfig.requiredAirStrikeStations} من 6 محطات ({diffConfig.label})
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-300 leading-relaxed">
+                    إسقاط طائرات الفانتوم لا يكفي للفوز! يجب قصف وتدمير <strong>{diffConfig.requiredAirStrikeStations} محطات رادار ودشم ومطارات أرضية</strong> لتأمين النصر واكتمال المهمة.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs text-stone-300">
                 {mission.objectives.map((obj, i) => (
                   <div key={i} className="flex items-start gap-2 bg-stone-900/70 p-2 rounded-lg border border-stone-800/80">
@@ -344,7 +401,7 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
             className="w-full sm:w-auto flex-1 sm:flex-initial px-7 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-black font-cairo text-xs sm:text-sm transition-all shadow-[0_0_20px_rgba(245,158,11,0.5)] cursor-pointer flex items-center justify-center gap-2 order-1 sm:order-2"
           >
             <Play className="w-4 h-4 fill-stone-950" />
-            <span>انطلق الآن (بدء المعركة فوراً) ⚡</span>
+            <span>الانطلاق للعملية ⚡</span>
           </button>
         </div>
       </div>

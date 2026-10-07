@@ -24,7 +24,10 @@ import { MissionObjectivesModal } from './components/MissionObjectivesModal';
 import { StageSelectModal } from './components/StageSelectModal';
 import { WeatherLightingContainer, WeatherType } from './components/WeatherLightingContainer';
 import { DefeatModal } from './components/DefeatModal';
-import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap, ChevronLeft, MapPin, Volume2, VolumeX } from 'lucide-react';
+import { Difficulty, DIFFICULTY_CONFIG } from './game/difficulty';
+import { TacticalStationTutorialModal } from './components/TacticalStationTutorialModal';
+import { narration } from './utils/narration';
+import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap, ChevronLeft, MapPin, Volume2, VolumeX, Video, Mic, MicOff, Gauge, Target } from 'lucide-react';
 
 export default function App() {
   const [currentMode, setCurrentMode] = useState<GameMode>('MENU');
@@ -105,8 +108,31 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isPortraitMobile, isStageSelectOpen, objectivesMission, isMuted, defeatData]);
 
-  // اللعبة تعمل دائمًا على مستوى متوسط واحد للحفاظ على توازن التجربة.
-  const difficulty = 'normal' as const;
+  // مستويات الصعوبة القابلة للاختيار من الصفحة الرئيسية: سهل (3 محطات)، متوسط (4 محطات)، صعب (5 محطات)
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('october73_difficulty');
+      if (saved === 'easy' || saved === 'normal' || saved === 'hard') return saved;
+    }
+    return 'normal';
+  });
+
+  const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => narration.isEnabled());
+  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
+
+  const handleDifficultyChange = (newDiff: Difficulty) => {
+    sound.playRadioClick();
+    setDifficulty(newDiff);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('october73_difficulty', newDiff);
+    }
+  };
+
+  const handleToggleTts = () => {
+    sound.playRadioClick();
+    const next = narration.toggleEnabled();
+    setTtsEnabled(next);
+  };
 
   const isMobileDevice = () => {
     if (typeof window === 'undefined') return false;
@@ -255,6 +281,21 @@ export default function App() {
       handleReturnToMenu();
       return;
     }
+    // الضربة الجوية: إظهار دليل وتدريب تدمير المحطات إجبارياً في كل مرة قبل دخول المعركة
+    if (mode === 'MISSION_AIR_STRIKE') {
+      sound.playMissionStartRadioAlert();
+      sound.stopBackgroundTheme();
+      if (MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']) {
+        setCurrentWeather(MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']);
+      }
+      setObjectivesMission(null);
+      setBriefingMission(null);
+      setIsStageSelectOpen(false);
+      setIsTutorialOpen(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     if (mode.startsWith('MISSION_')) {
       sound.playMissionStartRadioAlert();
       sound.stopBackgroundTheme();
@@ -270,6 +311,19 @@ export default function App() {
       setCurrentMode(mode);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLaunchAirStrike = () => {
+    setIsTutorialOpen(false);
+    sound.playRadioTransmission();
+    if (MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']) {
+      setCurrentWeather(MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']);
+    }
+    sound.playBackgroundTheme(THEME_MAP['MISSION_AIR_STRIKE'] || 'airStrike');
+    setCurrentMode('MISSION_AIR_STRIKE');
+    if (isMobileDevice()) {
+      void lockMissionLandscape();
+    }
   };
 
   const handleStartMissionFromObjectives = () => {
@@ -458,6 +512,7 @@ export default function App() {
         <MissionObjectivesModal
           isOpen={true}
           missionId={objectivesMission}
+          difficulty={difficulty}
           onStartMission={handleStartMissionFromObjectives}
           onClose={() => {
             setObjectivesMission(null);
@@ -465,6 +520,17 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Mandatory Tactical Station Tutorial Video Modal before Air Strike */}
+      <TacticalStationTutorialModal
+        isOpen={isTutorialOpen}
+        onLaunchBattle={handleLaunchAirStrike}
+        onCancel={() => {
+          setIsTutorialOpen(false);
+          handleReturnToMenu();
+        }}
+        difficulty={difficulty}
+      />
 
       {/* 4. Optional Detailed Dossier Briefing */}
       {briefingMission && (
@@ -645,7 +711,7 @@ export default function App() {
                     className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold font-cairo rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer flex items-center gap-2"
                   >
                     <Play className="w-5 h-5 fill-current" />
-                    <span>بدء معركة العبور (المرحلة الأولى)</span>
+                    <span>دخول معركة العبور (المرحلة الأولى) ⚡</span>
                   </button>
 
                   <button
@@ -667,8 +733,6 @@ export default function App() {
                     <span>📖 القصة المصورة (ملحمة النصر)</span>
                   </button>
 
-
-
                   <button
                     onClick={() => handleSelectMode('MUSEUM')}
                     className="px-4 py-3 bg-stone-900/60 hover:bg-stone-800 text-stone-300 border border-stone-800 font-medium text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
@@ -676,6 +740,130 @@ export default function App() {
                     <Trophy className="w-4 h-4 text-stone-400" />
                     <span>متحف وسجل الأبطال</span>
                   </button>
+                </div>
+
+                {/* Tactical Mission Difficulty & Optional TTS Settings on Start Page */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-stone-950/90 border border-amber-500/30 shadow-2xl space-y-3.5 mb-2 backdrop-blur-md">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Gauge className="w-5 h-5 text-amber-400 shrink-0" />
+                      <div>
+                        <span className="text-xs sm:text-sm font-bold font-cairo text-stone-100 block">
+                          مستوى صعوبة المعركة (تدمير المحطات الأرضية الاستراتيجية):
+                        </span>
+                        <span className="text-[11px] text-stone-400">
+                          اختر الصعوبة التي تناسب مهارتك · إسقاط الطائرات وحدها لا يحقق النصر!
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Optional TTS Audio Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={handleToggleTts}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold font-cairo flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
+                        ttsEnabled
+                          ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                          : 'bg-stone-900 border-stone-700 text-stone-400 hover:text-stone-200'
+                      }`}
+                      title="التعليق الصوتي والراوي العسكري اختياري ويمكن تفعيله أو كتمه في أي وقت"
+                    >
+                      {ttsEnabled ? (
+                        <>
+                          <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>الراوي (TTS): مفعّل 🔊</span>
+                        </>
+                      ) : (
+                        <>
+                          <MicOff className="w-3.5 h-3.5 text-stone-500" />
+                          <span>الراوي (TTS): صامت 🔇 (اختياري)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 3 Difficulty Options (Easy: 3/6, Normal: 4/6, Hard: 5/6) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {/* Easy: 3 out of 6 */}
+                    <button
+                      type="button"
+                      onClick={() => handleDifficultyChange('easy')}
+                      className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
+                        difficulty === 'easy'
+                          ? 'bg-emerald-950/70 border-emerald-500 ring-2 ring-emerald-500/60 text-emerald-100 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
+                          : 'bg-stone-900/60 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-xs mb-1">
+                        <span className="text-emerald-400 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                          <span>🟢 سهل (تدريب)</span>
+                        </span>
+                        <span className="font-mono text-[11px] bg-emerald-500/20 px-2 py-0.5 rounded font-bold text-emerald-300">
+                          3 من 6 محطات
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-stone-400 leading-normal">
+                        تدمير 3 محطات من أصل 6 لتحقيق النصر · نيران دفاعات معتدلة
+                      </p>
+                    </button>
+
+                    {/* Normal: 4 out of 6 */}
+                    <button
+                      type="button"
+                      onClick={() => handleDifficultyChange('normal')}
+                      className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
+                        difficulty === 'normal'
+                          ? 'bg-amber-950/70 border-amber-500 ring-2 ring-amber-500/60 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+                          : 'bg-stone-900/60 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-xs mb-1">
+                        <span className="text-amber-400 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          <span>🟡 متوسط (الخطة القياسية)</span>
+                        </span>
+                        <span className="font-mono text-[11px] bg-amber-500/20 px-2 py-0.5 rounded font-bold text-amber-300">
+                          4 من 6 محطات
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-stone-400 leading-normal">
+                        تدمير 4 محطات من أصل 6 لتحقيق النصر · توازن العمليات التكتيكي
+                      </p>
+                    </button>
+
+                    {/* Hard: 5 out of 6 */}
+                    <button
+                      type="button"
+                      onClick={() => handleDifficultyChange('hard')}
+                      className={`p-3 rounded-xl border text-right transition-all cursor-pointer ${
+                        difficulty === 'hard'
+                          ? 'bg-red-950/70 border-red-500 ring-2 ring-red-500/60 text-red-100 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+                          : 'bg-stone-900/60 border-stone-800 text-stone-400 hover:border-stone-700 hover:text-stone-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-xs mb-1">
+                        <span className="text-red-400 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-red-400" />
+                          <span>🔴 صعب (معركة شرسة)</span>
+                        </span>
+                        <span className="font-mono text-[11px] bg-red-500/20 px-2 py-0.5 rounded font-bold text-red-300">
+                          5 من 6 محطات
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-stone-400 leading-normal">
+                        تدمير 5 محطات من أصل 6 لتحقيق النصر · اشتباكات مكثفة ودفاعات يقظة
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Mandatory Guide Notice */}
+                  <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800 text-xs">
+                    <span className="text-[11px] text-stone-300 flex items-center gap-1.5 font-cairo">
+                      <Target className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>قاعدة النصر: تدمير {DIFFICULTY_CONFIG[difficulty].requiredAirStrikeStations} محطات من أصل 6 · يظهر دليل وتدريب التدمير إجبارياً في كل مرة قبل دخول المعركة.</span>
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -786,8 +974,7 @@ export default function App() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              sound.playRadioTransmission();
-                              setObjectivesMission(mission.id);
+                              handleSelectMode(mission.id);
                             }}
                             className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-amber-300 border border-amber-500/30 text-[11px] font-bold font-cairo flex items-center gap-1 cursor-pointer transition-colors"
                             title="عرض أهداف وسياق المعركة بالتفصيل"
@@ -797,7 +984,7 @@ export default function App() {
                           </button>
 
                           <div className="flex items-center gap-1 text-amber-400 font-bold">
-                            <span>بدء المعركة</span>
+                            <span>دخول المعركة</span>
                             <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                           </div>
                         </div>
