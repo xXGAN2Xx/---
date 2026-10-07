@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap } from 'lucide-react';
+import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap, Plane } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
 import { isGamePaused } from '../game/pause';
@@ -93,15 +93,16 @@ interface FloatingText {
 }
 
 export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'normal', onComplete, onDefeat, onExit }) => {
-  const missionDuration = DIFFICULTY_CONFIG[difficulty].missionDuration;
+  const MISSION_DURATION = 30; // 30 seconds countdown until victory as requested
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [tanksCrossed, setTanksCrossed] = useState(0);
   const [lostOpportunities, setLostOpportunities] = useState(0);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(missionDuration); // 2-minute mission timer
+  const [timeLeft, setTimeLeft] = useState(MISSION_DURATION); // 30-second mission timer
   const [smokeScreenActive, setSmokeScreenActive] = useState(false);
   const [smokeCharges, setSmokeCharges] = useState(4);
+  const [airStrikeCharges, setAirStrikeCharges] = useState(3);
   const [flakCharges, setFlakCharges] = useState(18);
   const [isWon, setIsWon] = useState(false);
   const [isDefeated, setIsDefeated] = useState(false);
@@ -116,6 +117,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     crossingTanks: [] as CrossingTank[],
     artilleryShells: [] as ArtilleryShell[],
     enemyPlanes: [] as EnemyPlane[],
+    alliedJets: [] as { x: number; y: number; vx: number; vy: number; active: boolean; missilesFired: boolean }[],
     hostileBullets: [] as { x: number; y: number; vx: number; vy: number }[],
     hostileBombs: [] as { x: number; y: number; vx: number; vy: number; targetX: number; targetY: number }[],
     shockwaves: [] as Shockwave[],
@@ -124,12 +126,14 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     mousePos: { x: 500, y: 300 },
     screenShake: 0,
     score: 0,
-    timeLeft: 120,
+    timeLeft: MISSION_DURATION,
     tanksCrossedCount: 0,
     lostOpportunities: 0,
     isComplete: false,
     smokeTimeRemaining: 0,
     smokeCharges: 4,
+    airStrikeCharges: 3,
+    artillerySuppressionTimer: 0,
     flakCharges: 18,
     strikeActive: false,
     strikeCountdown: 4.8,
@@ -300,7 +304,58 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     setScore(state.score);
   };
 
-  // Deploy Smoke Screen to blind enemy spotters
+  // Call in Egyptian MiG-21 Air Support Strike
+  const handleCallAirStrike = () => {
+    const state = stateRef.current;
+    if (state.airStrikeCharges <= 0) return;
+    state.airStrikeCharges -= 1;
+    setAirStrikeCharges(state.airStrikeCharges);
+
+    sound.playJetFlyby();
+    sound.playMissileLaunch();
+    state.screenShake = 3.0;
+
+    // Launch allied fighter jet across the sky
+    state.alliedJets.push({
+      x: -120,
+      y: 90,
+      vx: 750,
+      vy: -15,
+      active: true,
+      missilesFired: false,
+    });
+
+    // Suppress enemy artillery for 8 seconds
+    state.artillerySuppressionTimer = 8;
+
+    // Obliterate all enemy planes on screen
+    let destroyedCount = 0;
+    for (const plane of state.enemyPlanes) {
+      if (!plane.destroyed) {
+        plane.destroyed = true;
+        destroyedCount++;
+        spawnExplosion(plane.x, plane.y, '#ef4444', 35, true);
+      }
+    }
+
+    // Intercept and blow up all falling bombs
+    for (const bomb of state.hostileBombs) {
+      spawnExplosion(bomb.x, bomb.y, '#f59e0b', 24, true);
+    }
+    state.hostileBombs = [];
+
+    // If a tank was waiting for precision strike, airstrike clears the way!
+    if (state.strikeActive) {
+      handleExecutePrecisionStrike();
+    }
+
+    const earned = 1200 + destroyedCount * 600;
+    state.score += earned;
+    setScore(state.score);
+    addFloatingText(500, 160, `🇪🇬 نسور الجو: تدمير مقاتلات ومدفعية العدو وتأمين الكوبري! ✈️ +${earned}`, '#38bdf8');
+  };
+
+  // Deploy Smoke Screen to protect bridge, tanks, and blind enemy spotters
   const handleDeploySmokeScreen = () => {
     const state = stateRef.current;
     if (state.smokeCharges <= 0) return;
@@ -309,20 +364,20 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     setSmokeScreenActive(true);
     stateRef.current.smokeTimeRemaining = 12;
     sound.playMissileLaunch();
-    addFloatingText(500, 240, 'ستارة دخان تكتيكية نشطة! تعمية مدفعية العدو 💨', '#e2e8f0');
+    addFloatingText(500, 240, '🛡️ ستارة دخان تكتيكية! حماية كاملة للممر وتعمية قذائف وطائرات العدو! 💨', '#e2e8f0');
 
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 45; i++) {
       stateRef.current.particles.push({
-        x: 230 + Math.random() * 540,
+        x: 220 + Math.random() * 560,
         y: 240 + (Math.random() - 0.5) * 120,
         vx: (Math.random() - 0.5) * 15 + 5,
         vy: -15 - Math.random() * 20,
         color: Math.random() < 0.5 ? '#cbd5e1' : '#94a3b8',
         life: 1,
-        maxLife: 140,
-        size: Math.random() * 25 + 20,
+        maxLife: 150,
+        size: Math.random() * 30 + 20,
         isSmoke: true,
-        growth: 0.2,
+        growth: 0.25,
       });
     }
   };
@@ -372,7 +427,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     }
   };
 
-  // 2-Minute Timer & Artillery Threat
+  // 30-Second Timer Until Mission Complete & Victory
   useEffect(() => {
     if (isWon || isDefeated) return;
 
@@ -387,34 +442,29 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         const next = prev - 1;
         stateRef.current.timeLeft = next;
 
-        // Auto victory if 2 minutes elapse and at least some tanks crossed
+        // VICTORY: 30 seconds elapsed! The crossing is secured and game is won!
         if (next <= 0 && !stateRef.current.isComplete) {
           stateRef.current.isComplete = true;
-          if (stateRef.current.tanksCrossedCount >= 3) {
-            setIsWon(true);
-            sound.playVictoryFanfare();
-          } else {
-            setDefeatReason('timeout');
-            setIsDefeated(true);
-            onDefeat?.('timeout');
-            sound.playDefeatSound();
-          }
+          setIsWon(true);
+          sound.playVictoryFanfare();
           return 0;
         }
 
-        // Periodic background artillery harassment
-        if (Math.random() < (stateRef.current.smokeTimeRemaining > 0 ? 0.2 : 0.6)) {
-          const targetSection = stateRef.current.pontoons[Math.floor(Math.random() * stateRef.current.pontoons.length)];
-          if (targetSection) {
-            const spread = stateRef.current.smokeTimeRemaining > 0 ? 120 : 35;
-            stateRef.current.artilleryShells.push({
-              x: 850 + Math.random() * 100,
-              y: 50 + Math.random() * 80,
-              targetX: targetSection.x + targetSection.width / 2 + (Math.random() - 0.5) * spread,
-              targetY: targetSection.y + targetSection.height / 2 + (Math.random() - 0.5) * spread,
-              progress: 0,
-              speed: 1.1 + Math.random() * 0.4,
-            });
+        // Periodic background artillery harassment (blocked when suppressed or smoke active)
+        if (stateRef.current.artillerySuppressionTimer <= 0) {
+          if (Math.random() < (stateRef.current.smokeTimeRemaining > 0 ? 0.15 : 0.55)) {
+            const targetSection = stateRef.current.pontoons[Math.floor(Math.random() * stateRef.current.pontoons.length)];
+            if (targetSection) {
+              const spread = stateRef.current.smokeTimeRemaining > 0 ? 140 : 35;
+              stateRef.current.artilleryShells.push({
+                x: 850 + Math.random() * 100,
+                y: 50 + Math.random() * 80,
+                targetX: targetSection.x + targetSection.width / 2 + (Math.random() - 0.5) * spread,
+                targetY: targetSection.y + targetSection.height / 2 + (Math.random() - 0.5) * spread,
+                progress: 0,
+                speed: 1.1 + Math.random() * 0.4,
+              });
+            }
           }
         }
 
@@ -525,6 +575,12 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         } else {
           handleFireFlak();
         }
+      } else if (e.key === 'a' || e.key === 'A' || e.key === 'ش' || e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        handleCallAirStrike();
+      } else if (e.key === 's' || e.key === 'S' || e.key === 'س') {
+        e.preventDefault();
+        handleDeploySmokeScreen();
       }
     };
 
@@ -552,6 +608,10 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         state.screenShake = Math.max(0, state.screenShake - dt * 14);
       }
 
+      if (state.artillerySuppressionTimer > 0) {
+        state.artillerySuppressionTimer -= dt;
+      }
+
       if (state.smokeTimeRemaining > 0) {
         state.smokeTimeRemaining -= dt;
         if (state.smokeTimeRemaining <= 0) {
@@ -572,9 +632,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
             // Open Precision Strike Window!
             state.strikeActive = true;
-            // Escalating difficulty: countdown duration shrinks with each crossed tank!
-            // Tank 1: 4.8s -> Tank 2: 4.0s -> Tank 3: 3.4s -> Tank 4: 2.9s -> Tank 5: 2.4s
-            const strikeDuration = Math.max(2.3, 4.8 - state.tanksCrossedCount * 0.6);
+            const strikeDuration = Math.max(2.4, 4.8 - state.tanksCrossedCount * 0.5);
             state.strikeCountdown = strikeDuration;
             state.maxStrikeTime = strikeDuration;
             state.targetBridgeIndex = 1 + Math.floor(Math.random() * 4); // Section index 1 to 4
@@ -602,7 +660,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
             // VICTORY CONDITION: 5 tanks successfully crossed!
             if (state.tanksCrossedCount >= 5 && !state.isComplete) {
               state.isComplete = true;
-              state.score += state.timeLeft * 35;
+              state.score += state.timeLeft * 50;
               setScore(state.score);
               setIsWon(true);
               sound.playVictoryFanfare();
@@ -632,36 +690,45 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           sound.playCountdownBeep(false);
         }
 
-        // TIMEOUT: Opportunity Lost! (ضياع فرصة عبور الدبابة)
+        // TIMEOUT on precision strike
         if (state.strikeCountdown <= 0) {
           state.strikeActive = false;
           setStrikeActive(false);
 
-          const stalledTank = state.crossingTanks.find((t) => t.status === 'waiting_strike');
-          if (stalledTank) {
-            stalledTank.status = 'destroyed';
-            spawnExplosion(stalledTank.x, stalledTank.y, '#ef4444', 30, true);
-            sound.playExplosion(1.3);
-            sound.playDefeatSound();
-
-            state.lostOpportunities++;
-            setLostOpportunities(state.lostOpportunities);
-            addFloatingText(stalledTank.x, 240, '⚠️ ضاعت فرصة العبور! دُمّرت الدبابة بالقصف!', '#ef4444');
-
-            // 3 lost opportunities = Mission Failed!
-            if (state.lostOpportunities >= 3 && !state.isComplete) {
-              state.isComplete = true;
-              setDefeatReason('lost_tanks');
-              setIsDefeated(true);
-              onDefeat?.('lost_tanks');
+          // If smoke screen is active: Smoke shields the waiting tank completely!
+          if (state.smokeTimeRemaining > 0) {
+            addFloatingText(210, 240, '🛡️ ستارة الدخان حمت الدبابة من القصف! تواصل العبور!', '#38bdf8');
+            const waitingTank = state.crossingTanks.find((t) => t.status === 'waiting_strike');
+            if (waitingTank) {
+              waitingTank.status = 'cleared_crossing';
+              waitingTank.speed = 130;
+            }
+          } else {
+            const stalledTank = state.crossingTanks.find((t) => t.status === 'waiting_strike');
+            if (stalledTank) {
+              stalledTank.status = 'destroyed';
+              spawnExplosion(stalledTank.x, stalledTank.y, '#ef4444', 30, true);
+              sound.playExplosion(1.3);
               sound.playDefeatSound();
-            } else {
-              // Deploy another tank after 2.2s to try again
-              setTimeout(() => {
-                if (!stateRef.current.isComplete) {
-                  handleDeployTank();
-                }
-              }, 2200);
+
+              state.lostOpportunities++;
+              setLostOpportunities(state.lostOpportunities);
+              addFloatingText(stalledTank.x, 240, '⚠️ ضاعت فرصة العبور! دُمّرت الدبابة بالقصف!', '#ef4444');
+
+              // Allow up to 6 opportunities so the 30-second timer serves as victory
+              if (state.lostOpportunities >= 6 && !state.isComplete) {
+                state.isComplete = true;
+                setDefeatReason('lost_tanks');
+                setIsDefeated(true);
+                onDefeat?.('lost_tanks');
+                sound.playDefeatSound();
+              } else {
+                setTimeout(() => {
+                  if (!stateRef.current.isComplete) {
+                    handleDeployTank();
+                  }
+                }, 2000);
+              }
             }
           }
         }
@@ -675,17 +742,50 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         sh.y += (sh.targetY - sh.y) * 2.5 * dt;
 
         if (sh.progress >= 1.0) {
-          const hitWater = sh.targetY < 250 || sh.targetY > 340 || sh.targetX < 230 || sh.targetX > 770;
-          if (hitWater) {
-            spawnExplosion(sh.targetX, sh.targetY, '#38bdf8', 12, false, true);
+          // If smoke screen is active: shell is deflected/neutralized!
+          if (state.smokeTimeRemaining > 0) {
+            spawnExplosion(sh.targetX, sh.targetY, '#94a3b8', 12, false, false);
+            if (Math.random() < 0.25) {
+              addFloatingText(sh.targetX, sh.targetY - 20, '🛡️ تشتيت قذيفة العدو بالدخان!', '#cbd5e1');
+            }
           } else {
-            spawnExplosion(sh.targetX, sh.targetY, '#f97316', 20, false, false);
+            const hitWater = sh.targetY < 250 || sh.targetY > 340 || sh.targetX < 230 || sh.targetX > 770;
+            if (hitWater) {
+              spawnExplosion(sh.targetX, sh.targetY, '#38bdf8', 12, false, true);
+            } else {
+              spawnExplosion(sh.targetX, sh.targetY, '#f97316', 20, false, false);
+            }
           }
           state.artilleryShells.splice(i, 1);
         }
       }
 
-      // 4. Update Enemy Strike Planes & Bombs
+      // 4. Update Allied Jet Strikes (Egyptian Air Support MiG-21)
+      for (let k = state.alliedJets.length - 1; k >= 0; k--) {
+        const jet = state.alliedJets[k];
+        jet.x += jet.vx * dt;
+        jet.y += jet.vy * dt;
+
+        // Smoke & afterburner trail
+        if (Math.random() < 0.8) {
+          state.particles.push({
+            x: jet.x - 28,
+            y: jet.y + (Math.random() - 0.5) * 6,
+            vx: -160 + (Math.random() - 0.5) * 20,
+            vy: (Math.random() - 0.5) * 15,
+            life: 0.25,
+            maxLife: 0.25,
+            color: Math.random() < 0.5 ? '#f59e0b' : '#ef4444',
+            size: 3.5,
+          });
+        }
+
+        if (jet.x > canvas.width + 150) {
+          state.alliedJets.splice(k, 1);
+        }
+      }
+
+      // 5. Update Enemy Strike Planes & Bombs
       for (let j = state.enemyPlanes.length - 1; j >= 0; j--) {
         const pl = state.enemyPlanes[j];
         if (pl.destroyed) {
@@ -704,20 +804,33 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         if (!pl.bombDropped && pl.x > 450 && pl.x < 650) {
           pl.bombDropped = true;
           sound.playMissileLaunch();
-          state.hostileBombs.push({
-            x: pl.x,
-            y: pl.y + 12,
-            vx: pl.vx * 0.4,
-            vy: 90,
-            targetX: pl.x - 50,
-            targetY: 305,
-          });
+          if (state.smokeTimeRemaining > 0) {
+            // Blinded by smoke! Bomb misses wildly into canal water
+            state.hostileBombs.push({
+              x: pl.x,
+              y: pl.y + 12,
+              vx: pl.vx * 0.4,
+              vy: 110,
+              targetX: pl.x - 140,
+              targetY: 420,
+            });
+            addFloatingText(pl.x, pl.y + 24, '💨 تعمية طيران العدو بالدخان! القنبلة تخطئ الهدف!', '#94a3b8');
+          } else {
+            state.hostileBombs.push({
+              x: pl.x,
+              y: pl.y + 12,
+              vx: pl.vx * 0.4,
+              vy: 90,
+              targetX: pl.x - 50,
+              targetY: 305,
+            });
+          }
         }
 
         if (pl.x < -60) state.enemyPlanes.splice(j, 1);
       }
 
-      // 5. Update Falling Aerial Bombs
+      // 6. Update Falling Aerial Bombs
       for (let b = state.hostileBombs.length - 1; b >= 0; b--) {
         const bomb = state.hostileBombs[b];
         bomb.x += bomb.vx * dt;
@@ -914,6 +1027,48 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         ctx.restore();
       }
 
+      // Allied Fighter Jets (Egyptian MiG-21 Air Support)
+      for (const jet of state.alliedJets) {
+        ctx.save();
+        ctx.translate(jet.x, jet.y);
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(34, 0); // Nose cone
+        ctx.lineTo(-24, -14); // Left delta wing
+        ctx.lineTo(-12, 0);
+        ctx.lineTo(-24, 14); // Right delta wing
+        ctx.closePath();
+        ctx.fill();
+
+        // Cockpit canopy
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.ellipse(8, 0, 8, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Egyptian Air Force roundel (Red-White-Black cockade)
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(-4, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(-4, 0, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(-4, 0, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Engine afterburner exhaust glow
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(-24, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
       // Particles & Explosions
       for (let pIdx = state.particles.length - 1; pIdx >= 0; pIdx--) {
         const pt = state.particles[pIdx];
@@ -1003,11 +1158,12 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     state.smokeTimeRemaining = 0;
     state.score = 0;
     state.smokeCharges = 4;
+    state.airStrikeCharges = 3;
     state.flakCharges = 18;
     setTanksCrossed(0);
     setLostOpportunities(0);
     setScore(0);
-    setTimeLeft(missionDuration);
+    setTimeLeft(MISSION_DURATION);
     setStrikeActive(false);
     setStrikeCountdown(4.8);
     setMaxStrikeTime(4.8);
@@ -1016,6 +1172,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     setIsDefeated(false);
     setFlakCharges(18);
     setSmokeCharges(4);
+    setAirStrikeCharges(3);
     setTimeout(() => {
       handleDeployTank();
     }, 600);
@@ -1038,7 +1195,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
               ملحمة كباري العبور والضربة الدقيقة الحاسمة
             </h2>
             <div className="text-[11px] text-stone-400">
-              سلاح المهندسين العسكريين · توقيت دقيق ومحسوب لعبور الدبابات
+              سلاح المهندسين العسكريين · صمود وتأمين الكوبري لمدة 30 ثانية
             </div>
           </div>
         </div>
@@ -1053,7 +1210,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           <div className="flex items-center gap-2">
             <span className="text-stone-300">الفرص الضائعة:</span>
             <span className={`font-mono tabular-nums font-bold text-sm ${lostOpportunities > 0 ? 'text-red-400 animate-pulse' : 'text-stone-400'}`}>
-              {lostOpportunities} / 3
+              {lostOpportunities} / 6
             </span>
           </div>
 
@@ -1091,11 +1248,29 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
               <Zap className="w-4 h-4 text-yellow-300" />
               <span>تنفيذ الضربة الدقيقة 🎯</span>
             </button>
+
+            <button
+              onClick={handleCallAirStrike}
+              disabled={airStrikeCharges <= 0}
+              className="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 text-white font-bold rounded-lg cursor-pointer shadow-lg transition-all flex items-center gap-1.5 border border-sky-400"
+            >
+              <Plane className="w-4 h-4 text-sky-200" />
+              <span>ضربات الطائرة ✈️ [{airStrikeCharges}]</span>
+            </button>
           </div>
         </div>
       ) : (
         <div className="desktop-only-bar px-4 py-2 bg-stone-950 border-b border-stone-800 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-300 shrink-0">
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleCallAirStrike}
+              disabled={airStrikeCharges <= 0}
+              className="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-600 disabled:opacity-40 text-white font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow border border-sky-500"
+            >
+              <Plane className="w-4 h-4 text-sky-200" />
+              <span>ضربات الطائرة ✈️ [{airStrikeCharges}]</span>
+            </button>
+
             <button
               onClick={handleDeploySmokeScreen}
               disabled={smokeCharges <= 0 || smokeScreenActive}
@@ -1106,7 +1281,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
               }`}
             >
               <Wind className="w-4 h-4 text-sky-400" />
-              <span>ستارة دخان كثيفة [{smokeCharges}]</span>
+              <span>ستارة دخان تكتيكية [{smokeCharges}]</span>
             </button>
 
             <button
@@ -1141,13 +1316,22 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
             <span>دبابات: {tanksCrossed}/5</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-red-400">
-            <span>فرص ضائعة: {lostOpportunities}/3</span>
+            <span>فرص ضائعة: {lostOpportunities}/6</span>
           </div>
         </div>
 
         {/* Floating Action Buttons in Mobile Landscape */}
         <div className="mobile-touch-action-btn hidden pointer-events-auto absolute bottom-3 left-3 right-3 z-30 flex items-center justify-between gap-3 select-none">
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCallAirStrike}
+              disabled={airStrikeCharges <= 0}
+              className="px-3 py-2 rounded-xl bg-sky-700/90 active:bg-sky-600 text-white border border-sky-400 text-xs font-bold shadow-xl flex items-center gap-1.5 cursor-pointer touch-manipulation"
+            >
+              <Plane className="w-3.5 h-3.5 text-sky-200" />
+              <span>طيران ✈️ [{airStrikeCharges}]</span>
+            </button>
             <button
               type="button"
               onClick={handleDeploySmokeScreen}
@@ -1184,8 +1368,8 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         {!isWon && !isDefeated && (
           <MissionDigitalTimer
             timeLeft={timeLeft}
-            totalTime={missionDuration}
-            label="الزمن المتبقي للمهمة"
+            totalTime={MISSION_DURATION}
+            label="الزمن المتبقي لتأمين المعبر وإعلان النصر (30 ثانية)"
             position="top-center"
           />
         )}
@@ -1195,7 +1379,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           isOpen={isWon}
           missionId="MISSION_BRIDGE"
           missionTitle="المرحلة 3: بناء الجسور والكباري العائمة"
-          congratulatoryMessage="مبروك النصر العظيم! اكتمل الكوبري وعبرت أرتال الدبابات إلى سيناء!"
+          congratulatoryMessage="مبروك النصر العظيم! صمد الكوبري بنجاح طوال 30 ثانية وعبرت أرتال الدبابات إلى سيناء!"
           score={score}
           timeLeft={timeLeft}
           targetsDestroyed={5}
@@ -1218,7 +1402,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
             </h3>
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
               {defeatReason === 'timeout'
-                ? 'انتهت مدة الدقيقتين دون عبور الدبابات الكافية إلى سيناء. اضبط توقيت ضرباتك وسددها بسرعة!'
+                ? 'انتهت مدة المهمة دون حماية المعبر. اضبط توقيت ضرباتك وسددها بسرعة!'
                 : 'تأخرت في توجيه الضربة الدقيقة على الكوبري قبل نفاد العداد التنازلي، مما أدى لقصف دبابات العبور من طيران ومدفعية العدو!'}
             </p>
             <div className="flex items-center gap-3">
@@ -1242,7 +1426,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
       {/* Footer */}
       <div className="desktop-only-bar hidden sm:flex p-3 bg-stone-950/90 border-t border-stone-800 flex items-center justify-between text-xs text-stone-400 shrink-0">
-        <span>انقر على موقع الضربة الدقيقة بالكوبري أو اضغط زر المسافة (Space) فور ظهور العداد التنازلي</span>
+        <span>التحكم: انقر للتصويب · (Space للضربة الدقيقة، A لضربات الطائرة ✈️، S لستارة الدخان 💨)</span>
         <span className="text-amber-400 font-semibold">«سلاح المهندسين.. درع النصر وجسر التحرير»</span>
       </div>
     </div>

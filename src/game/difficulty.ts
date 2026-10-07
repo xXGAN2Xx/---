@@ -10,7 +10,7 @@ export const DIFFICULTY_CONFIG: Record<Difficulty, {
   enemySpawnRateMultiplier: number;
 }> = {
   easy: {
-    missionDuration: 135,
+    missionDuration: 150,
     label: 'سهل',
     badge: '🟢 سهل',
     description: 'تدمير 3 محطات من أصل 6 لتحقيق النصر · نيران دفاعات معتدلة وتدريب',
@@ -19,7 +19,7 @@ export const DIFFICULTY_CONFIG: Record<Difficulty, {
     enemySpawnRateMultiplier: 0.75,
   },
   normal: {
-    missionDuration: 120,
+    missionDuration: 120, // دقيقتين للمتوسط
     label: 'متوسط',
     badge: '🟡 متوسط',
     description: 'تدمير 4 محطات من أصل 6 لتحقيق النصر · خطة العمليات التكتيكية المتوازنة',
@@ -28,7 +28,7 @@ export const DIFFICULTY_CONFIG: Record<Difficulty, {
     enemySpawnRateMultiplier: 1.0,
   },
   hard: {
-    missionDuration: 110,
+    missionDuration: 90, // دقيقة ونصف للصعب
     label: 'صعب',
     badge: '🔴 صعب',
     description: 'تدمير 5 محطات من أصل 6 لتحقيق النصر · اشتباكات شرسة ودفاعات جوية يقظة',

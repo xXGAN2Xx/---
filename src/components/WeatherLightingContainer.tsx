@@ -207,11 +207,11 @@ export function WeatherLightingContainer({
                 background: 'linear-gradient(to top, rgba(226, 232, 240, 0.22) 0%, rgba(214, 180, 140, 0.18) 45%, rgba(200, 160, 110, 0.06) 75%, transparent 100%)',
               }}
             />
-            {/* Soft lower ground mist */}
+            {/* Soft lower ground mist (subtle) */}
             <div
-              className="absolute bottom-0 left-0 right-0 h-48 opacity-40 animate-fog-drift"
+              className="absolute bottom-0 left-0 right-0 h-48 opacity-15 animate-fog-drift"
               style={{
-                background: 'radial-gradient(ellipse 120% 80% at 50% 100%, rgba(248, 250, 252, 0.28) 0%, rgba(226, 232, 240, 0.12) 60%, transparent 100%)',
+                background: 'radial-gradient(ellipse 120% 80% at 50% 100%, rgba(248, 250, 252, 0.15) 0%, rgba(226, 232, 240, 0.06) 60%, transparent 100%)',
               }}
             />
           </div>
@@ -221,15 +221,15 @@ export function WeatherLightingContainer({
         {weather === 'canal_mist' && (
           <div className="pointer-events-none absolute inset-0 z-30 overflow-hidden mix-blend-screen">
             <div
-              className="absolute inset-0 animate-water-shimmer"
+              className="absolute inset-0 animate-water-shimmer opacity-30"
               style={{
-                background: 'linear-gradient(120deg, rgba(56, 189, 248, 0.16) 0%, rgba(14, 165, 233, 0.08) 40%, rgba(245, 158, 11, 0.12) 100%)',
+                background: 'linear-gradient(120deg, rgba(56, 189, 248, 0.1) 0%, rgba(14, 165, 233, 0.04) 40%, rgba(245, 158, 11, 0.06) 100%)',
               }}
             />
             <div
-              className="absolute bottom-0 left-0 right-0 h-32 opacity-35"
+              className="absolute bottom-0 left-0 right-0 h-32 opacity-15"
               style={{
-                background: 'linear-gradient(to top, rgba(56, 189, 248, 0.24) 0%, transparent 100%)',
+                background: 'linear-gradient(to top, rgba(56, 189, 248, 0.12) 0%, transparent 100%)',
               }}
             />
           </div>

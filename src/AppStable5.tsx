@@ -392,7 +392,13 @@ export default function App() {
         detailedReason = 'انتهت مدة المهمة قبل إتمام تركيب كوبري العبور وتأمين وصول الدبابات لسيناء.';
       }
     } else if (mission === 'MISSION_TANK_BATTLE') {
-      detailedReason = 'أصيبت فصيلة الدبابات بأضرار جسيمة من قذائف مدرعات العدو وصواريخه في سيناء.';
+      if (reasonKey === 'timeout') {
+        detailedReason = 'نفد الوقت المخصص لصد الهجوم المضاد قبل تدمير كافة الدبابات المعادية المهاجمة.';
+      } else if (reasonKey === 'breach') {
+        detailedReason = 'اخترقت الدبابات المعادية النسق الدفاعي ووصلت إلى عمق رأس الجسر.';
+      } else {
+        detailedReason = 'أصيبت فصيلة الدبابات بأضرار جسيمة من قذائف مدرعات العدو وغاراته الجوية في سيناء.';
+      }
     } else if (mission === 'MISSION_FORTRESS') {
       if (reasonKey === 'timeout') {
         detailedReason = 'نفد الوقت المخصص لعملية اقتحام حصن خط بارليف قبل تعطيل الأنابيب ورفع العلم.';
