@@ -654,6 +654,7 @@ export default function App() {
 
             {currentMode === 'MISSION_FORTRESS' && (
               <FortressAssaultMission
+                difficulty={difficulty}
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
                 onDefeat={(reason) => handleMissionDefeat('MISSION_FORTRESS', reason)}
                 onExit={handleExitMission}

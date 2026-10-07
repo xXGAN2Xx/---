@@ -328,3 +328,38 @@ canvas.combat-canvas,
   animation: vignette-pulse 0.6s ease-in-out infinite;
 }
 
+/* Realistic Egyptian Flag Cloth Waving Animation */
+@keyframes flag-wave {
+  0% {
+    transform: skewY(0deg) scaleY(1);
+  }
+  25% {
+    transform: skewY(1.8deg) scaleY(1.03);
+  }
+  50% {
+    transform: skewY(-1.2deg) scaleY(0.97);
+  }
+  75% {
+    transform: skewY(2.2deg) scaleY(1.02);
+  }
+  100% {
+    transform: skewY(0deg) scaleY(1);
+  }
+}
+
+.animate-flag-wave {
+  animation: flag-wave 2.2s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 30s linear infinite;
+}

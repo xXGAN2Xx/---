@@ -7,15 +7,15 @@
 export class NarrationService {
   private isSpeaking: boolean = false;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
-  private isEnabledPref: boolean = true;
+  private isEnabledPref: boolean = false;
   private isMobileUnlocked: boolean = false;
   private keepAliveTimer: number | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('october73_tts_enabled');
-      // Default to enabled, but user can toggle it off anytime (اختياري)
-      this.isEnabledPref = saved !== null ? saved === 'true' : true;
+      // Default to disabled (مقفول في الوضع الإفتراضي), but user can toggle it on anytime
+      this.isEnabledPref = saved !== null ? saved === 'true' : false;
 
       // Robust gesture unlock on phones (iOS Safari & Android Chrome)
       const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'click'];
