@@ -1,17 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { sound } from '../utils/audio';
-import { narration } from '../utils/narration';
 import {
   Target,
   X,
   AlertTriangle,
   CheckCircle2,
   Crosshair,
-  Volume2,
-  VolumeX,
-  Radio,
   ArrowRight,
-  Clock,
   Sparkles,
 } from 'lucide-react';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
@@ -32,14 +27,10 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
   difficulty = 'normal',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [autoCountdown, setAutoCountdown] = useState<number>(8);
-  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [isTtsActive, setIsTtsActive] = useState<boolean>(() => narration.isEnabled());
 
   const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
 
   const handleConfirm = () => {
-    narration.stop();
     sound.playRadioTransmission();
     if (onLaunchBattle) {
       onLaunchBattle();
@@ -49,70 +40,11 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
   };
 
   const handleCancel = () => {
-    narration.stop();
     sound.playRadioClick();
     if (onCancel) {
       onCancel();
     } else if (onClose) {
       onClose();
-    }
-  };
-
-  // Auto-countdown to automatically transition into combat after watching the guide
-  useEffect(() => {
-    if (!isOpen) return;
-    setAutoCountdown(8);
-
-    const timer = window.setInterval(() => {
-      setAutoCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleConfirm();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isOpen]);
-
-  // Voice narration of mandatory tactical instructions
-  useEffect(() => {
-    if (!isOpen) {
-      narration.stop();
-      setIsSpeaking(false);
-      return;
-    }
-
-    if (narration.isEnabled()) {
-      const script = `ساعة الصفر، السادس من أكتوبر 1973. تنبيه تكتيكي لقائد التشكيل الجوي: شرط النصر الحاسم في هذه المعركة هو تدمير المحطات الأرضية الاستراتيجية. المطلوب في مستواك هو تدمير ${config.requiredAirStrikeStations} محطات من أصل 6 محطات. إسقاط مقاتلات العدو وحدها لا يحقق النصر. استعد للاشتباك!`;
-      setIsSpeaking(true);
-      narration.speak(script, {
-        onStart: () => setIsSpeaking(true),
-        onEnd: () => setIsSpeaking(false),
-      });
-    }
-
-    return () => {
-      narration.stop();
-      setIsSpeaking(false);
-    };
-  }, [isOpen, difficulty]);
-
-  // Toggle narration inside modal
-  const handleToggleVoice = () => {
-    sound.playRadioClick();
-    if (isSpeaking) {
-      narration.stop();
-      setIsSpeaking(false);
-    } else {
-      const script = `تنبيه تكتيكي لقائد التشكيل الجوي: شرط النصر الحاسم هو تدمير المحطات الأرضية. المطلوب تدمير ${config.requiredAirStrikeStations} محطات من أصل 6 محطات.`;
-      setIsSpeaking(true);
-      narration.speak(script, {
-        onStart: () => setIsSpeaking(true),
-        onEnd: () => setIsSpeaking(false),
-      });
     }
   };
 
@@ -293,7 +225,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
         ctx.fillStyle = '#ef4444';
         ctx.font = 'bold 10px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('🚀 إطباق الصاروخ الموجه [LOCK 100%]', 0, 40);
+        ctx.fillText('🚀 إطلاق صاروخ موجه للمحطة [GUIDED ROCKET ONLY]', 0, 40);
         ctx.restore();
       }
 
@@ -389,7 +321,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
       ctx.font = 'bold 11px monospace';
       ctx.textAlign = 'left';
       ctx.fillText('REC ● 1973-10-06 14:02:18 [GUN-CAM MIG-21]', 12, 20);
-      ctx.fillText('TARGET: GROUND STATION 01/06 [AIR STRIKE]', 12, 36);
+      ctx.fillText('WEAPON: GUIDED ROCKETS ONLY (8 ROCKETS TOTAL)', 12, 36);
 
       ctx.textAlign = 'right';
       ctx.fillStyle = '#f59e0b';
@@ -435,20 +367,6 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Audio Voice Narration Toggle */}
-            <button
-              type="button"
-              onClick={handleToggleVoice}
-              className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                isSpeaking
-                  ? 'bg-amber-500/20 border-amber-500 text-amber-300 animate-pulse'
-                  : 'bg-stone-900 border-stone-800 text-stone-400 hover:text-stone-200'
-              }`}
-              title="الاستماع للتوجيهات التكتيكية صوتياً"
-            >
-              <Radio className={`w-4 h-4 ${isSpeaking ? 'text-amber-400 animate-ping' : ''}`} />
-            </button>
-
             <button
               onClick={handleCancel}
               className="p-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-400 hover:text-stone-100 transition-colors cursor-pointer border border-stone-800"
@@ -472,13 +390,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
           {/* Floating Guidance Badge */}
           <div className="absolute bottom-3 right-3 bg-stone-950/90 border border-amber-500/60 rounded-xl px-3 py-1.5 backdrop-blur-md flex items-center gap-2 text-xs font-bold text-amber-300">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-            <span>محاكاة هجوم: ضرب محطة الرادار الأرضية بالمدافع والصواريخ</span>
-          </div>
-
-          {/* Auto Progression Timer Badge */}
-          <div className="absolute top-3 left-3 bg-stone-950/90 border border-emerald-500/70 rounded-xl px-2.5 py-1 backdrop-blur-md flex items-center gap-1.5 text-[11px] font-mono font-bold text-emerald-400">
-            <Clock className="w-3.5 h-3.5 text-emerald-400" />
-            <span>الانتقال للمعركة بعد مشاهدة الدليل: 00:0{autoCountdown} ث</span>
+            <span>محاكاة هجوم: تدمير محطات العدو بالصواريخ الموجهة فقط (8 صواريخ للمهمة) 🚀</span>
           </div>
         </div>
 
@@ -488,14 +400,14 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
           <div className="p-3 bg-red-950/40 border border-red-500/60 rounded-xl space-y-1.5 text-red-200">
             <div className="flex items-center gap-2 font-bold font-cairo text-red-400 text-xs sm:text-sm">
               <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 animate-bounce" />
-              <span>قاعدة المعركة الحاسمة: إسقاط الطائرات وحدها لا يحقق النصر!</span>
+              <span>قاعدة المعركة الحاسمة: الصواريخ الموجهة مخصصة للمحطات الأرضية فقط!</span>
             </div>
             <p className="text-[11px] text-stone-300 leading-normal">
               إسقاط مقاتلات الفانتوم المعادية يحميك من نيرانها ويمنحك نقاطاً فقط.{' '}
               <strong className="text-amber-300">
-                شرط النصر الوحيد هو تدمير المحطات الأرضية الاستراتيجية
+                شرط النصر الوحيد هو تدمير المحطات الأرضية الاستراتيجية بالصواريخ الموجهة
               </strong>{' '}
-              (محطات الرادار، المطارات، ودشم المدفعية).
+              (محطات الرادار، المطارات، ودشم المدفعية). لديك 8 صواريخ موجهة للمهمة.
             </p>
           </div>
 
@@ -507,7 +419,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
                 <span>المحطات المطلوبة للفوز في مستواك الحالي:</span>
               </span>
               <span className="text-[11px] font-mono text-stone-400 font-bold">
-                إجمالي المحطات المتاحة: 6 محطات
+                إجمالي المحطات المتاحة: 6 محطات · الصواريخ: 8 صواريخ
               </span>
             </div>
 
@@ -559,7 +471,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
           {/* How to Destroy Station Steps */}
           <div className="p-3 bg-stone-950/60 border border-stone-800 rounded-xl space-y-1.5 text-stone-300">
             <span className="font-bold text-sky-400 block mb-1">
-              طريقة استهداف وتدمير المحطة في اللعبة:
+              طريقة استهداف وتدمير المحطة بالصواريخ الموجهة فقط:
             </span>
             <div className="space-y-1 text-[11px]">
               <div className="flex items-start gap-2">
@@ -572,8 +484,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
               <div className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mt-1.5 shrink-0" />
                 <span>
-                  <strong>2. النقر المستمر أو زر الصاروخ:</strong> انقر باستمرار لإطلاق مدافع
-                  الميج-21، أو اضغط زر الصاروخ لإطلاق صاروخ موجه ينسف المحطة سريعاً.
+                  <strong>2. إطلاق الصواريخ الموجهة فقط:</strong> اضغط زر الصاروخ لإطلاق صاروخ موجه؛ الصاروخ مبرمج تلقائياً ليتجه نحو المحطة الأرضية ويدمرها مباشرة! (لديك 8 صواريخ موجهة للمهمة).
                 </span>
               </div>
               <div className="flex items-start gap-2">
@@ -605,9 +516,6 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
           >
             <CheckCircle2 className="w-4 h-4 fill-stone-950 text-amber-500" />
             <span>فهمت شروط تدمير المحطات (الانتقال للاشتباك) ⚡</span>
-            <span className="text-[11px] font-mono bg-stone-950/20 px-1.5 py-0.5 rounded">
-              00:0{autoCountdown}
-            </span>
           </button>
         </div>
       </div>

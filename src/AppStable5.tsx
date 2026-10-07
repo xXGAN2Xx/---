@@ -522,15 +522,17 @@ export default function App() {
       )}
 
       {/* Mandatory Tactical Station Tutorial Video Modal before Air Strike */}
-      <TacticalStationTutorialModal
-        isOpen={isTutorialOpen}
-        onLaunchBattle={handleLaunchAirStrike}
-        onCancel={() => {
-          setIsTutorialOpen(false);
-          handleReturnToMenu();
-        }}
-        difficulty={difficulty}
-      />
+      {isTutorialOpen && (
+        <TacticalStationTutorialModal
+          isOpen={true}
+          onLaunchBattle={handleLaunchAirStrike}
+          onCancel={() => {
+            setIsTutorialOpen(false);
+            handleReturnToMenu();
+          }}
+          difficulty={difficulty}
+        />
+      )}
 
       {/* 4. Optional Detailed Dossier Briefing */}
       {briefingMission && (
