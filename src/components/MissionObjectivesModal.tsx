@@ -45,9 +45,9 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
       dangerNote: 'أصلح أي جزء متضرر فوراً لضمان عدم توقف تدفق أرتال الدبابات.',
     },
     MISSION_TANK_BATTLE: {
-      controls: 'حرّك دبابتك، انقر لإطلاق قذائف المدفع، وانقر على دبابات العدو لإطلاق صواريخ ساجر (مالوتكا).',
-      proTip: 'صواريخ ساجر تدمر دبابات العدو بضربة حاسمة واحدة من مسافة بعيدة!',
-      dangerNote: 'احذر قذائف دبابات الباتون المركزة واستغل التضاريس والكمائن.',
+      controls: 'رتب بطاقات العمليات العسكرية بالأزرار ⬆️ ⬇️ أو انقر للتبديل، ثم اضغط على "تأكيد وفحص التسلسل التكتيكي".',
+      proTip: 'انتبه لساعة الصفر (6 أكتوبر) ثم بناء حائط الصواريخ وصولاً لكمين الفردان وأسر عساف ياجوري!',
+      dangerNote: 'الأخطاء في الترتيب تؤدي لاختراق دبابات العدو للنسق الدفاعي ونقص الصحة.',
     },
     MISSION_FORTRESS: {
       controls: 'وجّه بطل الصاعقة، اقطع أنابيب النابالم الحارق، دمر الدشم بالمتفجرات، وارفع العلم المصري.',
@@ -348,14 +348,14 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
                   <div className="flex items-center justify-between text-xs font-bold text-amber-300 mb-1 flex-wrap gap-1">
                     <span className="flex items-center gap-1.5">
                       <Target className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>قاعدة النصر: سحق دبابات العدو (ظهور كل 5 ثوانٍ وضربات أبطأ)</span>
+                      <span>قاعدة النصر: ترتيب أحداث معركة الدبابات وحائط الصواريخ</span>
                     </span>
                     <span className="text-[10px] font-mono bg-amber-900/80 text-white px-2 py-0.5 rounded border border-amber-500">
-                      المطلوب: {diffConfig.tankBattleTargetCount || (difficulty === 'easy' ? 5 : difficulty === 'hard' ? 15 : 10)} دبابات ({diffConfig.label})
+                      المطلوب: ترتيب {difficulty === 'easy' ? 4 : difficulty === 'hard' ? 8 : 6} محطات تاريخية ({diffConfig.label})
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-300 leading-relaxed">
-                    تظهر دبابات العدو بفاصل 5 ثوانٍ مع ضربات أبطأ ومتباعدة لتوفير وقت كافٍ للمناورة والتصويب وسحق اللواء 190 مدرع!
+                    رتب الخطوات والعمليات العسكرية زمنيّاً من ساعة الصفر حتى أسر عساف ياجوري، واضغط "تأكيد وفحص التسلسل" لإطلاق صواريخ الساجر وسحق اللواء 190 مدرع!
                   </p>
                 </div>
               )}

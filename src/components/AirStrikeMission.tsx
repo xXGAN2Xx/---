@@ -117,6 +117,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(missionDuration); // Timer for combat
   const [totalDestroyed, setTotalDestroyed] = useState(0);
+  const [hitsTaken, setHitsTaken] = useState(0);
   const [missionWon, setMissionWon] = useState(false);
   const [isDefeated, setIsDefeated] = useState(false);
   const [defeatReason, setDefeatReason] = useState<'shot_down' | 'crash' | 'timeout' | 'radar'>('shot_down');
@@ -138,6 +139,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     setRockets(8);
     setTimeLeft(missionDuration);
     setTotalDestroyed(0);
+    setHitsTaken(0);
     setMissionWon(false);
     setIsDefeated(false);
     setDefeatReason('shot_down');
@@ -2515,11 +2517,18 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Score */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-stone-900 border border-stone-800 text-amber-300 font-mono font-bold">
+            <span className="text-stone-400 font-cairo">السكور:</span>
+            <span>{score}</span>
+          </div>
+
+          {/* Remaining Stations */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 font-mono font-bold shadow-sm">
             <Target className="w-4 h-4 text-emerald-400" />
-            <span className="text-stone-300">المحطات المطلوبة:</span>
-            <span className="font-mono tabular-nums font-bold text-emerald-400">{totalDestroyed} / {targetStationsRequired}</span>
-            <span className="text-[10px] text-stone-500">من {totalStations}</span>
+            <span className="text-stone-300 font-cairo text-xs">المحطات المتبقية:</span>
+            <span className="text-emerald-300 text-sm font-black">{Math.max(0, targetStationsRequired - totalDestroyed)}</span>
+            <span className="text-[10px] text-stone-400 font-cairo">محطات ({totalDestroyed}/{targetStationsRequired})</span>
           </div>
 
           <span className="px-2 py-0.5 rounded bg-stone-900 border border-stone-800 text-[10px] font-bold text-amber-300 font-mono">
@@ -2533,19 +2542,25 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Health */}
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-stone-900 border border-stone-800">
             <Shield className="w-4 h-4 text-emerald-400" />
-            <div className="w-20 h-2 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
+            <div className="w-16 h-2 bg-stone-800 rounded-full overflow-hidden border border-stone-700">
               <div className="h-full bg-emerald-500 transition-[width] duration-150" style={{ width: `${Math.min(100, (hp / 210) * 100)}%` }} />
             </div>
-            <span className="font-mono tabular-nums text-stone-200">{hp}/210</span>
+            <span className="font-mono tabular-nums text-emerald-300 text-xs font-bold">{Math.round((hp / 210) * 100)}%</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-orange-400" />
-            <span className="font-mono tabular-nums font-bold text-amber-400">{score}</span>
+          {/* Casualties / Hits Taken */}
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded border font-mono font-bold text-xs ${
+            hitsTaken > 0 ? 'bg-red-950/60 border-red-800 text-red-400' : 'bg-stone-900 border-stone-800 text-stone-400'
+          }`}>
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-stone-400 font-cairo">الإصابات:</span>
+            <span>{hitsTaken}</span>
           </div>
-          <div className="hidden sm:block px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-bold text-amber-300">
+
+          <div className="hidden lg:block px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] font-bold text-amber-300">
             تطوير الطائرة ×{totalDestroyed}
           </div>
 
@@ -2632,7 +2647,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
             <Target className="w-3.5 h-3.5" />
-            <span>{totalDestroyed} / {targetStationsRequired}</span>
+            <span>المحطات المتبقية: {Math.max(0, targetStationsRequired - totalDestroyed)}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />

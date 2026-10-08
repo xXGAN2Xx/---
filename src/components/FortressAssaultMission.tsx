@@ -1730,12 +1730,20 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({
           </div>
 
           {/* Targets Remaining Counter */}
-          <div className="flex items-center gap-2 bg-stone-900/90 px-3 py-1.5 rounded-xl border border-stone-800 text-xs font-cairo font-bold">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-950/70 border border-amber-500/60 text-xs font-cairo font-bold shadow-sm">
             <Target className="w-4 h-4 text-amber-400" />
-            <span className="text-stone-300">
-              الدشم المتبقية:{' '}
-              <span className="text-amber-400 font-mono text-sm">{targetsRemaining}</span> / {totalTargetsCount}
-            </span>
+            <span className="text-stone-300">الدشم المتبقية:</span>
+            <span className="text-amber-300 font-mono text-sm font-black">{targetsRemaining}</span>
+            <span className="text-[10px] text-stone-400 font-mono">({totalTargetsCount - targetsRemaining}/{totalTargetsCount})</span>
+          </div>
+
+          {/* Casualties / Hits */}
+          <div className={`flex items-center gap-1.5 bg-stone-900/90 px-3 py-1.5 rounded-xl border text-xs font-cairo font-bold ${
+            squadHp < maxSquadHp ? 'border-red-500/50 text-red-400' : 'border-stone-800 text-stone-400'
+          }`}>
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <span>الإصابات:</span>
+            <span className="font-mono text-sm font-bold text-red-400">{Math.max(0, Math.round((maxSquadHp - squadHp) / 25))}</span>
           </div>
 
           {/* Mission Digital Countdown Timer */}
@@ -1745,9 +1753,10 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({
           />
 
           {/* Score counter */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-stone-900/90 px-3 py-1.5 rounded-xl border border-stone-800 text-xs font-mono font-bold text-amber-400">
+          <div className="flex items-center gap-1.5 bg-stone-900/90 px-3 py-1.5 rounded-xl border border-stone-800 text-xs font-mono font-bold text-amber-400">
             <Award className="w-4 h-4 text-amber-400" />
-            <span>{score} نقطة</span>
+            <span className="font-cairo text-stone-400 text-[10px]">السكور:</span>
+            <span>{score}</span>
           </div>
 
           {/* Tactical Intel Drawer Toggle */}
@@ -1816,6 +1825,18 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({
               <span>خروج</span>
             </button>
 
+            {onOpenTutorialVideo && (
+              <button
+                type="button"
+                onClick={onOpenTutorialVideo}
+                className="px-2 py-1 rounded-lg bg-red-950/85 hover:bg-red-900 border border-red-800 text-red-300 active:scale-95 text-[11px] font-bold flex items-center gap-1 shadow-lg backdrop-blur-md cursor-pointer touch-manipulation"
+                title="مشاهدة فيديو الشرح التكتيكي"
+              >
+                <Video className="w-3.5 h-3.5 text-red-400" />
+                <span>فيديو 🎬</span>
+              </button>
+            )}
+
             {/* Squad Health Meter */}
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-stone-950/85 border border-stone-800 backdrop-blur-md text-[11px] font-bold shadow-lg">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
@@ -1833,7 +1854,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({
             {/* Targets count */}
             <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-stone-950/85 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-amber-400 shadow-lg">
               <Target className="w-3.5 h-3.5" />
-              <span>{targetsRemaining} دشم</span>
+              <span>الدشم المتبقية: {targetsRemaining}</span>
             </div>
           </div>
 

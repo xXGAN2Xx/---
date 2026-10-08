@@ -117,12 +117,12 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
   const [score, setScore] = useState<number>(0);
   const [pumpHp, setPumpHp] = useState<number>(100);
   const [isSpraying, setIsSpraying] = useState<boolean>(false);
-  const [isTurboBoost, setIsTurboBoost] = useState<boolean>(false);
   const [smokeScreenActive, setSmokeScreenActive] = useState<boolean>(false);
   const [smokeCooldown, setSmokeCooldown] = useState<number>(0);
   const [activeSector, setActiveSector] = useState<number>(1);
   const [breachesCompleted, setBreachesCompleted] = useState<number>(0);
   const [boatsCrossed, setBoatsCrossed] = useState<number>(0);
+  const [boatsLost, setBoatsLost] = useState<number>(0);
   const [boatsAvailable, setBoatsAvailable] = useState<number>(requiredBreaches);
   const [missionWon, setMissionWon] = useState<boolean>(false);
   const [isDefeated, setIsDefeated] = useState<boolean>(false);
@@ -134,7 +134,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
     score: 0,
     pumpHp: 100,
     isSpraying: false,
-    isTurboBoost: false,
     smokeTimeRemaining: 0,
     smokeCooldownTimer: 0,
     activeSector: 1,
@@ -145,6 +144,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
     nextBoatId: 1,
     nextTextId: 1,
     boatsCrossedCount: 0,
+    boatsLostCount: 0,
     completedBreachesCount: 0,
     won: false,
     defeated: false,
@@ -217,14 +217,14 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
     });
   };
 
-  const createWaterSplash = (x: number, y: number, isBoost = false) => {
+  const createWaterSplash = (x: number, y: number) => {
     // Rich water splash and impact particles
     if (stateRef.current.particles.length > 320) return;
-    const count = isBoost ? 6 : 4;
+    const count = 5;
     const colors = ['#ffffff', '#e0f2fe', '#bae6fd', '#7dd3fc', '#38bdf8'];
     for (let i = 0; i < count; i++) {
       const angle = -Math.PI * 0.5 + (Math.random() - 0.5) * 1.8;
-      const speed = Math.random() * (isBoost ? 130 : 90) + 35;
+      const speed = Math.random() * 95 + 35;
       stateRef.current.particles.push({
         x: x + (Math.random() - 0.5) * 16,
         y: y + (Math.random() - 0.5) * 10,
@@ -233,7 +233,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
         life: 0.28 + Math.random() * 0.16,
         maxLife: 0.44,
         color: colors[Math.floor(Math.random() * colors.length)],
-        size: Math.random() * (isBoost ? 4 : 3) + 2,
+        size: Math.random() * 3 + 2,
         gravity: 280,
         isWater: true,
       });
@@ -315,7 +315,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
     s.score = 0;
     s.pumpHp = 100;
     s.isSpraying = false;
-    s.isTurboBoost = false;
     s.smokeTimeRemaining = 0;
     s.smokeCooldownTimer = 0;
     s.activeSector = 1;
@@ -386,7 +385,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
     setScore(0);
     setPumpHp(100);
     setIsSpraying(false);
-    setIsTurboBoost(false);
     setSmokeScreenActive(false);
     setSmokeCooldown(0);
     setActiveSector(1);
@@ -463,17 +461,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
     addFloatingText(600, 380, 'ستار دخان خفيف لحماية القوارب! 💨', '#e2e8f0');
   }, []);
 
-  // Toggle Turbo Boost
-  const toggleTurboBoost = useCallback(() => {
-    const s = stateRef.current;
-    s.isTurboBoost = !s.isTurboBoost;
-    setIsTurboBoost(s.isTurboBoost);
-    sound.playRadioClick();
-    if (s.isTurboBoost) {
-      addFloatingText(120, 460, '⚡ تفعيل الضغط التوربيني الفائق!', '#facc15');
-    }
-  }, []);
-
   // Select Sector (Aim jump)
   const selectSector = useCallback((sectorId: number) => {
     const s = stateRef.current;
@@ -548,7 +535,6 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
         if (s.isSpraying && s.pumpHp > 0) {
           const targetX = s.aimX;
           const targetY = s.aimY;
-          const boostMul = s.isTurboBoost ? 1.9 : 1.0;
 
           // Sound trigger throttle
           if (Math.random() < 0.15) {
@@ -558,7 +544,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
           // Generate dense realistic water spray and particles along the entire trajectory
           const nozzleX = 140;
           const nozzleY = 510;
-          const spawnCount = s.isTurboBoost ? 10 : 7;
+          const spawnCount = 8;
           const waterColors = ['#ffffff', '#ffffff', '#e0f2fe', '#bae6fd', '#7dd3fc', '#38bdf8'];
 
           if (s.particles.length < 320) {
@@ -567,7 +553,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
               const t = Math.pow(Math.random(), 0.82); // distributed along the arc
               const px = nozzleX + (targetX - nozzleX) * t;
               // Arc drop from water pressure
-              const arcOffset = -Math.sin(t * Math.PI) * (26 / boostMul);
+              const arcOffset = -Math.sin(t * Math.PI) * 26;
               const py = nozzleY + (targetY - nozzleY) * t + arcOffset;
 
               // Spray cone widens naturally as it travels towards target
@@ -576,7 +562,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
               const scatter = (Math.random() - 0.5) * coneSpread;
 
               // High-speed water flow velocity along spray vector
-              const flowSpeed = (Math.random() * 120 + 320) * (s.isTurboBoost ? 1.3 : 1.0);
+              const flowSpeed = Math.random() * 120 + 340;
               const sprayAngle = Math.atan2(targetY - nozzleY, targetX - nozzleX) + (Math.random() - 0.5) * 0.14;
 
               s.particles.push({
@@ -587,7 +573,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
                 life: 0.18 + Math.random() * 0.16,
                 maxLife: 0.34,
                 color: waterColors[Math.floor(Math.random() * waterColors.length)],
-                size: Math.random() * (s.isTurboBoost ? 4.2 : 3.2) + 1.8,
+                size: Math.random() * 3.4 + 1.8,
                 gravity: 95,
                 isWater: true,
               });
@@ -595,17 +581,17 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
           }
 
           // Rich water splash and churning at target impact point
-          createWaterSplash(targetX, targetY, s.isTurboBoost);
+          createWaterSplash(targetX, targetY);
 
           // Check if hitting one of the 3 breach sectors
           for (const sec of s.sectors) {
             const dist = Math.hypot(targetX - sec.x, targetY - (280 - (100 - sec.sandHeight) * 0.8));
             if (dist < 75 && !sec.completed) {
-              const erosionRate = 22.0 * boostMul * dt;
+              const erosionRate = 25.0 * dt;
               sec.sandHeight = Math.max(0, sec.sandHeight - erosionRate);
               sec.breachProgress = Math.min(100, Math.round(100 - sec.sandHeight));
 
-              s.score += Math.round(12 * boostMul);
+              s.score += 15;
 
               if (sec.breachProgress >= 100 && !sec.completed) {
                 sec.completed = true;
@@ -627,7 +613,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
             const bunkerDist = Math.hypot(targetX - sec.x, targetY - 210);
             if (bunkerDist < 55 && !sec.bunkerDestroyed) {
               sec.bunkerSuppressedTimer = 2.0; // Blind the bunker
-              const bunkerDmg = 38 * boostMul * dt;
+              const bunkerDmg = 42 * dt;
               sec.bunkerHp = Math.max(0, sec.bunkerHp - bunkerDmg);
 
               if (sec.bunkerHp <= 0 && !sec.bunkerDestroyed) {
@@ -728,6 +714,8 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
 
               if (boat.hp <= 0 && boat.status !== 'destroyed') {
                 boat.status = 'destroyed';
+                s.boatsLostCount = (s.boatsLostCount || 0) + 1;
+                setBoatsLost(s.boatsLostCount);
                 createExplosion(boat.x, boat.y, 0.4);
                 addFloatingText(boat.x, boat.y - 15, 'استهداف قارب! جاري إرسال قارب بديل ⚠️', '#ef4444');
                 const targetSec = s.sectors[boat.targetSectorId];
@@ -1213,7 +1201,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
         const nx = -dy / dist;
         const ny = dx / dist;
         const startWidth = 5;
-        const endWidth = s.isTurboBoost ? 38 : 28;
+        const endWidth = 32;
 
         // A. Volumetric Expanding Spray Cone Envelope (Soft aerated mist fan)
         const sprayGrad = ctx.createLinearGradient(startX, startY, endX, endY);
@@ -1247,13 +1235,13 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
         // B. Turbulent High-Velocity Water Filaments & Moving Pulses
         const timeSec = currentTime * 0.001;
         for (let r = 0; r < 4; r++) {
-          const strandOffset = (r - 1.5) * (s.isTurboBoost ? 7 : 5);
+          const strandOffset = (r - 1.5) * 5.5;
           const wavePhase = timeSec * 22 + r * 1.6;
           const waveAmp = 3.5 + Math.sin(wavePhase) * 2;
 
           ctx.save();
           ctx.strokeStyle = r === 1 || r === 2 ? 'rgba(255, 255, 255, 0.8)' : 'rgba(186, 230, 253, 0.6)';
-          ctx.lineWidth = r === 1 || r === 2 ? (s.isTurboBoost ? 4.5 : 3.5) : (s.isTurboBoost ? 3 : 2);
+          ctx.lineWidth = r === 1 || r === 2 ? 3.8 : 2.4;
           ctx.lineCap = 'round';
           // Animated dash creating the visual appearance of high-pressure water gushing forward
           ctx.setLineDash([14, 10]);
@@ -1278,7 +1266,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
           const sign = d % 2 === 0 ? 1 : -1;
           const dotX = px + nx * lateralFactor * sign;
           const dotY = py + ny * lateralFactor * sign;
-          const dotSize = 1.6 + (Math.sin(d * 3.3) * 0.5 + 0.5) * (s.isTurboBoost ? 3.5 : 2.5);
+          const dotSize = 1.6 + (Math.sin(d * 3.3) * 0.5 + 0.5) * 2.8;
 
           ctx.fillStyle = dropletPalette[d % dropletPalette.length];
           ctx.beginPath();
@@ -1287,7 +1275,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
         }
 
         // D. Impact Froth & Expanding Splash Ripples at Sand Barrier
-        const splashRadius = (s.isTurboBoost ? 22 : 16) + Math.sin(currentTime * 0.02) * 3;
+        const splashRadius = 18 + Math.sin(currentTime * 0.02) * 3;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
         ctx.beginPath();
         ctx.ellipse(endX, endY, splashRadius, splashRadius * 0.65, 0, 0, Math.PI * 2);
@@ -1377,7 +1365,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
       const tx = s.aimX;
       const ty = s.aimY;
       ctx.save();
-      ctx.strokeStyle = s.isTurboBoost ? '#facc15' : '#38bdf8';
+      ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 2;
       // Crosshair Circle
       ctx.beginPath();
@@ -1396,7 +1384,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
       ctx.stroke();
 
       // Center dot
-      ctx.fillStyle = s.isTurboBoost ? '#facc15' : '#38bdf8';
+      ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
       ctx.arc(tx, ty, 3, 0, Math.PI * 2);
       ctx.fill();
@@ -1536,30 +1524,39 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
         </div>
 
         {/* Live Counters */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono font-bold">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono font-bold flex-wrap justify-end">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-900 border border-stone-800 text-amber-300">
-            <span className="text-stone-400 text-[10px]">النقاط:</span>
+            <span className="text-stone-400 text-[10px] font-cairo">السكور:</span>
             <span>{score}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-900 border border-stone-800 text-emerald-300">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-stone-400 text-[10px]">الثغرات:</span>
-            <span>{breachesCompleted}/{requiredBreaches}</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 font-mono font-bold shadow-sm">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span className="text-stone-300 text-xs font-cairo">الثغرات المتبقية:</span>
+            <span className="text-emerald-300 text-sm font-black">{Math.max(0, requiredBreaches - breachesCompleted)}</span>
+            <span className="text-[10px] text-stone-400 font-cairo">ثغرة ({breachesCompleted}/{requiredBreaches})</span>
           </div>
 
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-900 border border-stone-800 text-sky-300">
             <Waves className="w-3.5 h-3.5 text-sky-400" />
-            <span className="text-stone-400 text-[10px]">القوارب:</span>
+            <span className="text-stone-400 text-[10px] font-cairo">القوارب:</span>
             <span>{boatsCrossed}/{requiredBoats}</span>
           </div>
 
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
             pumpHp < 35 ? 'bg-red-950/80 border-red-500 text-red-300 animate-pulse' : 'bg-stone-900 border-stone-800 text-stone-200'
           }`}>
-            <Shield className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-stone-400 text-[10px]">المضخة:</span>
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-stone-400 text-[10px] font-cairo">صحة المضخات:</span>
             <span>{Math.round(pumpHp)}%</span>
+          </div>
+
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
+            boatsLost > 0 ? 'bg-red-950/60 border-red-800 text-red-400' : 'bg-stone-900 border-stone-800 text-stone-400'
+          }`}>
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-stone-400 text-[10px] font-cairo">الإصابات:</span>
+            <span>{boatsLost}</span>
           </div>
         </div>
       </div>
@@ -1719,7 +1716,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-6 leading-relaxed">
               {defeatReason === 'crew_casualty'
                 ? 'تعرضت مضخات المياه التوربينية وطواقم المهندسين لقصف مكثف من دشم ومدفعية خط بارليف. احرص على استخدام الستار الدخاني (S) وتوجيه المياه نحو الدشم لتعطيل نيرانها!'
-                : `انتهت المهلة الزمنية المحددة لفتح الثغرات (${Math.floor(initialDuration / 60)} دقيقة${initialDuration % 60 > 0 ? ` و${initialDuration % 60} ثانية` : ''}) دون استكمال فتح الثغرات المطلوبة قبل وصول تعزيزات العدو. أعد المحاولة، فعّل الضغط التوربيني الفائق (T) ووجّه رش المياه نحو مواضع الثغرات الثلاث!` }
+                : `انتهت المهلة الزمنية المحددة لفتح الثغرات (${Math.floor(initialDuration / 60)} دقيقة${initialDuration % 60 > 0 ? ` و${initialDuration % 60} ثانية` : ''}) دون استكمال فتح الثغرات المطلوبة قبل وصول تعزيزات العدو. أعد المحاولة، ووجّه مدافع المياه نحو مواضع الثغرات واستخدم الستار الدخاني لحماية القوارب!` }
             </p>
 
             <div className="flex items-center gap-3">

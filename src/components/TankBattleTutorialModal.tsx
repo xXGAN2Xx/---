@@ -103,20 +103,20 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
 
       // Determine current scene caption
       if (loopFrame < 110) {
-        setCurrentSceneTitle('المشهد 1: تصويب الماوس وقصف دبابات العدو بمدفع الدبابة T-62');
-        setCurrentSceneKey('زر 1 / النقر بالماوس');
+        setCurrentSceneTitle('المشهد 1: قراءة بطاقات العمليات العسكرية وتحديد ساعة الصفر (6 أكتوبر)');
+        setCurrentSceneKey('ترتيب الأحداث 1️⃣');
       } else if (loopFrame < 230) {
-        setCurrentSceneTitle('المشهد 2: إطلاق وتوجيه صواريخ مالوتكا (ساجر) السلكية لسحق الدروع الثقيلة');
-        setCurrentSceneKey('زر 2 / مفتاح W');
+        setCurrentSceneTitle('المشهد 2: استخدام أزرار الأسهم أو النقر للتبديل ووضع الحدث في موقعه الزمني');
+        setCurrentSceneKey('تحريك لأعلى / لأسفل ⬆️⬇️');
       } else if (loopFrame < 350) {
-        setCurrentSceneTitle('المشهد 3: استدعاء قصف المدفعية الميدانية المركزة لإبادة تجمعات الدبابات');
-        setCurrentSceneKey('زر 3 / مفتاح E');
+        setCurrentSceneTitle('المشهد 3: الضغط على "تأكيد وفحص التسلسل" لإطلاق صواريخ الساجر وسحق الدبابات');
+        setCurrentSceneKey('زر فحص التسلسل 🎯');
       } else if (loopFrame < 450) {
-        setCurrentSceneTitle('المشهد 4: نشر ستائر الدخان التكتيكية لحجب الرؤية عن العدو وإبطاء نيرانه');
-        setCurrentSceneKey('زر 4 / مفتاح R');
+        setCurrentSceneTitle('المشهد 4: الاستفادة من التلميحات التكتيكية لتصحيح مواضع الأحداث قبل نفاد الوقت');
+        setCurrentSceneKey('زر التلميح 💡');
       } else {
-        setCurrentSceneTitle('المشهد 5: تدمير دبابة القيادة للواء 190 مدرع (عساف ياجوري) وتحقيق النصر!');
-        setCurrentSceneKey('كل الأسلحة المركزة 🎯');
+        setCurrentSceneTitle('المشهد 5: اكتمال التسلسل التاريخي وسحق اللواء 190 وأسر عساف ياجوري حياً!');
+        setCurrentSceneKey('إعلان النصر التكتيكي 🇪🇬');
       }
 
       const w = canvas.width;
@@ -613,11 +613,11 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
               <span>قاعدة المعركة وشروط النصر للمرحلة:</span>
             </div>
             <p className="text-[11px] text-stone-300 leading-normal">
-              دبابات اللواء 190 مدرع الإسرائيلي تتقدم في صحراء سيناء. شرط النصر هو{' '}
+              معركة الدبابات الكبرى وحائط الصواريخ وصد اللواء 190 مدرع تعتمد على التخطيط والتسلسل الزمني الدقيق. شرط النصر هو{' '}
               <strong className="text-amber-300">
-                سحق {targetTanks} دبابات معادية قبل اختراق النسق الدفاعي المصري
+                ترتيب كافة العمليات العسكرية بالتسلسل التاريخي الدقيق وتثبيتها بنجاح
               </strong>
-              . وتيرة اللعب هادئة ومريحة، حيث تظهر الدبابات بمعدل دبابة كل 5 ثوانٍ وضربات نيرانها متباعدة لتتمكن من التصويب بدقة.
+              . عند الترتيب الصحيح تنطلق صواريخ الساجر لإبادة دبابات العدو وأسر العقيد عساف ياجوري!
             </p>
           </div>
 
@@ -629,7 +629,7 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
                 <span>شروط النصر حسب مستوى الصعوبة:</span>
               </span>
               <span className="text-[11px] font-mono text-stone-400 font-bold">
-                ظهور الدبابات: كل ~5 ثوانٍ · ضربات متباعدة
+                ترتيب العمليات التاريخية زمنيّاً
               </span>
             </div>
 
@@ -643,9 +643,9 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
               >
                 <div className="font-bold mb-1 text-emerald-400">🟢 المستوى السهل</div>
                 <div className="font-bold text-emerald-300 text-sm">
-                  تدمير 5 دبابات
+                  4 محطات رئيسية
                 </div>
-                <div className="text-[10px] text-stone-400 mt-1">ظهور كل 5.5 ثوانٍ · ضربات نادرة وهادئة</div>
+                <div className="text-[10px] text-stone-400 mt-1">150 ثانية · 3 أخطاء مسموحة · 3 تلميحات</div>
               </div>
 
               <div
@@ -657,9 +657,9 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
               >
                 <div className="font-bold mb-1 text-amber-400">🟡 المستوى المتوسط</div>
                 <div className="font-bold text-amber-300 text-sm">
-                  تدمير 10 دبابات
+                  6 عمليات تكتيكية
                 </div>
-                <div className="text-[10px] text-stone-400 mt-1">ظهور كل 5.0 ثوانٍ · وتيرة متوازنة</div>
+                <div className="text-[10px] text-stone-400 mt-1">120 ثانية · خطآن مسموحان · تلميحان</div>
               </div>
 
               <div
@@ -671,9 +671,9 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
               >
                 <div className="font-bold mb-1 text-red-400">🔴 المستوى الصعب</div>
                 <div className="font-bold text-red-300 text-sm">
-                  تدمير 15 دبابة
+                  8 أحداث تاريخية كاملة
                 </div>
-                <div className="text-[10px] text-stone-400 mt-1">ظهور كل 4.5 ثوانٍ · اشتباك شرس ومتقارب</div>
+                <div className="text-[10px] text-stone-400 mt-1">90 ثانية · خطأ واحد فقط · تلميح واحد</div>
               </div>
             </div>
           </div>

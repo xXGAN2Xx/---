@@ -143,9 +143,8 @@ export default function App() {
     if (typeof window === 'undefined') return false;
     const isCoarse = window.matchMedia('(pointer: coarse)').matches;
     const isTouch = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window);
-    const isSmall = Math.min(window.innerWidth, window.innerHeight) <= 960;
-    const isShortLandscape = window.innerWidth >= window.innerHeight && window.innerHeight <= 640;
-    return (isCoarse || isTouch || isShortLandscape) && (isSmall || isShortLandscape);
+    const isSmall = Math.min(window.innerWidth, window.innerHeight) <= 768;
+    return isCoarse && isTouch && isSmall;
   };
 
   const syncMobileOrientation = () => {
@@ -153,7 +152,7 @@ export default function App() {
     const portrait = window.innerHeight > window.innerWidth;
     const landscape = window.innerWidth >= window.innerHeight;
     const combat = currentMode.startsWith('MISSION_');
-    const isLandscapePhone = combat && landscape && (mobile || window.innerHeight <= 640);
+    const isLandscapePhone = combat && landscape && mobile && window.innerHeight <= 500;
     const isPortraitPhone = combat && portrait && mobile;
     setIsPortraitMobile(isPortraitPhone);
     setIsMobileLandscape(isLandscapePhone);

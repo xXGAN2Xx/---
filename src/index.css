@@ -265,27 +265,35 @@ canvas.combat-canvas,
   display: block !important;
 }
 
-@media (orientation: landscape) {
-  .combat-active header,
+/* Desktop & Computer Version: Top HUD bar with remaining items, health, score is ALWAYS visible */
+.desktop-only-bar {
+  display: flex !important;
+}
+
+@media (min-width: 768px), (pointer: fine) {
+  .desktop-only-bar {
+    display: flex !important;
+  }
+  .mobile-landscape-hud {
+    display: none !important;
+  }
+}
+
+/* Only small touch phones in landscape (height <= 480px, coarse pointer) */
+@media (max-width: 900px) and (max-height: 480px) and (pointer: coarse) and (orientation: landscape) {
   .mobile-landscape-active header {
     display: none !important;
   }
 
-  .combat-active .desktop-only-bar,
-  .mobile-landscape-active .desktop-only-bar,
-  .desktop-only-bar {
+  .mobile-landscape-active .desktop-only-bar {
     display: none !important;
   }
 
-  .combat-active .mobile-landscape-hud,
-  .mobile-landscape-active .mobile-landscape-hud,
-  .mobile-landscape-hud {
+  .mobile-landscape-active .mobile-landscape-hud {
     display: flex !important;
   }
 
-  .combat-active .mobile-touch-action-btn,
-  .mobile-landscape-active .mobile-touch-action-btn,
-  .mobile-touch-action-btn {
+  .mobile-landscape-active .mobile-touch-action-btn {
     display: flex !important;
   }
 
@@ -296,29 +304,6 @@ canvas.combat-canvas,
     max-width: 100% !important;
     max-height: 100% !important;
     object-fit: fill !important;
-  }
-}
-
-.mobile-landscape-active .desktop-only-bar {
-  display: none !important;
-}
-
-.mobile-landscape-active header {
-  display: none !important;
-}
-
-.mobile-landscape-active .mobile-landscape-hud {
-  display: flex !important;
-}
-
-.mobile-landscape-active .mobile-touch-action-btn {
-  display: flex !important;
-}
-
-/* Desktop Fullscreen & Computer Layout: Game & Top Header completely visible with zero scroll */
-@media (min-width: 901px) and (min-height: 641px) {
-  .mobile-landscape-hud {
-    display: none !important;
   }
 }
 

@@ -1214,23 +1214,40 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         </div>
 
         {/* Meters */}
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-2 bg-stone-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-lg">
-            <span className="text-stone-300">دبابات العبور:</span>
-            <span className="font-mono tabular-nums font-bold text-emerald-400 text-sm">
-              {tanksCrossed} / {targetTanksCount}
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-semibold flex-wrap justify-end">
+          {/* Score */}
+          <div className="flex items-center gap-1.5 bg-stone-950/70 border border-stone-800 px-2.5 py-1 rounded-lg">
+            <span className="text-stone-400 font-cairo">السكور:</span>
+            <span className="font-mono tabular-nums font-bold text-amber-400">{score}</span>
+          </div>
+
+          {/* Remaining Tanks */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 font-mono font-bold shadow-sm">
+            <span className="text-stone-300 font-cairo text-xs">الدبابات المتبقية:</span>
+            <span className="font-mono tabular-nums font-black text-emerald-300 text-sm">
+              {Math.max(0, targetTanksCount - tanksCrossed)}
+            </span>
+            <span className="text-[10px] text-stone-400 font-cairo">دبابة ({tanksCrossed}/{targetTanksCount})</span>
+          </div>
+
+          {/* Bridge Integrity */}
+          <div className="flex items-center gap-2 bg-stone-950/70 border border-stone-800 px-2.5 py-1 rounded-lg">
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-stone-400 font-cairo">سلامة الكوبري:</span>
+            <span className="font-mono tabular-nums font-bold text-emerald-300">
+              {Math.max(10, 100 - lostOpportunities * 20)}%
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-stone-950/70 border border-stone-800 px-2.5 py-1 rounded-lg">
-            <span className="text-stone-300">الدبابات المتدمرة:</span>
-            <span className={`font-mono tabular-nums font-bold text-sm ${lostOpportunities > 0 ? 'text-red-400 animate-pulse' : 'text-stone-400'}`}>
+          {/* Casualties / Destroyed Tanks */}
+          <div className={`flex items-center gap-2 bg-stone-950/70 border px-2.5 py-1 rounded-lg ${
+            lostOpportunities > 0 ? 'border-red-500/50 text-red-400 bg-red-950/40' : 'border-stone-800 text-stone-400'
+          }`}>
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-stone-400 font-cairo">الإصابات:</span>
+            <span className="font-mono tabular-nums font-bold">
               {lostOpportunities}
             </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-stone-950/70 border border-stone-800 px-2.5 py-1 rounded-lg">
-            <span className="font-mono tabular-nums font-bold text-amber-400">{score} نقطة</span>
           </div>
         </div>
       </div>
@@ -1339,7 +1356,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
             </button>
           )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
-            <span>دبابات العبور: {tanksCrossed}/{targetTanksCount}</span>
+            <span>الدبابات المتبقية: {Math.max(0, targetTanksCount - tanksCrossed)}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-red-400">
             <span>المتدمرة: {lostOpportunities}</span>
