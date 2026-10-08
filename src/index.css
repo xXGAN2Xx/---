@@ -115,6 +115,16 @@ canvas {
   -webkit-user-select: none;
 }
 
+/* Allow smooth vertical touch scrolling when dragging/swiping on tutorial video canvases on mobile */
+.tutorial-video-container,
+.tutorial-video-container canvas,
+canvas.tutorial-video-canvas,
+.tutorial-modal-overlay,
+[data-tutorial-video],
+[data-tutorial-video] canvas {
+  touch-action: pan-y !important;
+}
+
 /* Respect device accessibility preferences without disabling gameplay logic. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

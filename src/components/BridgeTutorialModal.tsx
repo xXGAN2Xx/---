@@ -473,7 +473,8 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
   return (
     <div
       dir="rtl"
-      className="fixed inset-0 z-[140] bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200"
+      className="fixed inset-0 z-[140] bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200 tutorial-modal-overlay touch-pan-y"
+      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
     >
       <div
         className="relative w-full max-w-2xl bg-stone-900 border-2 sm:border-3 border-amber-500 rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(245,158,11,0.35)] overflow-hidden my-auto"
@@ -513,16 +514,21 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
         </div>
 
         {/* Video Simulation Canvas */}
-        <div className="relative aspect-[16/9] w-full bg-stone-950 border-b border-stone-800 overflow-hidden">
+        <div
+          data-tutorial-video="true"
+          className="relative aspect-[16/9] w-full bg-stone-950 border-b border-stone-800 overflow-hidden tutorial-video-container touch-pan-y"
+          style={{ touchAction: 'pan-y' }}
+        >
           <canvas
             ref={canvasRef}
             width={640}
             height={360}
-            className="w-full h-full object-fill block"
+            className="w-full h-full object-fill block tutorial-video-canvas pointer-events-none"
+            style={{ touchAction: 'pan-y' }}
           />
 
           {/* Floating Guidance Badge */}
-          <div className="absolute bottom-3 right-3 bg-stone-950/90 border border-amber-500/60 rounded-xl px-3 py-1.5 backdrop-blur-md flex items-center gap-2 text-xs font-bold text-amber-300">
+          <div className="absolute bottom-3 right-3 bg-stone-950/90 border border-amber-500/60 rounded-xl px-3 py-1.5 backdrop-blur-md flex items-center gap-2 text-xs font-bold text-amber-300 pointer-events-none">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             <span>محاكاة الكباري: الضربة الدقيقة 🎯 + تدفق أرتال الدبابات إلى سيناء 🚜</span>
           </div>

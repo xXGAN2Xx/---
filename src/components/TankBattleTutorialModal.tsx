@@ -499,11 +499,11 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
   return (
     <div
       dir="rtl"
-      className="fixed inset-0 z-[120] bg-stone-950/92 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200"
-      onClick={handleCancel}
+      className="fixed inset-0 z-[140] bg-stone-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200 tutorial-modal-overlay touch-pan-y"
+      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
     >
       <div
-        className="relative w-full max-w-3xl bg-stone-900 border-2 border-amber-500/80 rounded-2xl shadow-[0_0_50px_rgba(245,158,11,0.35)] overflow-hidden my-auto flex flex-col"
+        className="relative w-full max-w-2xl sm:max-w-3xl bg-stone-900 border-2 sm:border-3 border-amber-500 rounded-2xl sm:rounded-3xl shadow-[0_0_50px_rgba(245,158,11,0.35)] overflow-hidden my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -545,16 +545,21 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
         </div>
 
         {/* Video Simulation Canvas */}
-        <div className="relative aspect-[16/9] w-full bg-stone-950 border-b border-stone-800 overflow-hidden">
+        <div
+          data-tutorial-video="true"
+          className="relative aspect-[16/9] w-full bg-stone-950 border-b border-stone-800 overflow-hidden tutorial-video-container touch-pan-y"
+          style={{ touchAction: 'pan-y' }}
+        >
           <canvas
             ref={canvasRef}
             width={640}
             height={360}
-            className="w-full h-full object-fill block"
+            className="w-full h-full object-fill block tutorial-video-canvas pointer-events-none"
+            style={{ touchAction: 'pan-y' }}
           />
 
           {/* Video Subtitle Caption Overlay */}
-          <div className="absolute top-3 left-3 right-3 sm:right-auto sm:max-w-md bg-stone-950/90 border border-amber-500/60 rounded-xl p-2 backdrop-blur-md text-xs shadow-lg flex items-center justify-between gap-2">
+          <div className="absolute top-3 left-3 right-3 sm:right-auto sm:max-w-md bg-stone-950/90 border border-amber-500/60 rounded-xl p-2 backdrop-blur-md text-xs shadow-lg flex items-center justify-between gap-2 pointer-events-none">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
               <span className="font-bold text-amber-300 text-[11px] sm:text-xs">{currentSceneTitle}</span>
@@ -565,7 +570,7 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
           </div>
 
           {/* Integrated Video Player Control Bar */}
-          <div className="absolute bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 px-3 py-2 flex items-center justify-between gap-3 backdrop-blur-md">
+          <div className="absolute bottom-0 left-0 right-0 bg-stone-950/95 border-t border-stone-800 px-3 py-2 flex items-center justify-between gap-3 backdrop-blur-md pointer-events-auto">
             <div className="flex items-center gap-2">
               <button
                 type="button"
