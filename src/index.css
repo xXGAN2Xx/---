@@ -230,9 +230,31 @@ canvas {
   }
 }
 
-/* Combat Canvas: Full Canvas Immersion & Direct Screen Stretch */
+/* Combat Canvas: Full Screen Immersion & Direct Screen Stretch Edge-to-Edge */
+.combat-active,
+.mobile-landscape-active {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100dvh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+.combat-active main,
+.mobile-landscape-active main {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100dvh !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 canvas.combat-canvas,
 .combat-canvas,
+.combat-active canvas,
 .mobile-landscape-active canvas {
   width: 100% !important;
   height: 100% !important;
@@ -244,6 +266,29 @@ canvas.combat-canvas,
 }
 
 @media (orientation: landscape) {
+  .combat-active header,
+  .mobile-landscape-active header {
+    display: none !important;
+  }
+
+  .combat-active .desktop-only-bar,
+  .mobile-landscape-active .desktop-only-bar,
+  .desktop-only-bar {
+    display: none !important;
+  }
+
+  .combat-active .mobile-landscape-hud,
+  .mobile-landscape-active .mobile-landscape-hud,
+  .mobile-landscape-hud {
+    display: flex !important;
+  }
+
+  .combat-active .mobile-touch-action-btn,
+  .mobile-landscape-active .mobile-touch-action-btn,
+  .mobile-touch-action-btn {
+    display: flex !important;
+  }
+
   canvas.combat-canvas,
   .combat-canvas {
     width: 100% !important;
@@ -268,21 +313,6 @@ canvas.combat-canvas,
 
 .mobile-landscape-active .mobile-touch-action-btn {
   display: flex !important;
-}
-
-@media (orientation: landscape) and (max-height: 640px) {
-  .desktop-only-bar {
-    display: none !important;
-  }
-  header {
-    display: none !important;
-  }
-  .mobile-landscape-hud {
-    display: flex !important;
-  }
-  .mobile-touch-action-btn {
-    display: flex !important;
-  }
 }
 
 /* Desktop Fullscreen & Computer Layout: Game & Top Header completely visible with zero scroll */
