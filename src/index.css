@@ -326,21 +326,21 @@ canvas.combat-canvas,
   }
 }
 
-/* Only small touch phones in landscape (height <= 480px, coarse pointer) */
-@media (max-width: 900px) and (max-height: 480px) and (pointer: coarse) and (orientation: landscape) {
-  .mobile-landscape-active header {
+/* Small touch phones and mobile devices in landscape (height <= 600px, or mobile-landscape-active) */
+@media (orientation: landscape) and (max-height: 600px),
+       (max-width: 1024px) and (max-height: 600px) and (orientation: landscape) {
+  header,
+  .desktop-only-bar,
+  .tank-battle-top-bar,
+  .tank-battle-footer {
     display: none !important;
   }
 
-  .mobile-landscape-active .desktop-only-bar {
-    display: none !important;
-  }
-
-  .mobile-landscape-active .mobile-landscape-hud {
+  .mobile-landscape-hud {
     display: flex !important;
   }
 
-  .mobile-landscape-active .mobile-touch-action-btn {
+  .mobile-touch-action-btn {
     display: flex !important;
   }
 
@@ -352,6 +352,21 @@ canvas.combat-canvas,
     max-height: 100% !important;
     object-fit: fill !important;
   }
+}
+
+.mobile-landscape-active header,
+.mobile-landscape-active .desktop-only-bar,
+.mobile-landscape-active .tank-battle-top-bar,
+.mobile-landscape-active .tank-battle-footer {
+  display: none !important;
+}
+
+.mobile-landscape-active .mobile-landscape-hud {
+  display: flex !important;
+}
+
+.mobile-landscape-active .mobile-touch-action-btn {
+  display: flex !important;
 }
 
 /* Screen-shake animation for proximity damage / ground fire / radar detection - gentle and subtle */

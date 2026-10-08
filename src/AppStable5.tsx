@@ -165,7 +165,7 @@ export default function App() {
     const portrait = window.innerHeight > window.innerWidth;
     const landscape = window.innerWidth >= window.innerHeight;
     const combat = currentMode.startsWith('MISSION_');
-    const isLandscapePhone = combat && landscape && mobile && window.innerHeight <= 500;
+    const isLandscapePhone = combat && landscape && (mobile || window.innerHeight <= 600);
     const isPortraitPhone = combat && portrait && mobile;
     setIsPortraitMobile(isPortraitPhone);
     setIsMobileLandscape(isLandscapePhone);

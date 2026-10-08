@@ -47,6 +47,7 @@ interface EnemyTank {
   isWreck: boolean;
   smokeTimer: number;
   treadOffset: number;
+  breachCooldown?: number;
 }
 
 interface EnemyPlane {
@@ -316,6 +317,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
 
     if (world.smokeTimeRemaining > 0) {
       addFloatingText('🛡️ حمتك ستارة الدخان! (-80%)', 160, 520, '#38bdf8');
+    } else {
+      addFloatingText(`💥 إصابة الموقع! -${finalAmount}%`, 160, 520, '#ef4444');
     }
 
     if (world.playerHealth <= 0) {
@@ -454,16 +457,16 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
     });
   }, [triggerScreenShake]);
 
-  // Aim crosshair with pointer
-  const updateAim = (event: React.PointerEvent<HTMLCanvasElement>) => {
+  // Aim crosshair with pointer or touch
+  const updateAimCoords = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = worldRef.current.width / rect.width;
     const scaleY = worldRef.current.height / rect.height;
-    worldRef.current.aimX = Math.max(260, Math.min(worldRef.current.width - 25, (event.clientX - rect.left) * scaleX));
-    worldRef.current.aimY = Math.max(60, Math.min(worldRef.current.height - 85, (event.clientY - rect.top) * scaleY));
-  };
+    worldRef.current.aimX = Math.max(260, Math.min(worldRef.current.width - 25, (clientX - rect.left) * scaleX));
+    worldRef.current.aimY = Math.max(60, Math.min(worldRef.current.height - 85, (clientY - rect.top) * scaleY));
+  }, []);
 
   // Keyboard hotkeys for weapons & SAM
   useEffect(() => {
@@ -561,6 +564,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
       isWreck: false,
       smokeTimer: 0,
       treadOffset: 0,
+      breachCooldown: 0,
     });
   }, [addFloatingText, bossSpawned, difficulty, targetTanks]);
 
@@ -1016,15 +1020,24 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
             tank.x -= tank.speed * dt;
             tank.fireCooldown -= dt;
 
-            // Enemy tank fires shells
+            // Enemy tank fires shells directly aimed at Egyptian position (150, 560)
             if (tank.fireCooldown <= 0 && tank.x < w - 60) {
               tank.fireCooldown = 2.4 + Math.random() * 1.6;
+              const muzzleX = tank.x - 45;
+              const muzzleY = tank.y - 14;
+              const targetBunkerX = 150 + (Math.random() - 0.5) * 40;
+              const targetBunkerY = 560 + (Math.random() - 0.5) * 40;
+              const toX = targetBunkerX - muzzleX;
+              const toY = targetBunkerY - muzzleY;
+              const dist = Math.max(1, Math.hypot(toX, toY));
+              const shellSpeed = 440;
+
               world.projectiles.push({
                 id: nextIdRef.current++,
-                x: tank.x - 45,
-                y: tank.y - 14,
-                vx: -380,
-                vy: (560 - tank.y) * 0.18,
+                x: muzzleX,
+                y: muzzleY,
+                vx: (toX / dist) * shellSpeed,
+                vy: (toY / dist) * shellSpeed,
                 kind: 'enemy-shell',
                 life: 0,
                 trail: [],
@@ -1033,9 +1046,14 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
             }
 
             // Close range breach
+            tank.breachCooldown = (tank.breachCooldown ?? 0) - dt;
             if (tank.x < 240) {
               tank.x = 240;
-              damagePlayer(tank.type === 'boss_yaguri' ? 18 : 9);
+              if ((tank.breachCooldown ?? 0) <= 0) {
+                tank.breachCooldown = 1.4;
+                damagePlayer(tank.type === 'boss_yaguri' ? 16 : 9);
+                addFloatingText('⚠️ هجوم مباشر من مسافة قريبة!', 180, 530, '#ef4444');
+              }
             }
           }
         }
@@ -1046,19 +1064,26 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
           plane.x -= plane.speed * dt;
           plane.bombCooldown -= dt;
 
-          if (plane.bombCooldown <= 0 && plane.x < 850 && plane.x > 300) {
-            plane.bombCooldown = 3.5;
+          // Enemy plane drops bomb aimed at Egyptian position
+          if (plane.bombCooldown <= 0 && plane.x < 800 && plane.x > 180) {
+            plane.bombCooldown = 3.6 + Math.random() * 1.4;
+            const bombSpeedY = 280;
+            const targetX = 150 + (Math.random() - 0.5) * 40;
+            const targetY = 560;
+            const fallTime = Math.max(0.6, (targetY - (plane.y + 26)) / bombSpeedY);
+            const neededVx = (targetX - plane.x) / fallTime;
+
             world.projectiles.push({
               id: nextIdRef.current++,
               x: plane.x,
               y: plane.y + 26,
-              vx: -60,
-              vy: 320,
+              vx: Math.max(-280, Math.min(60, neededVx)),
+              vy: bombSpeedY,
               kind: 'enemy-bomb',
               life: 0,
               trail: [],
             });
-            setRadioDispatch('⚠️ غارة جوية معادية! الطائرة أسقطت قنبلة ثقيلة — اسقطها بصاروخ سام فوراً!');
+            setRadioDispatch('⚠️ غارة جوية معادية! قنبلة متجهة نحو موقعنا — أسقط المقاتلة فوراً!');
           }
 
           if (plane.x < -100) {
@@ -1215,17 +1240,23 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
           }
 
           // Enemy shells hitting player Egyptian position
-          if (p.kind === 'enemy-shell' && Math.hypot(p.x - 150, p.y - 560) < 55) {
-            world.projectiles.splice(i, 1);
-            damagePlayer(8);
-            continue;
+          if (p.kind === 'enemy-shell') {
+            const hitBunker = Math.hypot(p.x - 150, p.y - 560) < 75 || (p.x <= 200 && p.y >= 470 && p.y <= 620);
+            if (hitBunker) {
+              world.projectiles.splice(i, 1);
+              damagePlayer(8);
+              continue;
+            }
           }
 
           // Enemy bombs hitting player Egyptian position
-          if (p.kind === 'enemy-bomb' && Math.hypot(p.x - 150, p.y - 560) < 65) {
-            world.projectiles.splice(i, 1);
-            damagePlayer(18);
-            continue;
+          if (p.kind === 'enemy-bomb') {
+            const hitBunker = Math.hypot(p.x - 150, p.y - 560) < 85 || (p.x <= 210 && p.y >= 470 && p.y <= 620);
+            if (hitBunker) {
+              world.projectiles.splice(i, 1);
+              damagePlayer(18);
+              continue;
+            }
           }
 
           // Remove out of bounds
@@ -1675,8 +1706,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
 
   return (
     <div dir="rtl" className="w-full h-full min-h-0 flex flex-col bg-stone-950 text-stone-100 select-none overflow-hidden">
-      {/* 3-Zone Top Bar Contract */}
-      <header className="px-3 sm:px-5 py-2.5 bg-stone-900 border-b border-stone-800 flex items-center justify-between gap-3 shrink-0">
+      {/* 3-Zone Top Bar: Hidden completely on mobile landscape so game fills the whole screen */}
+      <header className="tank-battle-top-bar desktop-only-bar px-3 sm:px-5 py-2.5 bg-stone-900 border-b border-stone-800 flex items-center justify-between gap-3 shrink-0 hidden md:flex [@media(orientation:landscape)_and_(max-height:600px)]:!hidden">
         {/* Zone 1: Title and Exit */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
@@ -1747,121 +1778,220 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
         </div>
       </header>
 
-      {/* Main Tactical Canvas */}
-      <div className="relative flex-1 min-h-0 bg-black">
+      {/* Main Tactical Canvas Container: Fills 100% of viewport in mobile landscape */}
+      <div className="relative flex-1 min-h-0 w-full h-full bg-black overflow-hidden">
         <canvas
           ref={canvasRef}
           width={1200}
           height={700}
-          className="combat-canvas w-full h-full block cursor-crosshair"
-          onPointerMove={updateAim}
+          className="combat-canvas w-full h-full block cursor-crosshair select-none"
+          onPointerMove={(e) => {
+            updateAimCoords(e.clientX, e.clientY);
+          }}
           onPointerDown={(e) => {
-            updateAim(e);
-            if (e.pointerType === 'mouse' && e.button === 0) {
+            updateAimCoords(e.clientX, e.clientY);
+            fireCurrentWeapon();
+          }}
+          onTouchStart={(e) => {
+            if (e.touches.length > 0) {
+              updateAimCoords(e.touches[0].clientX, e.touches[0].clientY);
               fireCurrentWeapon();
+            }
+          }}
+          onTouchMove={(e) => {
+            if (e.touches.length > 0) {
+              updateAimCoords(e.touches[0].clientX, e.touches[0].clientY);
             }
           }}
           aria-label="الميدان التكتيكي لمعركة الدبابات في سيناء"
         />
 
+        {/* Floating Minimal HUD in Mobile Landscape ("اللعبة وبس") */}
+        <div className="mobile-landscape-hud hidden pointer-events-none absolute top-2 left-2 right-2 z-30 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 pointer-events-auto">
+            <button
+              onClick={onExit}
+              className="p-1.5 rounded-lg bg-stone-950/85 hover:bg-stone-800 text-stone-300 border border-stone-700/80 backdrop-blur-md cursor-pointer active:scale-95 transition-transform"
+              aria-label="العودة"
+              title="خروج"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            {onOpenTutorialVideo && (
+              <button
+                onClick={onOpenTutorialVideo}
+                className="px-2 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white border border-red-400 text-[10px] font-bold font-cairo shadow-md flex items-center gap-1 active:scale-95"
+              >
+                <span>فيديو الشرح</span>
+              </button>
+            )}
+            <button
+              onClick={() => setOpticsMode((prev) => (prev === 'standard' ? 'periscope' : 'standard'))}
+              className={`p-1.5 rounded-lg border backdrop-blur-md cursor-pointer active:scale-95 ${
+                opticsMode === 'periscope'
+                  ? 'bg-emerald-950/85 border-emerald-500 text-emerald-300'
+                  : 'bg-stone-950/85 border-stone-700/80 text-stone-300'
+              }`}
+              title="منظار الرامي"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 font-cairo text-[11px] font-bold">
+            <div className="px-2 py-0.5 rounded-lg bg-red-950/80 border border-red-500/50 text-red-200 backdrop-blur-md flex items-center gap-1">
+              <Shield className="w-3 h-3" />
+              <span>{health}%</span>
+            </div>
+            <div className="px-2 py-0.5 rounded-lg bg-stone-950/80 border border-stone-700/80 text-amber-300 backdrop-blur-md flex items-center gap-1">
+              <Target className="w-3 h-3" />
+              <span>{tanksDestroyed}/{targetTanks}</span>
+            </div>
+            <div className="px-2 py-0.5 rounded-lg bg-stone-950/80 border border-stone-700/80 text-sky-300 backdrop-blur-md flex items-center gap-1">
+              <Plane className="w-3 h-3" />
+              <span>{planesDestroyed}/{targetPlanes}</span>
+            </div>
+            <div className="px-2 py-0.5 rounded-lg bg-stone-950/80 border border-stone-700/80 text-stone-200 backdrop-blur-md">
+              <span>{timeLeft}ث</span>
+            </div>
+          </div>
+        </div>
+
         {/* Tactical Radio Dispatch Ribbon */}
-        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-2 pointer-events-none">
-          <div className="px-3.5 py-2 rounded-xl bg-stone-950/85 border border-stone-700/80 backdrop-blur-md text-xs sm:text-sm font-cairo text-amber-200 flex items-center gap-2 max-w-[80%] shadow-lg">
-            <Radio className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+        <div className="absolute top-2.5 sm:top-2.5 [@media(orientation:landscape)_and_(max-height:600px)]:top-10 left-2.5 right-2.5 flex items-center justify-between gap-2 pointer-events-none transition-all">
+          <div className="px-3.5 py-1.5 sm:py-2 rounded-xl bg-stone-950/85 border border-stone-700/80 backdrop-blur-md text-[11px] sm:text-sm font-cairo text-amber-200 flex items-center gap-2 max-w-[80%] shadow-lg">
+            <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0 animate-pulse" />
             <span className="truncate">{radioDispatch}</span>
           </div>
-          <div className="px-3 py-1.5 rounded-xl bg-stone-950/85 border border-stone-700/80 backdrop-blur-md text-xs font-bold text-stone-200 tabular-nums">
+          <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-stone-950/85 border border-stone-700/80 backdrop-blur-md text-[11px] sm:text-xs font-bold text-stone-200 tabular-nums">
             {progressDone}/{progressTotal}
           </div>
         </div>
 
         {/* Bottom Weapon Selection Dock & Quick Action Controls */}
-        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3 pointer-events-none">
+        <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 right-2 sm:right-3 flex items-end justify-between gap-2 sm:gap-3 pointer-events-none">
           {/* Weapon Dock Selector */}
-          <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-stone-950/90 border border-stone-700/90 backdrop-blur-md pointer-events-auto shadow-2xl">
+          <div className="flex items-center gap-1 sm:gap-2 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl bg-stone-950/90 border border-stone-700/90 backdrop-blur-md pointer-events-auto shadow-2xl overflow-x-auto max-w-[62%] sm:max-w-none">
             <button
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                setSelectedWeapon('cannon');
+                sound.playRadioClick();
+              }}
               onClick={() => {
                 setSelectedWeapon('cannon');
                 sound.playRadioClick();
               }}
-              className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-bold font-cairo flex items-center gap-1.5 transition-all ${
+              className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs md:text-sm font-bold font-cairo flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                 selectedWeapon === 'cannon'
                   ? 'bg-amber-600 text-white shadow-[0_0_12px_rgba(217,119,6,0.5)]'
                   : 'text-stone-300 hover:bg-stone-800'
               }`}
             >
-              <Zap className="w-4 h-4" />
-              <span>مدفع 115 ملم [1]</span>
+              <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>مدفع [1]</span>
             </button>
 
             <button
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                setSelectedWeapon('sagger');
+                sound.playRadioClick();
+              }}
               onClick={() => {
                 setSelectedWeapon('sagger');
                 sound.playRadioClick();
               }}
-              className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-bold font-cairo flex items-center gap-1.5 transition-all ${
+              className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs md:text-sm font-bold font-cairo flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                 selectedWeapon === 'sagger'
                   ? 'bg-red-600 text-white shadow-[0_0_12px_rgba(220,38,38,0.5)]'
                   : 'text-stone-300 hover:bg-stone-800'
               }`}
             >
-              <Rocket className="w-4 h-4" />
-              <span>صاروخ مالوتكا ({saggerMissiles}) [2]</span>
+              <Rocket className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>مالوتكا ({saggerMissiles}) [2]</span>
             </button>
 
             <button
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                setSelectedWeapon('artillery');
+                sound.playRadioClick();
+              }}
               onClick={() => {
                 setSelectedWeapon('artillery');
                 sound.playRadioClick();
               }}
-              className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-bold font-cairo flex items-center gap-1.5 transition-all ${
+              className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs md:text-sm font-bold font-cairo flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                 selectedWeapon === 'artillery'
                   ? 'bg-orange-600 text-white shadow-[0_0_12px_rgba(234,88,12,0.5)]'
                   : 'text-stone-300 hover:bg-stone-800'
               }`}
             >
-              <Bomb className="w-4 h-4" />
+              <Bomb className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>مدفعية ({artilleryCharges}) [3]</span>
-              {artilleryCooldown > 0 && <span className="text-[10px] text-amber-300">({artilleryCooldown}ث)</span>}
+              {artilleryCooldown > 0 && <span className="text-[9px] text-amber-300">({artilleryCooldown}ث)</span>}
             </button>
 
             <button
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                setSelectedWeapon('smoke');
+                sound.playRadioClick();
+              }}
               onClick={() => {
                 setSelectedWeapon('smoke');
                 sound.playRadioClick();
               }}
-              className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-bold font-cairo flex items-center gap-1.5 transition-all ${
+              className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs md:text-sm font-bold font-cairo flex items-center gap-1 sm:gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                 selectedWeapon === 'smoke'
                   ? 'bg-sky-600 text-white shadow-[0_0_12px_rgba(2,132,199,0.5)]'
                   : 'text-stone-300 hover:bg-stone-800'
               }`}
             >
-              <Wind className="w-4 h-4" />
+              <Wind className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>دخان ({smokeCharges}) [4]</span>
-              {smokeActiveTimer > 0 && <span className="text-[10px] text-emerald-300">({smokeActiveTimer}ث)</span>}
+              {smokeActiveTimer > 0 && <span className="text-[9px] text-emerald-300">({smokeActiveTimer}ث)</span>}
             </button>
           </div>
 
           {/* Right Action Buttons: SAM Intercept & Main Fire */}
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
             <button
               type="button"
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                fireSamMissile();
+              }}
               onClick={fireSamMissile}
-              className="h-14 sm:h-16 px-3 sm:px-4 rounded-2xl bg-sky-900/90 hover:bg-sky-800 border-2 border-sky-400/60 text-sky-100 font-bold font-cairo text-xs sm:text-sm flex flex-col items-center justify-center gap-1 shadow-lg active:scale-95 transition-transform"
+              className="h-11 sm:h-16 px-2.5 sm:px-4 rounded-xl sm:rounded-2xl bg-sky-900/90 hover:bg-sky-800 border-2 border-sky-400/60 text-sky-100 font-bold font-cairo text-[11px] sm:text-sm flex flex-col items-center justify-center gap-0.5 shadow-lg active:scale-95 transition-transform cursor-pointer select-none"
               title="اعتراض الطائرات بحائط الصواريخ سام-6 (المسافة)"
             >
-              <Plane className="w-5 h-5 text-sky-300" />
-              <span>سام-6 [مسافة]</span>
+              <Plane className="w-4 h-4 sm:w-5 sm:h-5 text-sky-300" />
+              <span>سام-6</span>
             </button>
 
             <button
               type="button"
-              onClick={fireCurrentWeapon}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isWon && !isDefeated) {
+                  fireCurrentWeapon();
+                }
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!isWon && !isDefeated) {
+                  fireCurrentWeapon();
+                }
+              }}
               disabled={isWon || isDefeated}
-              className="w-24 sm:w-32 h-14 sm:h-16 rounded-2xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 border-2 border-amber-300 text-white font-black font-cairo text-base sm:text-lg shadow-[0_0_24px_rgba(239,68,68,0.45)] active:scale-95 flex flex-col items-center justify-center gap-0.5 transition-all"
+              className="w-20 sm:w-32 h-11 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 border-2 border-amber-300 text-white font-black font-cairo text-sm sm:text-lg shadow-[0_0_24px_rgba(239,68,68,0.45)] active:scale-95 flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer select-none"
             >
-              <Crosshair className="w-6 h-6" />
-              <span>إطلاق [F]</span>
+              <Crosshair className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span>إطلاق</span>
             </button>
           </div>
         </div>
@@ -1896,8 +2026,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
         )}
       </div>
 
-      {/* Footer Info Strip */}
-      <footer className="shrink-0 bg-stone-900 border-t border-stone-800 px-3 sm:px-4 py-2 flex items-center justify-between gap-3 text-xs font-cairo text-stone-400">
+      {/* Footer Info Strip: Hidden in mobile landscape */}
+      <footer className="tank-battle-footer shrink-0 bg-stone-900 border-t border-stone-800 px-3 sm:px-4 py-2 hidden md:flex [@media(orientation:landscape)_and_(max-height:600px)]:!hidden items-center justify-between gap-3 text-xs font-cairo text-stone-400">
         <div className="flex items-center gap-2 text-stone-300">
           <Sparkles className="w-4 h-4 text-amber-400" />
           <span>تكتيك 1973: صائدو الدبابات (مالوتكا) + حائط الصواريخ (سام-6) لحماية رؤوس الكباري</span>
