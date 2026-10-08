@@ -103,20 +103,20 @@ export const TankBattleTutorialModal: React.FC<TankBattleTutorialModalProps> = (
 
       // Determine current scene caption
       if (loopFrame < 110) {
-        setCurrentSceneTitle('المشهد 1: قراءة بطاقات العمليات العسكرية وتحديد ساعة الصفر (6 أكتوبر)');
-        setCurrentSceneKey('ترتيب الأحداث 1️⃣');
+        setCurrentSceneTitle('المشهد 1: رصد دبابات العدو وقصفها بمدفع T-62 الرئيسي (115 ملم)');
+        setCurrentSceneKey('قصف المدفع 🎯');
       } else if (loopFrame < 230) {
-        setCurrentSceneTitle('المشهد 2: استخدام أزرار الأسهم أو النقر للتبديل ووضع الحدث في موقعه الزمني');
-        setCurrentSceneKey('تحريك لأعلى / لأسفل ⬆️⬇️');
+        setCurrentSceneTitle('المشهد 2: إطلاق صواريخ مالوتكا (ساجر) الموجهة سلكياً لاصطياد الدبابات الثقيلة');
+        setCurrentSceneKey('صاروخ مالوتكا 🚀');
       } else if (loopFrame < 350) {
-        setCurrentSceneTitle('المشهد 3: الضغط على "تأكيد وفحص التسلسل" لإطلاق صواريخ الساجر وسحق الدبابات');
-        setCurrentSceneKey('زر فحص التسلسل 🎯');
+        setCurrentSceneTitle('المشهد 3: طلب قصف المدفعية الميدانية الثقيلة لدك أرتال العدو في المزرعة الصينية');
+        setCurrentSceneKey('قصف مدفعي 💣');
       } else if (loopFrame < 450) {
-        setCurrentSceneTitle('المشهد 4: الاستفادة من التلميحات التكتيكية لتصحيح مواضع الأحداث قبل نفاد الوقت');
-        setCurrentSceneKey('زر التلميح 💡');
+        setCurrentSceneTitle('المشهد 4: إطلاق ستائر الدخان التكتيكية لحماية الموقع وإرباك رماة العدو');
+        setCurrentSceneKey('ستارة الدخان 💨');
       } else {
-        setCurrentSceneTitle('المشهد 5: اكتمال التسلسل التاريخي وسحق اللواء 190 وأسر عساف ياجوري حياً!');
-        setCurrentSceneKey('إعلان النصر التكتيكي 🇪🇬');
+        setCurrentSceneTitle('المشهد 5: تدمير دبابة قيادة اللواء 190 وسحق هجوم العدو المضاد وتحقيق النصر!');
+        setCurrentSceneKey('إعلان النصر 🇪🇬');
       }
 
       const w = canvas.width;
