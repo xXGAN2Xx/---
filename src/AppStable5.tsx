@@ -34,6 +34,20 @@ import { narration } from './utils/narration';
 import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap, ChevronLeft, MapPin, Volume2, VolumeX, Video, Mic, MicOff, Gauge, Target } from 'lucide-react';
 
 export default function App() {
+  useEffect(() => {
+    const combat = currentMode.startsWith('MISSION_');
+    document.documentElement.classList.toggle('combat-page', combat);
+    document.body.classList.toggle('combat-page', combat);
+    document.documentElement.classList.toggle('menu-page', !combat);
+    document.body.classList.toggle('menu-page', !combat);
+
+    return () => {
+      document.documentElement.classList.remove('combat-page', 'menu-page');
+      document.body.classList.remove('combat-page', 'menu-page');
+    };
+  }, [currentMode]);
+
+
   const [currentMode, setCurrentMode] = useState<GameMode>('MENU');
   const [objectivesMission, setObjectivesMission] = useState<GameMode | null>(null);
   const [briefingMission, setBriefingMission] = useState<GameMode | null>(null);
@@ -163,7 +177,11 @@ export default function App() {
 
     try {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
+        try {
+          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+        } catch {
+          await document.documentElement.requestFullscreen();
+        }
       }
     } catch {
       // بعض المتصفحات تمنع ملء الشاشة، فنستخدم شاشة تدوير الموبايل كبديل.
