@@ -803,12 +803,12 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
             <span>{score}</span>
           </div>
 
-          {/* Remaining events to lock */}
+          {/* Remaining tanks to destroy */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-950/70 border border-sky-500/60 text-sky-300 font-mono font-bold shadow-sm">
-            <CheckCircle2 className="w-4 h-4 text-sky-400" />
-            <span className="text-stone-300 text-xs font-cairo">الأحداث المتبقية:</span>
+            <Target className="w-4 h-4 text-sky-400" />
+            <span className="text-stone-300 text-xs font-cairo">الدبابات المتبقية:</span>
             <span className="text-sky-300 text-sm font-black">{remainingCount}</span>
-            <span className="text-[10px] text-stone-400 font-cairo">أحداث ({lockedEvents.size}/{activeEventsRef.current.length})</span>
+            <span className="text-[10px] text-stone-400 font-cairo">أرتال ({lockedEvents.size}/{activeEventsRef.current.length})</span>
           </div>
 
           {/* Defense Health */}
