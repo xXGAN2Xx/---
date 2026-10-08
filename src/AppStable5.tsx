@@ -26,6 +26,10 @@ import { WeatherLightingContainer, WeatherType } from './components/WeatherLight
 import { DefeatModal } from './components/DefeatModal';
 import { Difficulty, DIFFICULTY_CONFIG } from './game/difficulty';
 import { TacticalStationTutorialModal } from './components/TacticalStationTutorialModal';
+import { CrossingTutorialModal } from './components/CrossingTutorialModal';
+import { BridgeTutorialModal } from './components/BridgeTutorialModal';
+import { TankBattleTutorialModal } from './components/TankBattleTutorialModal';
+import { FortressTutorialModal } from './components/FortressTutorialModal';
 import { narration } from './utils/narration';
 import { Play, Shield, Award, Trophy, Compass, ArrowRight, BookOpen, Waves, Zap, ChevronLeft, MapPin, Volume2, VolumeX, Video, Mic, MicOff, Gauge, Target } from 'lucide-react';
 
@@ -34,6 +38,7 @@ export default function App() {
   const [objectivesMission, setObjectivesMission] = useState<GameMode | null>(null);
   const [briefingMission, setBriefingMission] = useState<GameMode | null>(null);
   const [countdownMission, setCountdownMission] = useState<GameMode | null>(null);
+  const [activeTutorialVideoStage, setActiveTutorialVideoStage] = useState<GameMode | null>(null);
   const [defeatData, setDefeatData] = useState<{
     mission: GameMode;
     missionTitle: string;
@@ -118,7 +123,7 @@ export default function App() {
   });
 
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(() => narration.isEnabled());
-  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
+  const [mandatoryTutorialStage, setMandatoryTutorialStage] = useState<GameMode | null>(null);
 
   const handleDifficultyChange = (newDiff: Difficulty) => {
     sound.playRadioClick();
@@ -272,6 +277,8 @@ export default function App() {
     setCurrentMode('MENU');
     setObjectivesMission(null);
     setBriefingMission(null);
+    setMandatoryTutorialStage(null);
+    setActiveTutorialVideoStage(null);
     setIsStageSelectOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -281,66 +288,71 @@ export default function App() {
       handleReturnToMenu();
       return;
     }
-    // الضربة الجوية: إظهار دليل وتدريب تدمير المحطات إجبارياً في كل مرة قبل دخول المعركة
-    if (mode === 'MISSION_AIR_STRIKE') {
-      sound.playMissionStartRadioAlert();
-      sound.stopBackgroundTheme();
-      if (MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']) {
-        setCurrentWeather(MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']);
-      }
-      setObjectivesMission(null);
-      setBriefingMission(null);
-      setIsStageSelectOpen(false);
-      setIsTutorialOpen(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
+    // إظهار الفيديو التقديمي التعليمي إجبارياً في كل مرة قبل بدء أي مرحلة (المرحلة 1، 2، 3، إلخ)
     if (mode.startsWith('MISSION_')) {
       sound.playMissionStartRadioAlert();
       sound.stopBackgroundTheme();
       if (MISSION_WEATHER_MAP[mode]) {
         setCurrentWeather(MISSION_WEATHER_MAP[mode]);
       }
-      // Open ONE single unified briefing & objectives modal with TTS narration
-      setCurrentMode(mode);
-      setObjectivesMission(mode);
-    } else {
-      sound.playRadioTransmission();
-      sound.stopBackgroundTheme();
-      setCurrentMode(mode);
+      setObjectivesMission(null);
+      setBriefingMission(null);
+      setIsStageSelectOpen(false);
+      setMandatoryTutorialStage(mode);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
+
+    sound.playRadioTransmission();
+    sound.stopBackgroundTheme();
+    setCurrentMode(mode);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleLaunchAirStrike = () => {
-    setIsTutorialOpen(false);
+  const handleStartMissionFromMandatoryTutorial = (mission: GameMode) => {
+    setMandatoryTutorialStage(null);
+    sound.setMuted(false);
+    setIsMuted(false);
     sound.playRadioTransmission();
-    if (MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']) {
-      setCurrentWeather(MISSION_WEATHER_MAP['MISSION_AIR_STRIKE']);
+    if (MISSION_WEATHER_MAP[mission]) {
+      setCurrentWeather(MISSION_WEATHER_MAP[mission]);
     }
-    sound.playBackgroundTheme(THEME_MAP['MISSION_AIR_STRIKE'] || 'airStrike');
-    setCurrentMode('MISSION_AIR_STRIKE');
+    sound.playBackgroundTheme(THEME_MAP[mission] || 'airStrike');
+    setCurrentMode(mission);
     if (isMobileDevice()) {
       void lockMissionLandscape();
     }
+  };
+
+  const handleCancelMandatoryTutorial = () => {
+    setMandatoryTutorialStage(null);
+    handleReturnToMenu();
+  };
+
+  // Open Tutorial Video during ANY stage - Pauses game engine and audio!
+  const handleOpenTutorialVideo = (stageOverride?: GameMode) => {
+    const target = stageOverride || (currentMode.startsWith('MISSION_') ? currentMode : 'MISSION_AIR_STRIKE');
+    sound.playRadioClick();
+    setGamePaused(true);
+    setActiveTutorialVideoStage(target);
+  };
+
+  // Close Tutorial Video - Resumes game engine!
+  const handleCloseTutorialVideo = () => {
+    setActiveTutorialVideoStage(null);
+    setGamePaused(false);
   };
 
   const handleStartMissionFromObjectives = () => {
     if (!objectivesMission) return;
     const target = objectivesMission;
     setObjectivesMission(null);
-    sound.playRadioTransmission();
+    sound.playMissionStartRadioAlert();
+    sound.stopBackgroundTheme();
     if (MISSION_WEATHER_MAP[target]) {
       setCurrentWeather(MISSION_WEATHER_MAP[target]);
     }
-    // Start patriotic theme music for this stage!
-    sound.playBackgroundTheme(THEME_MAP[target] || 'airStrike');
-    // Launch stage in landscape on supported mobile browsers.
-    setCurrentMode(target);
-    if (isMobileDevice()) {
-      void lockMissionLandscape();
-    }
+    setMandatoryTutorialStage(target);
   };
 
   const handleStartMissionFromBriefing = () => {
@@ -437,15 +449,23 @@ export default function App() {
       completedMissions: Array.from(new Set([...prev.completedMissions, mission])),
     }));
 
-    // Auto progress to next logical mission with single modal
+    // Auto progress to next logical mission with MANDATORY presentation video!
     if (mission === 'MISSION_AIR_STRIKE') {
-      setObjectivesMission('MISSION_CROSSING');
+      sound.playMissionStartRadioAlert();
+      sound.stopBackgroundTheme();
+      setMandatoryTutorialStage('MISSION_CROSSING');
     } else if (mission === 'MISSION_CROSSING') {
-      setObjectivesMission('MISSION_BRIDGE');
+      sound.playMissionStartRadioAlert();
+      sound.stopBackgroundTheme();
+      setMandatoryTutorialStage('MISSION_BRIDGE');
     } else if (mission === 'MISSION_BRIDGE') {
-      setObjectivesMission('MISSION_TANK_BATTLE');
+      sound.playMissionStartRadioAlert();
+      sound.stopBackgroundTheme();
+      setMandatoryTutorialStage('MISSION_TANK_BATTLE');
     } else if (mission === 'MISSION_TANK_BATTLE') {
-      setObjectivesMission('MISSION_FORTRESS');
+      sound.playMissionStartRadioAlert();
+      sound.stopBackgroundTheme();
+      setMandatoryTutorialStage('MISSION_FORTRESS');
     } else {
       sound.playBackgroundTheme('menu');
       setCurrentMode('MUSEUM');
@@ -527,16 +547,100 @@ export default function App() {
         />
       )}
 
-      {/* Mandatory Tactical Station Tutorial Video Modal before Air Strike */}
-      {isTutorialOpen && (
+      {/* 1. Mandatory Presentation & Gameplay Tutorial Video Modals Before Battle Begins */}
+      {mandatoryTutorialStage === 'MISSION_AIR_STRIKE' && (
         <TacticalStationTutorialModal
           isOpen={true}
-          onLaunchBattle={handleLaunchAirStrike}
-          onCancel={() => {
-            setIsTutorialOpen(false);
-            handleReturnToMenu();
-          }}
           difficulty={difficulty}
+          onLaunchBattle={() => handleStartMissionFromMandatoryTutorial('MISSION_AIR_STRIKE')}
+          onCancel={handleCancelMandatoryTutorial}
+        />
+      )}
+
+      {mandatoryTutorialStage === 'MISSION_CROSSING' && (
+        <CrossingTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onLaunchBattle={() => handleStartMissionFromMandatoryTutorial('MISSION_CROSSING')}
+          onCancel={handleCancelMandatoryTutorial}
+        />
+      )}
+
+      {mandatoryTutorialStage === 'MISSION_BRIDGE' && (
+        <BridgeTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onLaunchBattle={() => handleStartMissionFromMandatoryTutorial('MISSION_BRIDGE')}
+          onCancel={handleCancelMandatoryTutorial}
+        />
+      )}
+
+      {mandatoryTutorialStage === 'MISSION_TANK_BATTLE' && (
+        <TankBattleTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onLaunchBattle={() => handleStartMissionFromMandatoryTutorial('MISSION_TANK_BATTLE')}
+          onCancel={handleCancelMandatoryTutorial}
+        />
+      )}
+
+      {mandatoryTutorialStage === 'MISSION_FORTRESS' && (
+        <FortressTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onLaunchBattle={() => handleStartMissionFromMandatoryTutorial('MISSION_FORTRESS')}
+          onCancel={handleCancelMandatoryTutorial}
+        />
+      )}
+
+      {/* Interactive In-Mission Explanatory Video Modals for ANY stage - Pauses Game while active */}
+      {activeTutorialVideoStage === 'MISSION_AIR_STRIKE' && (
+        <TacticalStationTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onClose={handleCloseTutorialVideo}
+          onLaunchBattle={handleCloseTutorialVideo}
+          onCancel={handleCloseTutorialVideo}
+        />
+      )}
+
+      {activeTutorialVideoStage === 'MISSION_CROSSING' && (
+        <CrossingTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onClose={handleCloseTutorialVideo}
+          onLaunchBattle={handleCloseTutorialVideo}
+          onCancel={handleCloseTutorialVideo}
+        />
+      )}
+
+      {activeTutorialVideoStage === 'MISSION_BRIDGE' && (
+        <BridgeTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onClose={handleCloseTutorialVideo}
+          onLaunchBattle={handleCloseTutorialVideo}
+          onCancel={handleCloseTutorialVideo}
+        />
+      )}
+
+      {activeTutorialVideoStage === 'MISSION_TANK_BATTLE' && (
+        <TankBattleTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onClose={handleCloseTutorialVideo}
+          onLaunchBattle={handleCloseTutorialVideo}
+          onCancel={handleCloseTutorialVideo}
+        />
+      )}
+
+      {activeTutorialVideoStage === 'MISSION_FORTRESS' && (
+        <FortressTutorialModal
+          isOpen={true}
+          difficulty={difficulty}
+          onClose={handleCloseTutorialVideo}
+          onLaunchBattle={handleCloseTutorialVideo}
+          onCancel={handleCloseTutorialVideo}
         />
       )}
 
@@ -595,6 +699,7 @@ export default function App() {
         }}
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
+        onOpenTutorialVideo={() => handleOpenTutorialVideo()}
       />
       )}
 
@@ -622,6 +727,7 @@ export default function App() {
                 onComplete={(pts) => handleMissionComplete('MISSION_AIR_STRIKE', pts)}
                 onDefeat={(reason) => handleMissionDefeat('MISSION_AIR_STRIKE', reason)}
                 onExit={handleExitMission}
+                onOpenTutorialVideo={() => handleOpenTutorialVideo('MISSION_AIR_STRIKE')}
               />
             )}
 
@@ -631,6 +737,7 @@ export default function App() {
                 onComplete={(pts) => handleMissionComplete('MISSION_CROSSING', pts)}
                 onDefeat={(reason) => handleMissionDefeat('MISSION_CROSSING', reason)}
                 onExit={handleExitMission}
+                onOpenTutorialVideo={() => handleOpenTutorialVideo('MISSION_CROSSING')}
               />
             )}
 
@@ -640,6 +747,7 @@ export default function App() {
                 onComplete={(pts) => handleMissionComplete('MISSION_BRIDGE', pts)}
                 onDefeat={(reason) => handleMissionDefeat('MISSION_BRIDGE', reason)}
                 onExit={handleExitMission}
+                onOpenTutorialVideo={() => handleOpenTutorialVideo('MISSION_BRIDGE')}
               />
             )}
 
@@ -649,6 +757,7 @@ export default function App() {
                 onComplete={(pts) => handleMissionComplete('MISSION_TANK_BATTLE', pts)}
                 onDefeat={(reason) => handleMissionDefeat('MISSION_TANK_BATTLE', reason)}
                 onExit={handleExitMission}
+                onOpenTutorialVideo={() => handleOpenTutorialVideo('MISSION_TANK_BATTLE')}
               />
             )}
 
@@ -658,6 +767,7 @@ export default function App() {
                 onComplete={(pts) => handleMissionComplete('MISSION_FORTRESS', pts)}
                 onDefeat={(reason) => handleMissionDefeat('MISSION_FORTRESS', reason)}
                 onExit={handleExitMission}
+                onOpenTutorialVideo={() => handleOpenTutorialVideo('MISSION_FORTRESS')}
               />
             )}
           </WeatherLightingContainer>
@@ -748,6 +858,15 @@ export default function App() {
                   >
                     <Trophy className="w-4 h-4 text-stone-400" />
                     <span>متحف وسجل الأبطال</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleOpenTutorialVideo('MISSION_AIR_STRIKE')}
+                    className="px-5 py-3 bg-red-950/80 hover:bg-red-900 text-red-200 border-2 border-red-600/80 font-bold font-cairo rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-2 active:scale-95"
+                    title="مشاهدة فيديو الشرح التكتيكي"
+                  >
+                    <Video className="w-4 h-4 text-red-400" />
+                    <span>🎬 فيديوهات الشرح التكتيكي للمراحل</span>
                   </button>
                 </div>
 
@@ -870,7 +989,7 @@ export default function App() {
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-stone-800 text-xs">
                     <span className="text-[11px] text-stone-300 flex items-center gap-1.5 font-cairo">
                       <Target className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>قاعدة النصر: تدمير {DIFFICULTY_CONFIG[difficulty].requiredAirStrikeStations} محطات من أصل 6 · يظهر دليل وتدريب التدمير إجبارياً في كل مرة قبل دخول المعركة.</span>
+                      <span>قواعد النصر: يظهر الفيديو التقديمي التكتيكي وشرح طريقة اللعب إجبارياً في كل مرة قبل خوض أي مرحلة.</span>
                     </span>
                   </div>
                 </div>

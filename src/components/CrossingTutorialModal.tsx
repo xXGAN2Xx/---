@@ -599,15 +599,15 @@ export const CrossingTutorialModal: React.FC<CrossingTutorialModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black font-cairo text-stone-100">
-                  دليل معركة العبور: فتح الساتر الترابي بخراطيم مياه باقي زكي
+                <h3 className="text-sm sm:text-base font-black font-cairo text-amber-400">
+                  فيديو تقديمي يشرح طريقة اللعب: فتح الساتر الترابي وإطلاق قوارب العبور
                 </h3>
                 <span className="text-[10px] bg-red-600 text-white font-mono px-2 py-0.5 rounded font-bold animate-pulse">
-                  إجباري
+                  فيديو تقديمي إجباري 🎬
                 </span>
               </div>
               <p className="text-[11px] text-stone-400">
-                الساعة 14:15 · تسجيل تكتيكي ميداني يوضح كيفية إذابة الساتر وإخماد الدشم وتأمين القوارب
+                المرحلة الثانية · فيديو محاكاة يوضح أسلوب التحكم، إذابة الساتر الترابي، إخماد الدشم، وتأمين عبور القوارب
               </p>
             </div>
           </div>
@@ -771,7 +771,7 @@ export const CrossingTutorialModal: React.FC<CrossingTutorialModalProps> = ({
             className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-700 font-bold font-cairo text-xs transition-all cursor-pointer flex items-center gap-1.5"
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            <span>العودة للقائمة</span>
+            <span>{onLaunchBattle && !onClose ? 'العودة للقائمة' : 'إغلاق ومتابعة المعركة'}</span>
           </button>
 
           <button
@@ -780,7 +780,11 @@ export const CrossingTutorialModal: React.FC<CrossingTutorialModalProps> = ({
             className="flex-1 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black font-cairo text-xs sm:text-sm shadow-[0_0_20px_rgba(245,158,11,0.4)] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4 fill-stone-950 text-amber-500" />
-            <span>فهمت شروط فتح الثغرات (بدء ملحمة العبور) 🌊</span>
+            <span>
+              {onLaunchBattle && !onClose
+                ? 'فهمت طريقة اللعب والتحكم (الانطلاق لمعركة العبور) ⚡'
+                : 'متابعة القتال واستئناف اللعب ⚡'}
+            </span>
           </button>
         </div>
       </div>

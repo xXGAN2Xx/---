@@ -14,6 +14,7 @@ import {
   Award,
   Sparkles,
   Wind,
+  Video,
 } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
@@ -25,6 +26,7 @@ interface TankBattleMissionProps {
   onComplete: (scoreEarned: number) => void;
   onDefeat?: (reason?: string) => void;
   onExit: () => void;
+  onOpenTutorialVideo?: () => void;
 }
 
 // 7 Distinct authentic historical combat vehicle types from October 1973
@@ -93,6 +95,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
   onComplete,
   onDefeat,
   onExit,
+  onOpenTutorialVideo,
 }) => {
   const diffConfig = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
   const missionDuration = diffConfig.missionDuration; // 150s (easy), 120s (normal), 90s (hard)
@@ -216,7 +219,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
     s.saggerCooldownTimer = 0;
     s.artilleryCooldownTimer = 0;
     s.smokeTimer = 0;
-    s.nextSpawnTimer = 0.3;
+    s.nextSpawnTimer = 3.5; // Start with calm 3.5s preparation buffer
     s.bossSpawned = false;
     s.isComplete = false;
   }, [difficulty, missionDuration, targetTanksCount]);
@@ -268,7 +271,8 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
     const w = canvas ? canvas.width : 1000;
     const h = canvas ? canvas.height : 520;
 
-    const speedScale = difficulty === 'easy' ? 0.75 : difficulty === 'hard' ? 1.25 : 1.0;
+    // Calm and steady tank speeds: slower advance for strategic aiming
+    const speedScale = difficulty === 'easy' ? 0.55 : difficulty === 'hard' ? 0.95 : 0.75;
 
     let type: EnemyTankType = 'patton_m60';
     let hp = 75;
@@ -368,7 +372,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
       width,
       height,
       destroyed: false,
-      fireCooldown: 2.2 + Math.random() * 2.8,
+      fireCooldown: (difficulty === 'easy' ? 6.5 : difficulty === 'hard' ? 4.5 : 5.5) + Math.random() * 2.5,
       name,
       arabicRole,
       points,
@@ -484,7 +488,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
   // Call Artillery Barrage
   const handleCallArtillery = () => {
     const s = stateRef.current;
-    if (s.artilleryCooldownTimer > 0 || isWon || isDefeated) return;
+    if (s.artilleryCooldownTimer > 0 || isWon || isDefeated || isGamePaused()) return;
 
     s.artilleryCooldownTimer = 11.0;
     setArtilleryCooldown(11);
@@ -499,7 +503,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
 
     for (let i = 0; i < 7; i++) {
       setTimeout(() => {
-        if (s.isComplete) return;
+        if (s.isComplete || isGamePaused()) return;
         const barrageX = w * 0.38 + Math.random() * (w * 0.58);
         const barrageY = h * 0.48 + Math.random() * (h * 0.38);
 
@@ -529,7 +533,7 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
   // Deploy Tactical Smoke Screen (blinds enemy tanks)
   const handleDeploySmokeScreen = () => {
     const s = stateRef.current;
-    if (s.smokeTimer > 0 || isWon || isDefeated) return;
+    if (s.smokeTimer > 0 || isWon || isDefeated || isGamePaused()) return;
 
     sound.playRadioTransmission();
     s.smokeTimer = 7.0;
@@ -610,8 +614,9 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
           } else {
             spawnEnemyTank(false);
           }
-          // Spacing between tanks
-          s.nextSpawnTimer = (2.2 + Math.random() * 1.6) * (difficulty === 'hard' ? 0.75 : 1.0);
+          // Spacing between tanks - exactly around 5 seconds as requested (5.5s easy, 5.0s normal, 4.5s hard)
+          const baseInterval = difficulty === 'easy' ? 5.5 : difficulty === 'hard' ? 4.5 : 5.0;
+          s.nextSpawnTimer = baseInterval + (Math.random() - 0.5) * 0.8;
         }
       }
 
@@ -673,17 +678,18 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
           });
         }
 
-        // Firing at Egyptian Berm (reduced if smoke screen is active)
+        // Firing at Egyptian Berm (reduced if smoke screen is active, slower fire rate for strategic play)
         tank.fireCooldown -= dt;
         if (tank.fireCooldown <= 0 && tank.x < w * 0.84) {
-          tank.fireCooldown = s.smokeTimer > 0 ? 7.5 : 5.0 + Math.random() * 3.5;
+          const baseCooldown = difficulty === 'easy' ? 9.5 : difficulty === 'hard' ? 6.5 : 8.0;
+          tank.fireCooldown = (s.smokeTimer > 0 ? baseCooldown * 1.6 : baseCooldown) + Math.random() * 2.5;
 
           const targetBermX = 140;
           const targetBermY = tank.y + (Math.random() - 0.5) * (s.smokeTimer > 0 ? 120 : 40);
           const dx = targetBermX - tank.x;
           const dy = targetBermY - tank.y;
           const dist = Math.hypot(dx, dy) || 1;
-          const shellSpeed = 390;
+          const shellSpeed = 260; // Slower shell flight speed (was 390) for fair reaction time
 
           s.shells.push({
             x: tank.x - 22,
@@ -1248,6 +1254,17 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">انسحاب</span>
           </button>
+          {onOpenTutorialVideo && (
+            <button
+              type="button"
+              onClick={onOpenTutorialVideo}
+              className="px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold active:scale-95 shadow-sm"
+              title="مشاهدة فيديو الشرح التكتيكي (يوقف اللعبة مؤقتاً)"
+            >
+              <Video className="w-3.5 h-3.5 text-red-400" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <span className="text-amber-500 text-sm">⚔️</span>
@@ -1256,6 +1273,9 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
                 {diffConfig.badge}
+              </span>
+              <span className="hidden lg:inline text-[10px] text-stone-400 bg-stone-900 px-2 py-0.5 rounded-full border border-stone-800">
+                ظهور الدبابات: كل 5 ثوانٍ
               </span>
             </div>
             <p className="text-[11px] text-stone-400 hidden md:block">

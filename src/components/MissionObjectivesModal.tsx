@@ -343,6 +343,23 @@ export const MissionObjectivesModal: React.FC<MissionObjectivesModalProps> = ({
                 </div>
               )}
 
+              {missionId === 'MISSION_TANK_BATTLE' && (
+                <div className="bg-amber-950/40 p-2.5 rounded-lg border border-amber-500/60 mb-2.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-300 mb-1 flex-wrap gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>قاعدة النصر: سحق دبابات العدو (ظهور كل 5 ثوانٍ وضربات أبطأ)</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-amber-900/80 text-white px-2 py-0.5 rounded border border-amber-500">
+                      المطلوب: {diffConfig.tankBattleTargetCount || (difficulty === 'easy' ? 5 : difficulty === 'hard' ? 15 : 10)} دبابات ({diffConfig.label})
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-300 leading-relaxed">
+                    تظهر دبابات العدو بفاصل 5 ثوانٍ مع ضربات أبطأ ومتباعدة لتوفير وقت كافٍ للمناورة والتصويب وسحق اللواء 190 مدرع!
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs text-stone-300">
                 {mission.objectives.map((obj, i) => (
                   <div key={i} className="flex items-start gap-2 bg-stone-900/70 p-2 rounded-lg border border-stone-800/80">

@@ -20,6 +20,7 @@ import {
   Radio,
   AlertTriangle,
   Clock,
+  Video,
 } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
@@ -31,6 +32,7 @@ interface FortressAssaultMissionProps {
   onComplete: (scoreEarned: number) => void;
   onDefeat?: (reason?: string) => void;
   onExit: () => void;
+  onOpenTutorialVideo?: () => void;
 }
 
 // Tactical weapons available to the commando detachment
@@ -184,6 +186,7 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({
   onComplete,
   onDefeat,
   onExit,
+  onOpenTutorialVideo,
 }) => {
   const diffConfig = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
   const initialDuration = diffConfig.missionDuration || 120; // 150s (easy), 120s (normal), 90s (hard)
@@ -1663,6 +1666,18 @@ export const FortressAssaultMission: React.FC<FortressAssaultMissionProps> = ({
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">القائمة</span>
           </button>
+
+          {onOpenTutorialVideo && (
+            <button
+              type="button"
+              onClick={onOpenTutorialVideo}
+              className="px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 text-xs font-bold font-cairo transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+              title="مشاهدة فيديو الشرح التكتيكي (يوقف اللعبة مؤقتاً)"
+            >
+              <Video className="w-3.5 h-3.5 text-red-400" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
 
           <div>
             <div className="flex items-center gap-2">

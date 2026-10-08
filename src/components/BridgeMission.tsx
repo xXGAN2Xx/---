@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap, Plane } from 'lucide-react';
+import { ArrowLeft, Shield, Wind, Crosshair, CheckCircle2, Clock, RotateCcw, Wrench, AlertTriangle, Target, Zap, Plane, Video } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
 import { isGamePaused } from '../game/pause';
@@ -11,6 +11,7 @@ interface BridgeMissionProps {
   onComplete: (scoreEarned: number) => void;
   onDefeat?: (reason?: string) => void;
   onExit: () => void;
+  onOpenTutorialVideo?: () => void;
 }
 
 interface PontoonSection {
@@ -92,14 +93,18 @@ interface FloatingText {
   maxLife: number;
 }
 
-export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'normal', onComplete, onDefeat, onExit }) => {
-  const MISSION_DURATION = 30; // 30 seconds countdown until victory as requested
+export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'normal', onComplete, onDefeat, onExit, onOpenTutorialVideo }) => {
+  // Fixed 2 minutes (120 seconds) as requested: "و خلي المرحلة الثالثة وقتها دقيقتين و ثابت"
+  const MISSION_DURATION = 120;
+  // Difficulty target: easy = 5, normal = 10, hard = 15: "و خلي في الصعوبة سهلة 5 و مستوسطة 10 و صعبة 15"
+  const targetTanksCount = difficulty === 'easy' ? 5 : difficulty === 'hard' ? 15 : 10;
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [tanksCrossed, setTanksCrossed] = useState(0);
   const [lostOpportunities, setLostOpportunities] = useState(0);
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(MISSION_DURATION); // 30-second mission timer
+  const [timeLeft, setTimeLeft] = useState(MISSION_DURATION); // 2-minute fixed mission timer
   const [smokeScreenActive, setSmokeScreenActive] = useState(false);
   const [smokeCharges, setSmokeCharges] = useState(4);
   const [airStrikeCharges, setAirStrikeCharges] = useState(3);
@@ -110,7 +115,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
   const [strikeCountdown, setStrikeCountdown] = useState(4.8);
   const [maxStrikeTime, setMaxStrikeTime] = useState(4.8);
   const [targetBridgeIndex, setTargetBridgeIndex] = useState(2);
-  const [defeatReason, setDefeatReason] = useState<'lost_tanks' | 'timeout'>('lost_tanks');
+  const [defeatReason, setDefeatReason] = useState<'lost_tanks' | 'timeout'>('timeout');
 
   const stateRef = useRef({
     pontoons: [] as PontoonSection[],
@@ -249,6 +254,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
   // Deploy Tank from West Bank approach
   const handleDeployTank = () => {
+    if (isGamePaused()) return;
     const state = stateRef.current;
     if (state.crossingTanks.some((t) => t.status === 'advancing' || t.status === 'waiting_strike')) {
       return;
@@ -442,11 +448,13 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
         const next = prev - 1;
         stateRef.current.timeLeft = next;
 
-        // VICTORY: 30 seconds elapsed! The crossing is secured and game is won!
+        // DEFEAT: 120 seconds elapsed! If target tanks not reached, mission failed as requested: "و خلي الوقت لو خلص اخسر"
         if (next <= 0 && !stateRef.current.isComplete) {
           stateRef.current.isComplete = true;
-          setIsWon(true);
-          sound.playVictoryFanfare();
+          setDefeatReason('timeout');
+          setIsDefeated(true);
+          onDefeat?.('timeout');
+          sound.playDefeatSound();
           return 0;
         }
 
@@ -506,6 +514,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     let lastStrikeCountdownDisplay = -1;
 
     const handlePointerAction = (clientX: number, clientY: number) => {
+      if (isGamePaused()) return;
       const rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       const scaleX = canvas.width / rect.width;
@@ -568,6 +577,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isGamePaused()) return;
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
         if (stateRef.current.strikeActive) {
@@ -592,6 +602,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
     const loop = (currTime: number) => {
       if (isGamePaused()) {
+        lastTime = currTime;
         animId = requestAnimationFrame(loop);
         return;
       }
@@ -655,22 +666,22 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
             setScore(state.score);
             setTanksCrossed(state.tanksCrossedCount);
             sound.playMissionStartRadioAlert();
-            addFloatingText(tk.x, tk.y - 30, `+1500 عبور ناجح للدبابة ${state.tanksCrossedCount}/5 إلى سيناء! 🚜🇪🇬`, '#4ade80');
+            addFloatingText(tk.x, tk.y - 30, `+1500 عبور ناجح للدبابة ${state.tanksCrossedCount}/${targetTanksCount} إلى سيناء! 🚜🇪🇬`, '#4ade80');
 
-            // VICTORY CONDITION: 5 tanks successfully crossed!
-            if (state.tanksCrossedCount >= 5 && !state.isComplete) {
+            // VICTORY CONDITION: targetTanksCount (5 سهل / 10 متوسط / 15 صعب) successfully crossed!
+            if (state.tanksCrossedCount >= targetTanksCount && !state.isComplete) {
               state.isComplete = true;
               state.score += state.timeLeft * 50;
               setScore(state.score);
               setIsWon(true);
               sound.playVictoryFanfare();
             } else {
-              // Deploy next tank after 1.8 seconds
+              // Deploy next tank after 1.0 second
               setTimeout(() => {
                 if (!stateRef.current.isComplete) {
                   handleDeployTank();
                 }
-              }, 1800);
+              }, 1000);
             }
           }
         }
@@ -713,22 +724,14 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
               state.lostOpportunities++;
               setLostOpportunities(state.lostOpportunities);
-              addFloatingText(stalledTank.x, 240, '⚠️ ضاعت فرصة العبور! دُمّرت الدبابة بالقصف!', '#ef4444');
+              addFloatingText(stalledTank.x, 240, '💥 دُمّرت الدبابة بالقصف المعادي! جلب بديل...', '#ef4444');
 
-              // Allow up to 6 opportunities so the 30-second timer serves as victory
-              if (state.lostOpportunities >= 6 && !state.isComplete) {
-                state.isComplete = true;
-                setDefeatReason('lost_tanks');
-                setIsDefeated(true);
-                onDefeat?.('lost_tanks');
-                sound.playDefeatSound();
-              } else {
-                setTimeout(() => {
-                  if (!stateRef.current.isComplete) {
-                    handleDeployTank();
-                  }
-                }, 2000);
-              }
+              // Automatically deploy next tank so player can continue trying to reach targetTanksCount before the 2-minute timer ends!
+              setTimeout(() => {
+                if (!stateRef.current.isComplete) {
+                  handleDeployTank();
+                }
+              }, 1200);
             }
           }
         }
@@ -1190,31 +1193,43 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          {onOpenTutorialVideo && (
+            <button
+              onClick={onOpenTutorialVideo}
+              className="px-2.5 py-1.5 rounded-lg bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 text-xs font-bold font-cairo transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+              title="مشاهدة فيديو الشرح التكتيكي (يوقف اللعبة مؤقتاً)"
+            >
+              <Video className="w-4 h-4 text-red-400" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
           <div>
             <h2 className="font-bold font-cairo text-sm sm:text-base text-amber-400">
               ملحمة كباري العبور والضربة الدقيقة الحاسمة
             </h2>
             <div className="text-[11px] text-stone-400">
-              سلاح المهندسين العسكريين · صمود وتأمين الكوبري لمدة 30 ثانية
+              سلاح المهندسين العسكريين · عبور {targetTanksCount} دبابات خلال دقيقتين ثابتة ⏱️
             </div>
           </div>
         </div>
 
         {/* Meters */}
         <div className="flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-2">
-            <span className="text-stone-300">الدبابات العابرة:</span>
-            <span className="font-mono tabular-nums font-bold text-emerald-400 text-sm">{tanksCrossed} / 5</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-stone-300">الفرص الضائعة:</span>
-            <span className={`font-mono tabular-nums font-bold text-sm ${lostOpportunities > 0 ? 'text-red-400 animate-pulse' : 'text-stone-400'}`}>
-              {lostOpportunities} / 6
+          <div className="flex items-center gap-2 bg-stone-950/70 border border-emerald-500/40 px-2.5 py-1 rounded-lg">
+            <span className="text-stone-300">دبابات العبور:</span>
+            <span className="font-mono tabular-nums font-bold text-emerald-400 text-sm">
+              {tanksCrossed} / {targetTanksCount}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 bg-stone-950/70 border border-stone-800 px-2.5 py-1 rounded-lg">
+            <span className="text-stone-300">الدبابات المتدمرة:</span>
+            <span className={`font-mono tabular-nums font-bold text-sm ${lostOpportunities > 0 ? 'text-red-400 animate-pulse' : 'text-stone-400'}`}>
+              {lostOpportunities}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-stone-950/70 border border-stone-800 px-2.5 py-1 rounded-lg">
             <span className="font-mono tabular-nums font-bold text-amber-400">{score} نقطة</span>
           </div>
         </div>
@@ -1312,11 +1327,22 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
 
         {/* Floating Minimal HUD in Mobile Landscape ("اللعبة وبس") */}
         <div className="mobile-landscape-hud hidden pointer-events-none absolute top-2 right-2 z-30 flex items-center gap-2">
+          {onOpenTutorialVideo && (
+            <button
+              type="button"
+              onClick={onOpenTutorialVideo}
+              className="pointer-events-auto px-2.5 py-1 rounded-xl bg-red-600/85 hover:bg-red-600 text-white border border-red-400 text-[10px] font-bold font-cairo shadow-lg flex items-center gap-1 active:scale-95 cursor-pointer"
+              title="فيديو الشرح التكتيكي (إيقاف مؤقت)"
+            >
+              <Video className="w-3 h-3 text-white" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
-            <span>دبابات: {tanksCrossed}/5</span>
+            <span>دبابات العبور: {tanksCrossed}/{targetTanksCount}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-red-400">
-            <span>فرص ضائعة: {lostOpportunities}/6</span>
+            <span>المتدمرة: {lostOpportunities}</span>
           </div>
         </div>
 
@@ -1369,7 +1395,7 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           <MissionDigitalTimer
             timeLeft={timeLeft}
             totalTime={MISSION_DURATION}
-            label="الزمن المتبقي لتأمين المعبر وإعلان النصر (30 ثانية)"
+            label={`الوقت المحدد (دقيقتان ثابتة): تأمين عبور ${targetTanksCount} دبابات`}
             position="top-center"
           />
         )}
@@ -1379,11 +1405,11 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
           isOpen={isWon}
           missionId="MISSION_BRIDGE"
           missionTitle="المرحلة 3: بناء الجسور والكباري العائمة"
-          congratulatoryMessage="مبروك النصر العظيم! صمد الكوبري بنجاح طوال 30 ثانية وعبرت أرتال الدبابات إلى سيناء!"
+          congratulatoryMessage={`مبروك النصر العظيم! أتممت بنجاح عبور ${tanksCrossed} دبابة إلى سيناء قبل انتهاء الدقيقتين!`}
           score={score}
           timeLeft={timeLeft}
-          targetsDestroyed={5}
-          totalTargets={5}
+          targetsDestroyed={tanksCrossed}
+          totalTargets={targetTanksCount}
           onNextMission={() => onComplete(score)}
           onReturnToBase={onExit}
           onReplay={handleRestart}
@@ -1397,13 +1423,13 @@ export const BridgeMission: React.FC<BridgeMissionProps> = ({ difficulty = 'norm
             </div>
             <h3 className="text-2xl font-bold font-cairo text-red-400 mb-2">
               {defeatReason === 'timeout'
-                ? 'انتهى الوقت المخصص للمهمة قبل إتمام العبور!'
-                : 'فشلت المهمة: ضاعت فرص عبور أرتال الدبابات!'}
+                ? 'انتهى الوقت المحدد (دقيقتان) قبل إتمام العبور!'
+                : 'فشلت المهمة: دُمّرت دبابات العبور!'}
             </h3>
             <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-5 leading-relaxed">
               {defeatReason === 'timeout'
-                ? 'انتهت مدة المهمة دون حماية المعبر. اضبط توقيت ضرباتك وسددها بسرعة!'
-                : 'تأخرت في توجيه الضربة الدقيقة على الكوبري قبل نفاد العداد التنازلي، مما أدى لقصف دبابات العبور من طيران ومدفعية العدو!'}
+                ? `انتهت مدة الدقيقتين ولم يتم عبور سوى ${tanksCrossed} من أصل ${targetTanksCount} دبابات مطلوبة إلى سيناء. سارع بتنفيذ الضربات الدقيقة فور وصول الدبابة للمعبر!`
+                : 'تعرضت دبابات العبور لنيران مكثفة. استخدم ستائر الدخان ومدافع م/ط لتأمين طريقها!'}
             </p>
             <div className="flex items-center gap-3">
               <button

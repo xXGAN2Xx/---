@@ -14,6 +14,7 @@ import {
   Crosshair,
   Flame,
   Zap,
+  Video,
 } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
@@ -25,6 +26,7 @@ interface CrossingMissionProps {
   onComplete: (scoreEarned: number) => void;
   onDefeat?: (reason?: string) => void;
   onExit: () => void;
+  onOpenTutorialVideo?: () => void;
 }
 
 interface BreachSector {
@@ -100,6 +102,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
   onComplete,
   onDefeat,
   onExit,
+  onOpenTutorialVideo,
 }) => {
   // Base duration is 2 minutes (120s), scaling with difficulty: easy (150s), normal (120s), hard (90s)
   const initialDuration =
@@ -1420,6 +1423,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
 
   // Mouse & Touch Interaction Handlers
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isGamePaused()) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -1454,6 +1458,7 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isGamePaused()) return;
       if (e.code === 'Space') {
         e.preventDefault();
         stateRef.current.isSpraying = true;
@@ -1504,6 +1509,17 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
+          {onOpenTutorialVideo && (
+            <button
+              type="button"
+              onClick={onOpenTutorialVideo}
+              className="px-2.5 py-1.5 rounded-xl bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 text-xs font-bold font-cairo transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+              title="مشاهدة فيديو الشرح التكتيكي (يوقف اللعبة مؤقتاً)"
+            >
+              <Video className="w-4 h-4 text-red-400" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-cairo font-black text-amber-400 text-sm sm:text-base leading-tight">
@@ -1569,6 +1585,19 @@ export const CrossingMission: React.FC<CrossingMissionProps> = ({
             label="الوقت المتبقي لفتح الثغرات"
             position="top-center"
           />
+        )}
+
+        {/* Floating Quick Tutorial Button on Canvas */}
+        {onOpenTutorialVideo && (
+          <button
+            type="button"
+            onClick={onOpenTutorialVideo}
+            className="absolute top-3 left-3 z-30 px-2.5 py-1.5 rounded-xl bg-red-600/85 hover:bg-red-600 text-white border border-red-400 text-xs font-bold font-cairo shadow-lg flex items-center gap-1.5 active:scale-95 cursor-pointer backdrop-blur-sm"
+            title="فيديو الشرح التكتيكي (إيقاف مؤقت)"
+          >
+            <Video className="w-3.5 h-3.5 text-white" />
+            <span>فيديو الشرح 🎬</span>
+          </button>
         )}
 
         {/* Tactical Sector Quick-Select Buttons (Top Right) */}

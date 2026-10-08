@@ -34,7 +34,7 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
-  const requiredTanks = config.requiredBridgeTanks || (difficulty === 'easy' ? 10 : difficulty === 'hard' ? 20 : 15);
+  const requiredTanks = config.requiredBridgeTanks || (difficulty === 'easy' ? 5 : difficulty === 'hard' ? 15 : 10);
 
   const handleConfirm = () => {
     sound.playRadioTransmission();
@@ -487,15 +487,15 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black font-cairo text-stone-100">
-                  دليل معركة الكباري: تأمين عبور أرتال الدبابات إلى سيناء
+                <h3 className="text-sm sm:text-base font-black font-cairo text-amber-400">
+                  فيديو تقديمي يشرح طريقة اللعب: بناء الكباري وتمرير أرتال الدبابات
                 </h3>
                 <span className="text-[10px] bg-red-600 text-white font-mono px-2 py-0.5 rounded font-bold animate-pulse">
-                  إجباري
+                  فيديو تقديمي إجباري 🎬
                 </span>
               </div>
               <p className="text-[11px] text-stone-400">
-                مساء 6 أكتوبر · سلاح المهندسين · الضربة الدقيقة لفتح المعبر وصد الغارات الجوية
+                المرحلة الثالثة · فيديو محاكاة يوضح الضربة الدقيقة لفتح المعبر، استدعاء الطيران، وستائر الدخان التكتيكية
               </p>
             </div>
           </div>
@@ -573,9 +573,9 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
               >
                 <div className="font-bold mb-0.5 text-emerald-400">🟢 المستوى السهل</div>
                 <div>
-                  عبور <strong className="text-emerald-300">10 دبابات</strong> بنجاح
+                  عبور <strong className="text-emerald-300">5 دبابات</strong> بنجاح
                 </div>
-                <div className="text-[10px] text-stone-400 mt-0.5">وقت 02:00 · نافذة توقيت مريحة وتدريب</div>
+                <div className="text-[10px] text-stone-400 mt-0.5">وقت 02:00 ثابت · تدريب وتوقيت مريح</div>
               </div>
 
               <div
@@ -587,9 +587,9 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
               >
                 <div className="font-bold mb-0.5 text-amber-400">🟡 المستوى المتوسط</div>
                 <div>
-                  عبور <strong className="text-amber-300">15 دبابة</strong> بنجاح
+                  عبور <strong className="text-amber-300">10 دبابات</strong> بنجاح
                 </div>
-                <div className="text-[10px] text-stone-400 mt-0.5">وقت 02:00 · تدفق عسكري قياسي</div>
+                <div className="text-[10px] text-stone-400 mt-0.5">وقت 02:00 ثابت · وتيرة متوازنة وسريعة</div>
               </div>
 
               <div
@@ -601,9 +601,9 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
               >
                 <div className="font-bold mb-0.5 text-red-400">🔴 المستوى الصعب</div>
                 <div>
-                  عبور <strong className="text-red-300">20 دبابة</strong> بنجاح
+                  عبور <strong className="text-red-300">15 دبابة</strong> بنجاح
                 </div>
-                <div className="text-[10px] text-stone-400 mt-0.5">وقت 02:00 · وتيرة سريعة وقصف مكثف</div>
+                <div className="text-[10px] text-stone-400 mt-0.5">وقت 02:00 ثابت · اشتباك شرس وتحدٍ كبير</div>
               </div>
             </div>
           </div>
@@ -665,7 +665,7 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
             className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-700 font-bold font-cairo text-xs transition-all cursor-pointer flex items-center gap-1.5"
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            <span>العودة للقائمة</span>
+            <span>{onLaunchBattle && !onClose ? 'العودة للقائمة' : 'إغلاق ومتابعة المعركة'}</span>
           </button>
 
           <button
@@ -674,7 +674,11 @@ export const BridgeTutorialModal: React.FC<BridgeTutorialModalProps> = ({
             className="flex-1 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black font-cairo text-xs sm:text-sm shadow-[0_0_20px_rgba(245,158,11,0.4)] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4 fill-stone-950 text-amber-500" />
-            <span>فهمت شروط عبور الدبابات (بدء معركة الكباري) 🚜</span>
+            <span>
+              {onLaunchBattle && !onClose
+                ? 'فهمت طريقة اللعب والتحكم (الانطلاق لمعركة الكباري) ⚡'
+                : 'متابعة القتال واستئناف اللعب ⚡'}
+            </span>
           </button>
         </div>
       </div>

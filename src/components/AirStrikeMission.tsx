@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sound } from '../utils/audio';
-import { ArrowLeft, Zap, Shield, Flame, CheckCircle2, Clock, Target, RotateCcw, AlertTriangle, Radio } from 'lucide-react';
+import { ArrowLeft, Zap, Shield, Flame, CheckCircle2, Clock, Target, RotateCcw, AlertTriangle, Radio, Video } from 'lucide-react';
 import { MissionDigitalTimer } from './MissionDigitalTimer';
 import { VictoryModal } from './VictoryModal';
 import { Difficulty, DIFFICULTY_CONFIG } from '../game/difficulty';
@@ -11,6 +11,7 @@ interface AirStrikeMissionProps {
   onComplete: (scoreEarned: number) => void;
   onDefeat?: (reason?: string) => void;
   onExit: () => void;
+  onOpenTutorialVideo?: () => void;
 }
 
 interface GroundTarget {
@@ -99,7 +100,7 @@ interface FloatingText {
   maxLife: number;
 }
 
-export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onDefeat, onExit }) => {
+export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, onComplete, onDefeat, onExit, onOpenTutorialVideo }) => {
   const config = DIFFICULTY_CONFIG[difficulty] || DIFFICULTY_CONFIG.normal;
   const targetStationsRequired = config.requiredAirStrikeStations; // سهل: 3، متوسط: 4، صعب: 5
   const totalStations = config.totalAirStrikeStations; // 6
@@ -350,6 +351,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
   // Launch Auto-Homing Rocket (موجهة تلقائياً لوحدها)
   const fireRocket = () => {
+    if (isGamePaused()) return;
     const now = performance.now();
     const state = stateRef.current;
     if (now - state.lastRocketTime < 320) return;
@@ -408,6 +410,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
     // Keyboard Flight Controls directly drive plane movement
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isGamePaused()) return;
       const k = stateRef.current.keys;
       if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') k.up = true;
       if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') k.down = true;
@@ -549,6 +552,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
     // Controlled firing on LEFT MOUSE BUTTON ONLY
     const handleMouseDown = (e: MouseEvent) => {
+      if (isGamePaused()) return;
       updateMouse(e.clientX, e.clientY);
 
       if (e.button === 0) {
@@ -606,6 +610,7 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      if (isGamePaused()) return;
       e.preventDefault();
       if (e.touches.length > 0) {
         updateMouse(e.touches[0].clientX, e.touches[0].clientY);
@@ -2474,6 +2479,16 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+          {onOpenTutorialVideo && (
+            <button
+              onClick={onOpenTutorialVideo}
+              className="px-2.5 py-1.5 rounded-lg bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 text-xs font-bold font-cairo transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+              title="مشاهدة فيديو الشرح التكتيكي (يوقف اللعبة مؤقتاً)"
+            >
+              <Video className="w-4 h-4 text-red-400" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
           <div>
             <h2 className="text-base font-bold font-cairo text-amber-400">الضربة الجوية المفاجئة (ساعة الصفر 14:00)</h2>
             <div className="flex items-center gap-2 text-xs">
@@ -2604,6 +2619,17 @@ export const AirStrikeMission: React.FC<AirStrikeMissionProps> = ({ difficulty, 
 
         {/* Floating Minimal In-Combat HUD for Mobile Landscape ("اللعبة وبس") */}
         <div className="mobile-landscape-hud hidden pointer-events-none absolute top-3 right-3 z-30 flex items-center gap-2">
+          {onOpenTutorialVideo && (
+            <button
+              type="button"
+              onClick={onOpenTutorialVideo}
+              className="pointer-events-auto px-2.5 py-1 rounded-xl bg-red-600/85 hover:bg-red-600 text-white border border-red-400 text-[10px] font-bold font-cairo shadow-lg flex items-center gap-1 active:scale-95 cursor-pointer"
+              title="فيديو الشرح التكتيكي (إيقاف مؤقت)"
+            >
+              <Video className="w-3 h-3 text-white" />
+              <span>فيديو الشرح 🎬</span>
+            </button>
+          )}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-stone-950/80 border border-stone-800 backdrop-blur-md text-[11px] font-bold text-emerald-400">
             <Target className="w-3.5 h-3.5" />
             <span>{totalDestroyed} / {targetStationsRequired}</span>

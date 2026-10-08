@@ -353,15 +353,15 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-black font-cairo text-stone-100">
-                  دليل معركة الضربة الجوية: شرط النصر تدمير المحطات
+                <h3 className="text-sm sm:text-base font-black font-cairo text-amber-400">
+                  فيديو تقديمي يشرح طريقة اللعب: تدمير محطات ورادارات العدو بالصواريخ الموجهة
                 </h3>
                 <span className="text-[10px] bg-red-600 text-white font-mono px-2 py-0.5 rounded font-bold animate-pulse">
-                  إجباري
+                  فيديو تقديمي إجباري 🎬
                 </span>
               </div>
               <p className="text-[11px] text-stone-400">
-                ساعة الصفر 14:00 · تسجيل استطلاعي تكتيكي يوضح كيفية استهداف وتدمير المحطات
+                المرحلة الأولى · فيديو محاكاة يوضح أسلوب التحليق، تفادي الأرض، وإطلاق الصواريخ الموجهة الـ 8 لتدمير المحطات
               </p>
             </div>
           </div>
@@ -506,7 +506,7 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
             className="px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-700 font-bold font-cairo text-xs transition-all cursor-pointer flex items-center gap-1.5"
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            <span>العودة للقائمة</span>
+            <span>{onLaunchBattle && !onClose ? 'العودة للقائمة' : 'إغلاق ومتابعة المعركة'}</span>
           </button>
 
           <button
@@ -515,7 +515,11 @@ export const TacticalStationTutorialModal: React.FC<TacticalStationTutorialModal
             className="flex-1 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black font-cairo text-xs sm:text-sm shadow-[0_0_20px_rgba(245,158,11,0.4)] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4 fill-stone-950 text-amber-500" />
-            <span>فهمت شروط تدمير المحطات (الانتقال للاشتباك) ⚡</span>
+            <span>
+              {onLaunchBattle && !onClose
+                ? 'فهمت طريقة اللعب والتحكم (الانطلاق للضربة الجوية) ⚡'
+                : 'متابعة القتال واستئناف اللعب ⚡'}
+            </span>
           </button>
         </div>
       </div>

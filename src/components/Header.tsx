@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, Shield, Trophy, Maximize, Minimize, MapPin, ArrowRight } from 'lucide-react';
+import { Volume2, VolumeX, Shield, Trophy, Maximize, Minimize, MapPin, ArrowRight, Video } from 'lucide-react';
 import { GameMode } from '../types';
 import { MISSIONS } from '../data/historyData';
 
@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenStageSelect: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  onOpenTutorialVideo?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenStageSelect,
   isFullscreen,
   onToggleFullscreen,
+  onOpenTutorialVideo,
 }) => {
   const isCombatMode = currentMode.startsWith('MISSION_');
   const currentMission = MISSIONS.find((m) => m.id === currentMode);
@@ -96,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </nav>
         ) : (
-          /* When in combat, show clean Stage Select quick trigger */
+          /* When in combat, show clean Stage Select and Tutorial Video trigger */
           <div className="flex items-center gap-2">
             <button
               onClick={onOpenStageSelect}
@@ -106,6 +108,16 @@ export const Header: React.FC<HeaderProps> = ({
               <MapPin className="w-3.5 h-3.5" />
               <span>قائمة المراحل</span>
             </button>
+            {onOpenTutorialVideo && (
+              <button
+                onClick={onOpenTutorialVideo}
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 text-xs font-bold font-cairo transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+                title="مشاهدة فيديو الشرح التكتيكي (يوقف اللعبة مؤقتاً)"
+              >
+                <Video className="w-3.5 h-3.5 text-red-400" />
+                <span>فيديو الشرح 🎬</span>
+              </button>
+            )}
           </div>
         )}
 
