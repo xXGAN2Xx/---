@@ -154,6 +154,12 @@ canvas {
 @media (max-width: 640px) {
   html, body, #root { width: 100%; height: 100%; height: 100dvh; }
   body { overflow: hidden; }
+  .menu-app-shell {
+    max-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   button, [role="button"] { min-height: 44px; }
   .touch-manipulation { touch-action: manipulation; }
 }
