@@ -1,0 +1,11 @@
+{
+  "name": "Remix ملحمة نصر أكتوبر 1973",
+  "short_name": "ملحمة أكتوبر",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0c0a09",
+  "theme_color": "#0c0a09",
+  "lang": "ar",
+  "dir": "rtl"
+}
