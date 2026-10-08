@@ -21,7 +21,7 @@ export const FlagRaisingAnimationModal: React.FC<FlagRaisingAnimationModalProps>
   const [pullCount, setPullCount] = useState(0);
   const [cheerText, setCheerText] = useState('الله أكبر! سقطت حصون العدو!');
   const [sparks, setSparks] = useState<Array<{ id: number; x: number; y: number; color: string }>>([]);
-  const autoHoistRef = useRef<NodeJS.Timeout | null>(null);
+  const autoHoistRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync initial progress
   useEffect(() => {
