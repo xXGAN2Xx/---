@@ -1,31 +1,10 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, Crosshair, Flame, Plane, RotateCcw, Shield, Target, Timer, Trophy, Zap } from 'lucide-react';
 import { sound } from '../utils/audio';
-import {
-  ArrowLeft,
-  Shield,
-  RotateCcw,
-  CheckCircle2,
-  AlertTriangle,
-  Award,
-  Zap,
-  HelpCircle,
-  MoveUp,
-  MoveDown,
-  Target,
-  Sparkles,
-  Flame,
-  Radio,
-  Clock,
-  Video,
-  ChevronUp,
-  ChevronDown,
-  Check,
-  Compass,
-} from 'lucide-react';
-import { MissionDigitalTimer } from './MissionDigitalTimer';
-import { VictoryModal } from './VictoryModal';
 import { isGamePaused } from '../game/pause';
 import { Difficulty } from '../game/difficulty';
+import { MissionDigitalTimer } from './MissionDigitalTimer';
+import { VictoryModal } from './VictoryModal';
 
 interface TankBattleMissionProps {
   difficulty?: Difficulty;
@@ -35,127 +14,45 @@ interface TankBattleMissionProps {
   onOpenTutorialVideo?: () => void;
 }
 
-export interface TacticalBattleEvent {
-  id: string;
-  order: number; // 1 to 8 absolute chronological order
-  timeLabel: string;
-  dateLabel: string;
-  title: string;
-  shortTitle: string;
-  description: string;
-  significance: string;
-  enemyForce: string;
-  egyptianForce: string;
-  iconName: 'air' | 'crossing' | 'missile' | 'tank' | 'ambush' | 'sagger' | 'capture';
-}
+type EnemyTank = {
+  id: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  speed: number;
+  fireCooldown: number;
+  type: 'tank' | 'heavy';
+};
 
-// Complete authentic historical timeline of the October 1973 Tank Battle & Sagger Ambush
-const ALL_HISTORICAL_EVENTS: TacticalBattleEvent[] = [
-  {
-    id: 'evt-1',
-    order: 1,
-    timeLabel: '14:15 ظهراً',
-    dateLabel: '6 أكتوبر 1973',
-    title: 'الضربة الجوية الافتتاحية وفتح ثغرات الساتر الترابي',
-    shortTitle: 'ساعة الصفر وتجريف الساتر',
-    description: 'تمهيد مدفعي وجوي كاسح من 222 طائرة وفتح ثغرات خط بارليف بمضخات المياه العملاقة.',
-    significance: 'شل مراكز القيادة والسيطرة الإسرائيلية وتأمين رأس الكوبري الأولي.',
-    enemyForce: 'دشم وتحصينات خط بارليف',
-    egyptianForce: 'القوات الجوية وسلاح المهندسين',
-    iconName: 'air',
-  },
-  {
-    id: 'evt-2',
-    order: 2,
-    timeLabel: '18:30 مساءً',
-    dateLabel: '6 أكتوبر 1973',
-    title: 'تدفق طلائع المشاة والصاعقة وتأسيس رؤوس الجسور',
-    shortTitle: 'عبور المشاة ونصب الكمائن',
-    description: 'صعود 80 ألف جندي مصري للضفة الشرقية ونصب منصات صواريخ م/د وتطويق نقاط العدو القوية.',
-    significance: 'حرمان دبابات الاحتياطي الإسرائيلي من التقدم نحو حافة القناة مباشرة.',
-    enemyForce: 'دوريات المدرعات التكتيكية',
-    egyptianForce: 'قوات الصاعقة والمشاة المسلحة',
-    iconName: 'crossing',
-  },
-  {
-    id: 'evt-3',
-    order: 3,
-    timeLabel: '06:00 صباحاً',
-    dateLabel: '7 أكتوبر 1973',
-    title: 'نشر مظلة حائط الصواريخ وتحييد طيران الفانتوم',
-    shortTitle: 'تفعيل حائط الصواريخ SAM',
-    description: 'امتداد مظلة شبكة الدفاع الجوي (سام 2 و 3 و 6) وتكبيد سلاح الجو الإسرائيلي خسائر فادحة.',
-    significance: 'حرمان الدبابات الإسرائيلية من أي غطاء جوي وفرض السيطرة على سماء المعركة.',
-    enemyForce: 'مقاتلات فانتوم وسكاي هوك',
-    egyptianForce: 'قوات الدفاع الجوي المصري',
-    iconName: 'missile',
-  },
-  {
-    id: 'evt-4',
-    order: 4,
-    timeLabel: '10:00 صباحاً',
-    dateLabel: '7 أكتوبر 1973',
-    title: 'عبور دبابات T-55 و T-62 وتجهيز مرابض الرمال',
-    shortTitle: 'عبور الدروع والمواضع الدفاعية',
-    description: 'تدفق الألوية المدرعة عبر الكباري الثقيلة واحتلال مواقع الدفن التكتيكي بين الكثبان الرملية.',
-    significance: 'بناء حائط ناري مدرع متكامل مع صائدي الدبابات بالصواريخ.',
-    enemyForce: 'استطلاعات الدروع المعادية',
-    egyptianForce: 'الفرقة 2 مشاة والفرقة 16 مشاة',
-    iconName: 'tank',
-  },
-  {
-    id: 'evt-5',
-    order: 5,
-    timeLabel: '07:30 صباحاً',
-    dateLabel: '8 أكتوبر 1973',
-    title: 'رصد تقدم اللواء 190 مدرع المعادي باتجاه الفردان',
-    shortTitle: 'بدء الهجوم المضاد الإسرائيلي',
-    description: 'انطلاق أكثر من 100 دبابة إسرائيلية بقيادة العقيد عساف ياجوري بهجوم مضاد عنيف وواثق.',
-    significance: 'محاولة إسرائيلية يائسة لاختراق القوات المصرية وإلقائها مجدداً في مياه القناة.',
-    enemyForce: 'اللواء 190 مدرع (دبابات باتون M60)',
-    egyptianForce: 'استطلاع المدفعية والفرقة الثانية',
-    iconName: 'tank',
-  },
-  {
-    id: 'evt-6',
-    order: 6,
-    timeLabel: '09:15 صباحاً',
-    dateLabel: '8 أكتوبر 1973',
-    title: 'استدراج دبابات العدو داخل كمين الفردان (مصيدة الموت)',
-    shortTitle: 'تطويق العدو داخل كمين القوس',
-    description: 'القيادة المصرية تأمر بضبط النفس والصمت اللاسلكي حتى دخل اللواء الإسرائيلي في عمق الجيب الدفاعي.',
-    significance: 'إطباق كماشة نيرانية ثلاثية المحاور على كامل دروع العدو من الأمام والجانبين.',
-    enemyForce: 'أرتال دبابات باتون محاصرة بالكامل',
-    egyptianForce: 'كتائب المشاة والمدفعية المضادة للدروع',
-    iconName: 'ambush',
-  },
-  {
-    id: 'evt-7',
-    order: 7,
-    timeLabel: '11:30 صباحاً',
-    dateLabel: '8 أكتوبر 1973',
-    title: 'انطلاق صواريخ الساجر وحصاد صائد الدبابات عبد العاطي',
-    shortTitle: 'جحيم صواريخ الساجر الموجهة',
-    description: 'فتح النيران المفاجئة بالصواريخ السلكية وقذائف الـ RPG واشتعال عشرات الدبابات المعادية في دقائق.',
-    significance: 'تدمير أكثر من 70 دبابة ومدرعة معادية في ملحمة صائدي الدبابات الأسطورية.',
-    enemyForce: 'انهيار وتدمير أرتال اللواء 190',
-    egyptianForce: 'البطل محمد عبد العاطي وفرسان الصواريخ',
-    iconName: 'sagger',
-  },
-  {
-    id: 'evt-8',
-    order: 8,
-    timeLabel: '14:00 ظهراً',
-    dateLabel: '8 أكتوبر 1973',
-    title: 'سحق ما تبقى من اللواء 190 وأسر قائده عساف ياجوري حياً',
-    shortTitle: 'أسر العقيد عساف ياجوري وإعلان النصر',
-    description: 'تدمير آخر دبابات اللواء واستسلام قائده العقيد عساف ياجوري حياً للأبطال المصريين.',
-    significance: 'أكبر هزيمة مدرعة لإسرائيل في التاريخ وإثبات عبقرية التخطيط والتنفيذ العسكري المصري.',
-    enemyForce: 'استسلام بقايا أطقم دبابات العدو',
-    egyptianForce: 'أبطال الفرقة الثانية مشاة ميكانيكي',
-    iconName: 'capture',
-  },
-];
+type EnemyPlane = {
+  id: number;
+  x: number;
+  y: number;
+  speed: number;
+  bombCooldown: number;
+  hp: number;
+};
+
+type Projectile = {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  kind: 'player' | 'enemy-shell' | 'bomb';
+  target?: 'tank' | 'plane';
+};
+
+type Explosion = {
+  id: number;
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  radius: number;
+  big?: boolean;
+};
 
 export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
   difficulty = 'normal',
@@ -164,912 +61,795 @@ export const TankBattleMission: React.FC<TankBattleMissionProps> = ({
   onExit,
   onOpenTutorialVideo,
 }) => {
-  // Difficulty settings
-  const eventCount = difficulty === 'easy' ? 4 : difficulty === 'hard' ? 8 : 6;
-  const initialDuration = difficulty === 'easy' ? 150 : difficulty === 'hard' ? 90 : 120;
-  const maxAllowedMistakes = difficulty === 'easy' ? 3 : difficulty === 'hard' ? 1 : 2;
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const lastFrameRef = useRef(0);
+  const nextIdRef = useRef(1);
+  const finishRef = useRef(false);
 
-  // Selected events subset based on difficulty
-  const activeEventsRef = useRef<TacticalBattleEvent[]>([]);
-  if (activeEventsRef.current.length === 0) {
-    if (difficulty === 'easy') {
-      // 4 key milestones: [1, 3, 6, 8] re-indexed 1 to 4
-      activeEventsRef.current = [
-        { ...ALL_HISTORICAL_EVENTS[0], order: 1 },
-        { ...ALL_HISTORICAL_EVENTS[2], order: 2 },
-        { ...ALL_HISTORICAL_EVENTS[5], order: 3 },
-        { ...ALL_HISTORICAL_EVENTS[7], order: 4 },
-      ];
-    } else if (difficulty === 'normal') {
-      // 6 key milestones: [1, 2, 3, 5, 7, 8] re-indexed 1 to 6
-      activeEventsRef.current = [
-        { ...ALL_HISTORICAL_EVENTS[0], order: 1 },
-        { ...ALL_HISTORICAL_EVENTS[1], order: 2 },
-        { ...ALL_HISTORICAL_EVENTS[2], order: 3 },
-        { ...ALL_HISTORICAL_EVENTS[4], order: 4 },
-        { ...ALL_HISTORICAL_EVENTS[6], order: 5 },
-        { ...ALL_HISTORICAL_EVENTS[7], order: 6 },
-      ];
-    } else {
-      // 8 full historical events for hard mode
-      activeEventsRef.current = ALL_HISTORICAL_EVENTS.map((e) => ({ ...e }));
-    }
-  }
-
-  // Shuffle events initially so player must sort them
-  const shuffleEvents = (events: TacticalBattleEvent[]) => {
-    const list = [...events];
-    let isSameOrder = true;
-    while (isSameOrder && list.length > 1) {
-      for (let i = list.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [list[i], list[j]] = [list[j], list[i]];
-      }
-      isSameOrder = list.every((item, idx) => item.order === idx + 1);
-    }
-    return list;
+  const settings = {
+    easy: {
+      duration: 150,
+      startingHealth: 125,
+      tankTarget: 7,
+      planeTarget: 2,
+      tankHp: 2,
+      heavyHp: 4,
+      tankSpeed: 42,
+      fireEvery: 2.8,
+      planeEvery: 5.0,
+    },
+    normal: {
+      duration: 120,
+      startingHealth: 100,
+      tankTarget: 9,
+      planeTarget: 3,
+      tankHp: 2,
+      heavyHp: 4,
+      tankSpeed: 52,
+      fireEvery: 2.25,
+      planeEvery: 4.2,
+    },
+    hard: {
+      duration: 105,
+      startingHealth: 90,
+      tankTarget: 12,
+      planeTarget: 4,
+      tankHp: 3,
+      heavyHp: 5,
+      tankSpeed: 62,
+      fireEvery: 1.8,
+      planeEvery: 3.4,
+    },
+  }[difficulty] ?? {
+    duration: 120,
+    startingHealth: 100,
+    tankTarget: 9,
+    planeTarget: 3,
+    tankHp: 2,
+    heavyHp: 4,
+    tankSpeed: 52,
+    fireEvery: 2.25,
+    planeEvery: 4.2,
   };
 
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  // Gameplay State
-  const [orderedEvents, setOrderedEvents] = useState<TacticalBattleEvent[]>(() =>
-    shuffleEvents(activeEventsRef.current)
-  );
-  const [lockedEvents, setLockedEvents] = useState<Set<string>>(new Set());
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(initialDuration);
-  const [mistakesCount, setMistakesCount] = useState<number>(0);
-  const [defenseHealth, setDefenseHealth] = useState<number>(100);
-  const [score, setScore] = useState<number>(0);
-  const [feedbackMessage, setFeedbackMessage] = useState<string>(
-    'رتب الأحداث التاريخية لمعركة الدبابات وحائط الصواريخ بالترتيب الزمني الصحيح 📜'
-  );
-  const [feedbackType, setFeedbackType] = useState<'info' | 'success' | 'danger'>('info');
-  const [isWon, setIsWon] = useState<boolean>(false);
-  const [isDefeated, setIsDefeated] = useState<boolean>(false);
-  const [defeatReason, setDefeatReason] = useState<string>('');
-  const [hintsAvailable, setHintsAvailable] = useState<number>(difficulty === 'easy' ? 3 : difficulty === 'normal' ? 2 : 1);
-  const [activeHintEventId, setActiveHintEventId] = useState<string | null>(null);
-
-  // Dynamic visual animation state on Canvas
-  const animStateRef = useRef({
-    step: 0,
-    missileFlying: false,
-    missileProgress: 0,
-    missileStartY: 220,
-    tankTargetX: 720,
-    tankTargetY: 210,
-    explosionTimer: 0,
-    explosionX: 720,
-    explosionY: 210,
-    tanksDestroyedVisual: 0,
-    enemyAdvanceProgress: 0,
-    screenShake: 0,
+  const worldRef = useRef({
+    width: 1200,
+    height: 700,
+    aimX: 820,
+    aimY: 300,
+    playerHealth: settings.startingHealth,
+    tanksDestroyed: 0,
+    planesDestroyed: 0,
+    score: 0,
+    elapsed: 0,
+    tankSpawnTimer: 1.2,
+    planeSpawnTimer: 4.2,
+    fireCooldown: 0,
+    tanks: [] as EnemyTank[],
+    planes: [] as EnemyPlane[],
+    projectiles: [] as Projectile[],
+    explosions: [] as Explosion[],
+    stars: Array.from({ length: 42 }, (_, i) => ({
+      x: (i * 173) % 1200,
+      y: 30 + ((i * 71) % 240),
+      r: 0.8 + (i % 3) * 0.55,
+    })),
   });
 
-  // Calculate remaining unverified/unplaced events
-  const remainingCount = activeEventsRef.current.length - lockedEvents.size;
+  const [timeLeft, setTimeLeft] = useState(settings.duration);
+  const [health, setHealth] = useState(settings.startingHealth);
+  const [tanksDestroyed, setTanksDestroyed] = useState(0);
+  const [planesDestroyed, setPlanesDestroyed] = useState(0);
+  const [score, setScore] = useState(0);
+  const [isWon, setIsWon] = useState(false);
+  const [isDefeated, setIsDefeated] = useState(false);
+  const [defeatReason, setDefeatReason] = useState<'health' | 'timeout'>('health');
+  const [feedback, setFeedback] = useState('وجّه المدفع نحو دبابات العدو واضغط إطلاق النار. أسقط الطائرات قبل أن ترمي القنابل!');
 
-  // Sound & Visual Trigger on verification
-  const triggerMissileStrike = useCallback((targetIndex: number) => {
-    sound.playMissileLaunch();
-    const anim = animStateRef.current;
-    anim.missileFlying = true;
-    anim.missileProgress = 0;
-    anim.tankTargetX = 640 + (targetIndex % 3) * 110;
-    anim.tankTargetY = 190 + Math.sin(targetIndex) * 35;
+  const resetWorld = useCallback(() => {
+    const world = worldRef.current;
+    world.playerHealth = settings.startingHealth;
+    world.tanksDestroyed = 0;
+    world.planesDestroyed = 0;
+    world.score = 0;
+    world.elapsed = 0;
+    world.tankSpawnTimer = 1.4;
+    world.planeSpawnTimer = 4.2;
+    world.fireCooldown = 0;
+    world.aimX = 820;
+    world.aimY = 300;
+    world.tanks = [];
+    world.planes = [];
+    world.projectiles = [];
+    world.explosions = [];
+    setTimeLeft(settings.duration);
+    setHealth(settings.startingHealth);
+    setTanksDestroyed(0);
+    setPlanesDestroyed(0);
+    setScore(0);
+    setIsWon(false);
+    setIsDefeated(false);
+    setDefeatReason('health');
+    setFeedback('وجّه المدفع نحو دبابات العدو واضغط إطلاق النار. أسقط الطائرات قبل أن ترمي القنابل!');
+    finishRef.current = false;
+  }, [settings.duration, settings.startingHealth]);
 
-    window.setTimeout(() => {
-      anim.missileFlying = false;
-      anim.explosionTimer = 35;
-      anim.explosionX = anim.tankTargetX;
-      anim.explosionY = anim.tankTargetY;
-      anim.tanksDestroyedVisual += 1;
-      anim.screenShake = 12;
-      sound.playExplosion(1.2);
-    }, 450);
+  const endVictory = useCallback(() => {
+    if (finishRef.current) return;
+    finishRef.current = true;
+    const world = worldRef.current;
+    const timeBonus = Math.max(0, Math.round(timeLeft * 5));
+    const earned = world.tanksDestroyed * 450 + world.planesDestroyed * 700 + timeBonus;
+    world.score = earned;
+    setScore(earned);
+    setIsWon(true);
+    setFeedback('الله أكبر! تم صد الهجوم المدرع والجوي وحماية الموقع المصري! 🇪🇬');
+    sound.playVictoryFanfare();
+  }, [timeLeft]);
+
+  const endDefeat = useCallback((reason: 'health' | 'timeout') => {
+    if (finishRef.current) return;
+    finishRef.current = true;
+    setDefeatReason(reason);
+    setIsDefeated(true);
+    setFeedback(reason === 'health' ? 'تعرضت الدبابة لنيران كثيفة من الدبابات والطائرات المعادية.' : 'انتهى الوقت قبل صد الهجوم المعادي.');
+    sound.playDefeatSound();
+    onDefeat?.(reason === 'health' ? 'breach' : 'timeout');
+  }, [onDefeat]);
+
+  const firePlayerShell = useCallback(() => {
+    const world = worldRef.current;
+    if (finishRef.current || world.fireCooldown > 0 || isGamePaused()) return;
+    world.fireCooldown = 0.42;
+
+    const tankX = 145;
+    const tankY = 585;
+    const dx = world.aimX - tankX;
+    const dy = world.aimY - tankY;
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    const speed = 900;
+
+    world.projectiles.push({
+      id: nextIdRef.current++,
+      x: tankX + 28,
+      y: tankY - 24,
+      vx: (dx / distance) * speed,
+      vy: (dy / distance) * speed,
+      kind: 'player',
+      target: 'tank',
+    });
+    sound.playCannon();
   }, []);
 
-  const triggerEnemyCounterFire = useCallback(() => {
+  const updateAimFromPointer = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = worldRef.current.width / rect.width;
+    const scaleY = worldRef.current.height / rect.height;
+    worldRef.current.aimX = Math.max(250, Math.min(worldRef.current.width - 30, (event.clientX - rect.left) * scaleX));
+    worldRef.current.aimY = Math.max(80, Math.min(worldRef.current.height - 90, (event.clientY - rect.top) * scaleY));
+  };
+
+  const spawnTank = () => {
+    const world = worldRef.current;
+    const heavy = (world.tanksDestroyed + world.tanks.length) % 4 === 3;
+    const maxHp = heavy ? settings.heavyHp : settings.tankHp;
+    world.tanks.push({
+      id: nextIdRef.current++,
+      x: world.width + 70,
+      y: 465 + ((world.tanks.length * 47) % 110),
+      hp: maxHp,
+      maxHp,
+      speed: settings.tankSpeed * (heavy ? 0.72 : 1),
+      fireCooldown: settings.fireEvery * (0.7 + Math.random() * 0.55),
+      type: heavy ? 'heavy' : 'tank',
+    });
+  };
+
+  const spawnPlane = () => {
+    const world = worldRef.current;
+    world.planes.push({
+      id: nextIdRef.current++,
+      x: world.width + 80,
+      y: 90 + Math.random() * 130,
+      speed: 105 + Math.random() * 45,
+      bombCooldown: 1.8 + Math.random() * 1.6,
+      hp: 2,
+    });
+  };
+
+  const addExplosion = (x: number, y: number, big = false) => {
+    worldRef.current.explosions.push({
+      id: nextIdRef.current++,
+      x,
+      y,
+      life: 0,
+      maxLife: big ? 0.8 : 0.45,
+      radius: big ? 48 : 25,
+      big,
+    });
+  };
+
+  const damagePlayer = (amount: number) => {
+    const world = worldRef.current;
+    world.playerHealth = Math.max(0, world.playerHealth - amount);
+    setHealth(world.playerHealth);
+    addExplosion(145, 585, amount >= 14);
     sound.playHitSound();
-    const anim = animStateRef.current;
-    anim.screenShake = 16;
-    anim.enemyAdvanceProgress = Math.min(100, anim.enemyAdvanceProgress + 25);
-  }, []);
+    if (world.playerHealth <= 0) endDefeat('health');
+  };
 
-  // Main 1-second Interval for Battle Clock
+  const hitEnemyAt = (p: Projectile) => {
+    const world = worldRef.current;
+
+    for (let i = world.tanks.length - 1; i >= 0; i -= 1) {
+      const tank = world.tanks[i];
+      if (Math.hypot(p.x - tank.x, p.y - tank.y) < (tank.type === 'heavy' ? 52 : 42)) {
+        tank.hp -= 1;
+        addExplosion(p.x, p.y, tank.hp <= 0);
+        sound.playExplosion(tank.hp <= 0 ? 1.0 : 0.45);
+        if (tank.hp <= 0) {
+          world.tanks.splice(i, 1);
+          world.tanksDestroyed += 1;
+          world.score += tank.type === 'heavy' ? 700 : 450;
+          setTanksDestroyed(world.tanksDestroyed);
+          setScore(world.score);
+          setFeedback('إصابة مباشرة! دمرت دبابة معادية.');
+        } else {
+          setFeedback('إصابة مباشرة — الدبابة المعادية تضررت.');
+        }
+        return true;
+      }
+    }
+
+    for (let i = world.planes.length - 1; i >= 0; i -= 1) {
+      const plane = world.planes[i];
+      if (Math.hypot(p.x - plane.x, p.y - plane.y) < 45) {
+        plane.hp -= 1;
+        addExplosion(p.x, p.y, plane.hp <= 0);
+        if (plane.hp <= 0) {
+          world.planes.splice(i, 1);
+          world.planesDestroyed += 1;
+          world.score += 700;
+          setPlanesDestroyed(world.planesDestroyed);
+          setScore(world.score);
+          setFeedback('طائرة معادية سقطت! ✈️');
+          sound.playExplosion(1.1);
+        } else {
+          sound.playHitSound();
+          setFeedback('أصبت الطائرة المعادية — أطلق مرة أخرى لإسقاطها.');
+        }
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  useEffect(() => {
+    resetWorld();
+  }, [resetWorld]);
+
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (isGamePaused() || isWon || isDefeated) return;
+      if (isGamePaused() || isWon || isDefeated || finishRef.current) return;
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          setIsDefeated(true);
-          setDefeatReason('timeout');
-          sound.playDefeatSound();
-          onDefeat?.('timeout');
+          endDefeat('timeout');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-
     return () => window.clearInterval(timer);
-  }, [isWon, isDefeated, onDefeat]);
+  }, [endDefeat, isWon, isDefeated]);
 
-  // Canvas visual battlefield background animation loop
+  useEffect(() => {
+    if (tanksDestroyed >= settings.tankTarget && planesDestroyed >= settings.planeTarget) {
+      endVictory();
+    }
+  }, [tanksDestroyed, planesDestroyed, settings.tankTarget, settings.planeTarget, endVictory]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animId: number;
+    let cancelled = false;
 
-    const render = () => {
-      const anim = animStateRef.current;
-      anim.step += 1;
-      const w = canvas.width;
-      const h = canvas.height;
-
-      // Handle Screen Shake
+    const drawTank = (x: number, y: number, enemy = false, heavy = false) => {
       ctx.save();
-      if (anim.screenShake > 0) {
-        const shakeX = (Math.random() - 0.5) * anim.screenShake;
-        const shakeY = (Math.random() - 0.5) * anim.screenShake;
-        ctx.translate(shakeX, shakeY);
-        anim.screenShake = Math.max(0, anim.screenShake - 1);
-      }
+      ctx.translate(x, y);
 
-      // 1. Sky & Sinai Sunset Battlefield Lighting
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-      skyGrad.addColorStop(0, '#0c1a2c');
-      skyGrad.addColorStop(0.4, '#1e293b');
-      skyGrad.addColorStop(0.75, '#78350f');
-      skyGrad.addColorStop(1, '#b45309');
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = enemy ? '#6b7280' : '#365314';
+      ctx.strokeStyle = enemy ? '#27272a' : '#17220d';
+      ctx.lineWidth = 4;
 
-      // 2. Distant Sinai Sand Dunes & Mountains
-      ctx.fillStyle = '#451a03';
       ctx.beginPath();
-      ctx.moveTo(0, 160);
-      ctx.bezierCurveTo(240, 130, 480, 180, 720, 140);
-      ctx.bezierCurveTo(860, 120, 1050, 165, w, 150);
-      ctx.lineTo(w, h);
-      ctx.lineTo(0, h);
-      ctx.closePath();
+      ctx.roundRect(-34, -18, 68, 30, 7);
       ctx.fill();
-
-      // Middle Ground Desert Plateau (Battlefield ground)
-      const groundGrad = ctx.createLinearGradient(0, 150, 0, h);
-      groundGrad.addColorStop(0, '#78350f');
-      groundGrad.addColorStop(0.3, '#92400e');
-      groundGrad.addColorStop(0.7, '#a16207');
-      groundGrad.addColorStop(1, '#713f12');
-      ctx.fillStyle = groundGrad;
-      ctx.fillRect(0, 160, w, h - 160);
-
-      // Desert sand ridges and tank tracks
-      ctx.strokeStyle = '#451a03';
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 6; i++) {
-        const yLine = 190 + i * 25;
-        ctx.beginPath();
-        ctx.moveTo(0, yLine + Math.sin(i * 1.5) * 5);
-        ctx.bezierCurveTo(300, yLine - 8, 700, yLine + 8, w, yLine - 5);
-        ctx.stroke();
-      }
-
-      // 3. EGYPTIAN DEFENSE SECTOR (Left side - Bridgehead at El-Ferdan)
-      // Sand rampart fortification
-      ctx.fillStyle = '#78350f';
-      ctx.beginPath();
-      ctx.moveTo(0, 190);
-      ctx.lineTo(260, 200);
-      ctx.lineTo(240, h);
-      ctx.lineTo(0, h);
-      ctx.closePath();
-      ctx.fill();
-
-      // Egyptian Sandbag Fortifications
-      ctx.fillStyle = '#d97706';
-      for (let sb = 0; sb < 8; sb++) {
-        ctx.fillRect(40 + sb * 24, 215, 20, 10);
-        ctx.fillRect(52 + sb * 22, 207, 18, 9);
-      }
-
-      // Dug-in Egyptian T-62 Tank in Hull-Down position
-      ctx.fillStyle = '#1c1917';
-      ctx.fillRect(80, 230, 75, 25);
-      // Turret
-      ctx.fillStyle = '#292524';
-      ctx.beginPath();
-      ctx.arc(115, 226, 22, Math.PI, 0);
-      ctx.fill();
-      // Cannon pointing right towards advancing tanks
-      ctx.strokeStyle = '#0c0a09';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(130, 220);
-      ctx.lineTo(195, 214);
       ctx.stroke();
 
-      // Egyptian Flag flapping proudly on rampart
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(60, 180);
-      ctx.lineTo(60, 240);
-      ctx.stroke();
-      // Tri-color Egyptian Flag
-      const flagWave = Math.sin(anim.step * 0.12) * 4;
-      ctx.fillStyle = '#dc2626'; // Red
-      ctx.fillRect(62, 180 + flagWave * 0.2, 28, 6);
-      ctx.fillStyle = '#ffffff'; // White
-      ctx.fillRect(62, 186 + flagWave * 0.5, 28, 6);
-      ctx.fillStyle = '#000000'; // Black
-      ctx.fillRect(62, 192 + flagWave * 0.8, 28, 6);
-      // Golden Eagle emblem
-      ctx.fillStyle = '#fbbf24';
-      ctx.beginPath();
-      ctx.arc(76, 189 + flagWave * 0.5, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Sagger ATGM Missile Operator (صائد الدبابات)
-      ctx.fillStyle = '#15803d'; // Green Egyptian uniform
-      ctx.fillRect(205, 218, 12, 16);
-      ctx.fillStyle = '#fde047'; // Helmet
-      ctx.beginPath();
-      ctx.arc(211, 214, 5, 0, Math.PI * 2);
-      ctx.fill();
-      // Sagger suitcase missile launcher on tripod
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(218, 222, 16, 6);
-      ctx.strokeStyle = '#334155';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(226, 228);
-      ctx.lineTo(220, 238);
-      ctx.moveTo(226, 228);
-      ctx.lineTo(232, 238);
-      ctx.stroke();
-
-      // SAM-6 Missile Battery in the background
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(15, 175, 28, 14);
-      ctx.strokeStyle = '#f87171'; // Red missile tips
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(20, 175);
-      ctx.lineTo(38, 155);
-      ctx.moveTo(26, 175);
-      ctx.lineTo(44, 155);
-      ctx.stroke();
-
-      // 4. ADVANCING ISRAELI TANK BATTALION (Right side)
-      const enemyTanks = [
-        { x: 620, y: 220, type: 'Patton M60', isLead: false },
-        { x: 740, y: 205, type: 'Centurion', isLead: false },
-        { x: 860, y: 235, type: 'Col. Asaf Yaguri (190th Brigade)', isLead: true },
-        { x: 970, y: 215, type: 'Patton M60', isLead: false },
-      ];
-
-      enemyTanks.forEach((tank, idx) => {
-        const isDestroyed = idx < anim.tanksDestroyedVisual;
-        const tx = tank.x - (anim.enemyAdvanceProgress * 0.8);
-        const ty = tank.y;
-
-        ctx.save();
-        if (isDestroyed) {
-          // Burned out wreckage with smoke
-          ctx.fillStyle = '#292524';
-          ctx.fillRect(tx - 30, ty - 10, 60, 20);
-          // Turret blown off or askew
-          ctx.beginPath();
-          ctx.arc(tx, ty - 12, 14, 0, Math.PI * 2);
-          ctx.fill();
-          // Cannon bent down
-          ctx.strokeStyle = '#1c1917';
-          ctx.lineWidth = 4;
-          ctx.beginPath();
-          ctx.moveTo(tx - 8, ty - 12);
-          ctx.lineTo(tx - 35, ty + 8);
-          ctx.stroke();
-
-          // Smoke and flame billows
-          for (let p = 0; p < 4; p++) {
-            const pTime = (anim.step * 0.05 + p * 1.5) % 4;
-            const smokeY = ty - 15 - pTime * 14;
-            const smokeX = tx + Math.sin(anim.step * 0.08 + p) * 8;
-            ctx.fillStyle = p % 2 === 0 ? 'rgba(239, 68, 68, 0.7)' : 'rgba(55, 65, 81, 0.55)';
-            ctx.beginPath();
-            ctx.arc(smokeX, smokeY, 6 + pTime * 4, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        } else {
-          // Active enemy tank
-          ctx.fillStyle = '#78716c'; // Israeli desert camouflage gray
-          ctx.fillRect(tx - 30, ty - 10, 60, 20);
-          // Wheels / Treads
-          ctx.fillStyle = '#1c1917';
-          for (let wIdx = 0; wIdx < 5; wIdx++) {
-            ctx.beginPath();
-            ctx.arc(tx - 22 + wIdx * 11, ty + 10, 5, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          // Turret
-          ctx.fillStyle = '#a8a29e';
-          ctx.beginPath();
-          ctx.arc(tx, ty - 12, 15, Math.PI, 0);
-          ctx.fill();
-          // Main Gun pointing Left towards Egyptian lines
-          ctx.strokeStyle = '#57534e';
-          ctx.lineWidth = 4;
-          ctx.beginPath();
-          ctx.moveTo(tx - 5, ty - 14);
-          ctx.lineTo(tx - 48, ty - 16);
-          ctx.stroke();
-
-          // Tank label
-          ctx.font = 'bold 9px Tajawal, sans-serif';
-          ctx.fillStyle = tank.isLead ? '#f87171' : '#fef08a';
-          ctx.textAlign = 'center';
-          ctx.fillText(tank.type, tx, ty - 26);
-
-          // White flag if won and this is commander tank
-          if (isWon && tank.isLead) {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(tx, ty - 45, 16, 11);
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(tx, ty - 45);
-            ctx.lineTo(tx, ty - 30);
-            ctx.stroke();
-            ctx.fillStyle = '#22c55e';
-            ctx.fillText('أسر عساف ياجوري 🎯', tx + 8, ty - 50);
-          }
-        }
-        ctx.restore();
-      });
-
-      // 5. ATGM Sagger In-Flight Guided Missile Animation
-      if (anim.missileFlying) {
-        anim.missileProgress = Math.min(1, anim.missileProgress + 0.05);
-        const startX = 230;
-        const startY = 222;
-        const curX = startX + (anim.tankTargetX - startX) * anim.missileProgress;
-        const curY =
-          startY +
-          (anim.tankTargetY - startY) * anim.missileProgress +
-          Math.sin(anim.missileProgress * Math.PI) * -35;
-
-        // Smoke / wire trail
-        ctx.strokeStyle = 'rgba(254, 240, 138, 0.7)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
+      ctx.fillStyle = '#18181b';
+      for (let i = -25; i <= 25; i += 12) {
         ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(curX, curY);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Missile Body
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.arc(curX, curY, 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Rocket exhaust plume
-        ctx.fillStyle = '#f97316';
-        ctx.beginPath();
-        ctx.arc(curX - 6, curY + (Math.random() - 0.5) * 2, 3, 0, Math.PI * 2);
+        ctx.arc(i, 15, 7, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // 6. Secondary Explosions on Tanks
-      if (anim.explosionTimer > 0) {
-        anim.explosionTimer -= 1;
-        const exRadius = (35 - anim.explosionTimer) * 1.5;
-        const grad = ctx.createRadialGradient(
-          anim.explosionX,
-          anim.explosionY,
-          2,
-          anim.explosionX,
-          anim.explosionY,
-          exRadius
-        );
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.3, '#fde047');
-        grad.addColorStop(0.65, '#ea580c');
-        grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
-        ctx.fillStyle = grad;
+      ctx.fillStyle = enemy ? '#9ca3af' : '#4d7c0f';
+      ctx.beginPath();
+      ctx.arc(0, -16, heavy ? 23 : 19, Math.PI, 0);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = enemy ? '#111827' : '#1f2937';
+      ctx.lineWidth = heavy ? 9 : 7;
+      ctx.beginPath();
+      ctx.moveTo(8, -19);
+      ctx.lineTo(enemy ? -72 : 80, -28);
+      ctx.stroke();
+
+      if (!enemy) {
+        ctx.fillStyle = '#eab308';
         ctx.beginPath();
-        ctx.arc(anim.explosionX, anim.explosionY, exRadius, 0, Math.PI * 2);
+        ctx.arc(-8, -17, 4, 0, Math.PI * 2);
         ctx.fill();
       }
 
       ctx.restore();
-      animId = requestAnimationFrame(render);
     };
 
-    animId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animId);
-  }, [isWon]);
+    const drawPlane = (x: number, y: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(-50, 0);
+      ctx.lineTo(-12, -8);
+      ctx.lineTo(8, -30);
+      ctx.lineTo(18, -8);
+      ctx.lineTo(50, 0);
+      ctx.lineTo(18, 8);
+      ctx.lineTo(8, 30);
+      ctx.lineTo(-12, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#020617';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(-17, -3, 27, 6);
+      ctx.restore();
+    };
 
-  // Player action: Move event UP in chronological queue
-  const moveEventUp = (index: number) => {
-    if (index <= 0 || isWon || isDefeated) return;
-    sound.playRadioClick();
-    setOrderedEvents((prev) => {
-      const next = [...prev];
-      [next[index - 1], next[index]] = [next[index], next[index - 1]];
-      return next;
-    });
-  };
+    const render = (now: number) => {
+      if (cancelled) return;
+      const world = worldRef.current;
+      const dt = lastFrameRef.current ? Math.min(0.033, (now - lastFrameRef.current) / 1000) : 0.016;
+      lastFrameRef.current = now;
 
-  // Player action: Move event DOWN in chronological queue
-  const moveEventDown = (index: number) => {
-    if (index >= orderedEvents.length - 1 || isWon || isDefeated) return;
-    sound.playRadioClick();
-    setOrderedEvents((prev) => {
-      const next = [...prev];
-      [next[index], next[index + 1]] = [next[index + 1], next[index]];
-      return next;
-    });
-  };
+      if (!isGamePaused() && !finishRef.current) {
+        world.elapsed += dt;
+        world.fireCooldown = Math.max(0, world.fireCooldown - dt);
 
-  // Player action: Swap with selected item
-  const handleSelectOrSwap = (id: string) => {
-    if (isWon || isDefeated) return;
-    if (lockedEvents.has(id)) {
-      setFeedbackMessage('هذا الحدث مثبت بالفعل في ترتيبه التاريخي الصحيح! ✓');
-      setFeedbackType('info');
-      return;
-    }
+        world.tankSpawnTimer -= dt;
+        world.planeSpawnTimer -= dt;
 
-    if (!selectedEventId) {
-      setSelectedEventId(id);
-      sound.playRadioClick();
-    } else if (selectedEventId === id) {
-      setSelectedEventId(null);
-    } else {
-      // Swap positions
-      sound.playRadioClick();
-      setOrderedEvents((prev) => {
-        const idxA = prev.findIndex((e) => e.id === selectedEventId);
-        const idxB = prev.findIndex((e) => e.id === id);
-        if (idxA === -1 || idxB === -1) return prev;
-        const next = [...prev];
-        [next[idxA], next[idxB]] = [next[idxB], next[idxA]];
-        return next;
-      });
-      setSelectedEventId(null);
-    }
-  };
+        const targetTankSpawn = Math.max(0.9, 2.8 - world.elapsed * 0.012);
+        if (world.tankSpawnTimer <= 0 && world.tanksDestroyed < settings.tankTarget + 3) {
+          spawnTank();
+          world.tankSpawnTimer = targetTankSpawn;
+        }
 
-  // Action: Validate & Execute Current Tactical Sequence
-  const handleValidateSequence = () => {
-    if (isWon || isDefeated) return;
+        if (world.planeSpawnTimer <= 0 && world.planesDestroyed < settings.planeTarget + 2) {
+          spawnPlane();
+          world.planeSpawnTimer = settings.planeEvery;
+        }
 
-    sound.playRadioTransmission();
-    const newlyLocked = new Set(lockedEvents);
-    let correctCount = 0;
-    let wrongCount = 0;
+        for (const tank of world.tanks) {
+          tank.x -= tank.speed * dt;
+          tank.fireCooldown -= dt;
+          if (tank.fireCooldown <= 0 && tank.x < world.width - 80) {
+            world.projectiles.push({
+              id: nextIdRef.current++,
+              x: tank.x - 42,
+              y: tank.y - 18,
+              vx: -320,
+              vy: (585 - tank.y) * 0.12,
+              kind: 'enemy-shell',
+            });
+            tank.fireCooldown = settings.fireEvery * (0.8 + Math.random() * 0.55);
+            sound.playGunshot();
+          }
+          if (tank.x < 235) {
+            tank.x = 235;
+            if (Math.random() < dt * 0.6) damagePlayer(tank.type === 'heavy' ? 11 : 7);
+          }
+        }
 
-    orderedEvents.forEach((event, index) => {
-      const expectedOrder = index + 1;
-      if (event.order === expectedOrder) {
-        correctCount += 1;
-        newlyLocked.add(event.id);
-      } else {
-        wrongCount += 1;
+        for (const plane of world.planes) {
+          plane.x -= plane.speed * dt;
+          plane.bombCooldown -= dt;
+          if (plane.bombCooldown <= 0 && plane.x < 900) {
+            world.projectiles.push({
+              id: nextIdRef.current++,
+              x: plane.x,
+              y: plane.y + 24,
+              vx: -55,
+              vy: 250,
+              kind: 'bomb',
+            });
+            plane.bombCooldown = 2.2 + Math.random() * 1.4;
+            setFeedback('⚠️ طائرة معادية أسقطت قنبلة — حاول إسقاطها بسرعة!');
+          }
+        }
+
+        for (let i = world.projectiles.length - 1; i >= 0; i -= 1) {
+          const p = world.projectiles[i];
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+
+          if (p.kind === 'player') {
+            if (hitEnemyAt(p)) {
+              world.projectiles.splice(i, 1);
+              continue;
+            }
+          } else if (p.kind === 'enemy-shell' && Math.hypot(p.x - 145, p.y - 585) < 42) {
+            world.projectiles.splice(i, 1);
+            damagePlayer(8);
+            continue;
+          } else if (p.kind === 'bomb' && Math.hypot(p.x - 145, p.y - 585) < 50) {
+            world.projectiles.splice(i, 1);
+            damagePlayer(15);
+            continue;
+          }
+
+          if (p.x < -80 || p.x > world.width + 100 || p.y < -80 || p.y > world.height + 80) {
+            world.projectiles.splice(i, 1);
+          }
+        }
+
+        for (let i = world.explosions.length - 1; i >= 0; i -= 1) {
+          const e = world.explosions[i];
+          e.life += dt;
+          if (e.life >= e.maxLife) world.explosions.splice(i, 1);
+        }
       }
-    });
 
-    setLockedEvents(newlyLocked);
+      const w = world.width;
+      const h = world.height;
 
-    // If all events are in correct chronological sequence: VICTORY!
-    if (correctCount === activeEventsRef.current.length) {
-      setIsWon(true);
-      const earnedScore = 3500 + timeLeft * 20 + (maxAllowedMistakes - mistakesCount) * 500;
-      setScore(earnedScore);
-      sound.playVictoryFanfare();
-      triggerMissileStrike(3);
-      setFeedbackMessage('الله أكبر! تم تنظيم التسلسل التكتيكي بنجاح وسحق اللواء 190 وأسر عساف ياجوري! 🇪🇬');
-      setFeedbackType('success');
-      return;
-    }
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, '#081426');
+      sky.addColorStop(0.45, '#1e3a50');
+      sky.addColorStop(0.72, '#9a5b20');
+      sky.addColorStop(1, '#c0842c');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
 
-    // Partial success or mistakes
-    if (wrongCount > 0) {
-      const newMistakes = mistakesCount + 1;
-      setMistakesCount(newMistakes);
-      const damagePercent = Math.round(100 / maxAllowedMistakes);
-      const newHealth = Math.max(0, defenseHealth - damagePercent);
-      setDefenseHealth(newHealth);
-
-      triggerEnemyCounterFire();
-
-      if (newMistakes >= maxAllowedMistakes || newHealth <= 0) {
-        setIsDefeated(true);
-        setDefeatReason('breach');
-        sound.playDefeatSound();
-        onDefeat?.('breach');
-        setFeedbackMessage('فشلت الخطة: ارتباك في التسلسل الزمني أدى لاختراق دبابات العدو للنسق الدفاعي!');
-        setFeedbackType('danger');
-        return;
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      for (const s of world.stars) {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      setFeedbackMessage(
-        `تنبيه تكتيكي: ${correctCount} أحداث في مكانها الصحيح، لكن يوجد ${wrongCount} غير مرتبة زمنياً! حافظ على تركيزك (${newMistakes}/${maxAllowedMistakes} إصابات).`
-      );
-      setFeedbackType('danger');
-    } else {
-      triggerMissileStrike(correctCount);
-      setScore((prev) => prev + correctCount * 400);
-      setFeedbackMessage(`ممتاز! تم تثبيت ${correctCount} محطات تكتيكية بنجاح، أكمل ترتيب بقية الأحداث!`);
-      setFeedbackType('success');
-    }
-  };
+      ctx.fillStyle = '#422006';
+      ctx.beginPath();
+      ctx.moveTo(0, 410);
+      ctx.quadraticCurveTo(180, 330, 370, 405);
+      ctx.quadraticCurveTo(590, 325, 800, 395);
+      ctx.quadraticCurveTo(1010, 330, 1200, 385);
+      ctx.lineTo(1200, h);
+      ctx.lineTo(0, h);
+      ctx.closePath();
+      ctx.fill();
 
-  // Provide tactical hint
-  const handleUseHint = () => {
-    if (hintsAvailable <= 0 || isWon || isDefeated) return;
-    sound.playRadioClick();
-    setHintsAvailable((prev) => prev - 1);
+      ctx.fillStyle = '#713f12';
+      ctx.fillRect(0, 430, w, h - 430);
 
-    // Find first misplaced event
-    const misplaced = orderedEvents.find((evt, idx) => evt.order !== idx + 1 && !lockedEvents.has(evt.id));
-    if (misplaced) {
-      setActiveHintEventId(misplaced.id);
-      setFeedbackMessage(
-        `💡 تلميح تكتيكي: الحدث "${misplaced.shortTitle}" يقع في الترتيب رقم (${misplaced.order}) في المعركة (${misplaced.dateLabel} - ${misplaced.timeLabel})!`
-      );
-      setFeedbackType('info');
-      window.setTimeout(() => setActiveHintEventId(null), 6000);
-    }
-  };
+      ctx.strokeStyle = 'rgba(68, 42, 8, 0.65)';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 9; i += 1) {
+        const y = 455 + i * 28;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.quadraticCurveTo(350, y - 12, 700, y + 6);
+        ctx.quadraticCurveTo(950, y + 16, 1200, y - 2);
+        ctx.stroke();
+      }
 
-  // Reset mission state
-  const handleResetMission = () => {
+      // Defensive position.
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(55, 515, 220, 95);
+      ctx.fillStyle = '#a8a29e';
+      for (let i = 0; i < 7; i += 1) {
+        ctx.fillRect(48 + i * 30, 500 + (i % 2) * 7, 26, 15);
+      }
+
+      drawTank(145, 585, false, false);
+
+      // Player aim line.
+      ctx.strokeStyle = 'rgba(250,204,21,0.2)';
+      ctx.setLineDash([10, 9]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(185, 558);
+      ctx.lineTo(world.aimX, world.aimY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      for (const tank of world.tanks) {
+        drawTank(tank.x, tank.y, true, tank.type === 'heavy');
+
+        const barW = tank.type === 'heavy' ? 74 : 60;
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(tank.x - barW / 2, tank.y - 58, barW, 7);
+        ctx.fillStyle = tank.hp / tank.maxHp > 0.45 ? '#22c55e' : '#ef4444';
+        ctx.fillRect(tank.x - barW / 2, tank.y - 58, barW * (tank.hp / tank.maxHp), 7);
+      }
+
+      for (const plane of world.planes) {
+        drawPlane(plane.x, plane.y);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(plane.x - 24, plane.y + 38, 48 * (plane.hp / 2), 5);
+      }
+
+      for (const p of world.projectiles) {
+        if (p.kind === 'player') {
+          ctx.fillStyle = '#fde047';
+          ctx.shadowColor = '#f59e0b';
+          ctx.shadowBlur = 14;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        } else if (p.kind === 'enemy-shell') {
+          ctx.fillStyle = '#fb7185';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#f97316';
+          ctx.shadowColor = '#ef4444';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      // Crosshair.
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(world.aimX, world.aimY, 22, 0, Math.PI * 2);
+      ctx.moveTo(world.aimX - 34, world.aimY);
+      ctx.lineTo(world.aimX - 8, world.aimY);
+      ctx.moveTo(world.aimX + 8, world.aimY);
+      ctx.lineTo(world.aimX + 34, world.aimY);
+      ctx.moveTo(world.aimX, world.aimY - 34);
+      ctx.lineTo(world.aimX, world.aimY - 8);
+      ctx.moveTo(world.aimX, world.aimY + 8);
+      ctx.lineTo(world.aimX, world.aimY + 34);
+      ctx.stroke();
+
+      for (const e of world.explosions) {
+        const t = e.life / e.maxLife;
+        const alpha = 1 - t;
+        const radius = e.radius * (0.35 + t * 0.9);
+
+        ctx.fillStyle = `rgba(251, 146, 60, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(239, 68, 68, ${alpha * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, radius * 0.58, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(55, 65, 81, ${alpha * 0.55})`;
+        ctx.beginPath();
+        ctx.arc(e.x - radius * 0.45, e.y - radius * 0.8, radius * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Target progress.
+      ctx.fillStyle = 'rgba(2,6,23,0.75)';
+      ctx.fillRect(18, 18, 440, 58);
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = '700 22px Cairo, sans-serif';
+      ctx.fillText('معركة الدبابات — موقع المدفعية المصري', 34, 45);
+      ctx.font = '700 15px Cairo, sans-serif';
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(`الدبابات: ${world.tanksDestroyed}/${settings.tankTarget}   |   الطائرات: ${world.planesDestroyed}/${settings.planeTarget}`, 34, 67);
+
+      ctx.fillStyle = 'rgba(2,6,23,0.62)';
+      ctx.fillRect(w - 380, 18, 350, 60);
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = '700 16px Cairo, sans-serif';
+      ctx.fillText('اضغط داخل الميدان للتصويب', w - 355, 43);
+      ctx.fillText('ثم اضغط زر إطلاق النار', w - 355, 66);
+
+      frameRef.current = window.requestAnimationFrame(render);
+    };
+
+    frameRef.current = window.requestAnimationFrame(render);
+    return () => {
+      cancelled = true;
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    };
+  }, [endDefeat, settings, timeLeft]);
+
+  const handleReset = () => {
     sound.playRadioTransmission();
-    setOrderedEvents(shuffleEvents(activeEventsRef.current));
-    setLockedEvents(new Set());
-    setSelectedEventId(null);
-    setTimeLeft(initialDuration);
-    setMistakesCount(0);
-    setDefenseHealth(100);
-    setScore(0);
-    setIsWon(false);
-    setIsDefeated(false);
-    setDefeatReason('');
-    setHintsAvailable(difficulty === 'easy' ? 3 : difficulty === 'normal' ? 2 : 1);
-    setFeedbackMessage('رتب الأحداث التاريخية لمعركة الدبابات وحائط الصواريخ بالترتيب الزمني الصحيح 📜');
-    setFeedbackType('info');
-    animStateRef.current.tanksDestroyedVisual = 0;
-    animStateRef.current.enemyAdvanceProgress = 0;
+    resetWorld();
   };
+
+  const progressTotal = settings.tankTarget + settings.planeTarget;
+  const progressDone = tanksDestroyed + planesDestroyed;
+  const readyToWin = tanksDestroyed >= settings.tankTarget && planesDestroyed >= settings.planeTarget;
 
   return (
-    <div
-      dir="rtl"
-      className="w-full h-full min-h-0 flex flex-col bg-stone-950 text-stone-100 select-none overflow-hidden"
-    >
-      {/* 1. TOP RESPONSIVE MILITARY HUD (Meeting Request 4 with all essential stats) */}
-      <div className="desktop-only-bar px-3 sm:px-4 py-2 bg-stone-900 border-b border-stone-800 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-        <div className="flex items-center gap-2">
+    <div dir="rtl" className="w-full h-full min-h-0 flex flex-col bg-stone-950 text-stone-100 select-none overflow-hidden">
+      <div className="desktop-only-bar px-3 sm:px-4 py-2 bg-stone-900 border-b border-stone-800 flex items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={onExit}
-            className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer"
-            title="العودة للقائمة"
+            className="p-2 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 cursor-pointer"
+            aria-label="العودة"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-
+          <div className="min-w-0">
+            <h2 className="font-cairo font-black text-amber-400 text-sm sm:text-base truncate">المرحلة 4: معركة الدبابات</h2>
+            <p className="text-[11px] text-stone-400">دافع عن الموقع المصري أمام هجوم الدبابات والطائرات</p>
+          </div>
           {onOpenTutorialVideo && (
             <button
               onClick={onOpenTutorialVideo}
-              className="px-2.5 py-1.5 rounded-lg bg-red-600/25 hover:bg-red-600/40 text-red-300 hover:text-white border border-red-500/50 text-xs font-bold font-cairo transition-all cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
-              title="مشاهدة فيديو الشرح التكتيكي"
+              className="hidden sm:flex px-3 py-1.5 rounded-lg bg-red-600/20 border border-red-500/40 text-red-300 text-xs font-bold"
             >
-              <Video className="w-4 h-4 text-red-400" />
-              <span>فيديو الشرح 🎬</span>
+              فيديو الشرح
             </button>
           )}
-
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-cairo font-black text-amber-400 text-sm sm:text-base leading-tight">
-                المرحلة 4: ترتيب أحداث معركة الدبابات الكبرى وحائط الصواريخ
-              </h2>
-              <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-800 px-2 py-0.5 rounded">
-                صد اللواء 190 مدرع
-              </span>
-            </div>
-            <p className="text-[10px] sm:text-xs text-stone-400 leading-tight">
-              رتب الخطوات والعمليات العسكرية تاريخياً من ساعة الصفر حتى أسر عساف ياجوري
-            </p>
-          </div>
         </div>
 
-        {/* Live Counters & Meters (Remaining, Casualties, Health, Score, Timer) */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono font-bold flex-wrap justify-end">
-          {/* SCore */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-900 border border-stone-800 text-amber-300">
-            <Award className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-stone-400 text-[10px] font-cairo">السكور:</span>
+        <div className="flex items-center gap-2 text-xs font-bold font-cairo">
+          <div className="px-2.5 py-1.5 rounded-lg bg-red-950/60 border border-red-500/40 text-red-200 flex items-center gap-1.5">
+            <Shield className="w-4 h-4" />
+            <span>الدرع {health}%</span>
+          </div>
+          <div className="px-2.5 py-1.5 rounded-lg bg-amber-950/60 border border-amber-500/40 text-amber-200 flex items-center gap-1.5">
+            <Trophy className="w-4 h-4" />
             <span>{score}</span>
           </div>
-
-          {/* Remaining tanks to destroy */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-950/70 border border-sky-500/60 text-sky-300 font-mono font-bold shadow-sm">
-            <Target className="w-4 h-4 text-sky-400" />
-            <span className="text-stone-300 text-xs font-cairo">الدبابات المتبقية:</span>
-            <span className="text-sky-300 text-sm font-black">{remainingCount}</span>
-            <span className="text-[10px] text-stone-400 font-cairo">أرتال ({lockedEvents.size}/{activeEventsRef.current.length})</span>
-          </div>
-
-          {/* Defense Health */}
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
-              defenseHealth < 40
-                ? 'bg-red-950/80 border-red-500 text-red-300 animate-pulse'
-                : 'bg-stone-900 border-stone-800 text-emerald-300'
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-stone-400 text-[10px] font-cairo">صحة النسق:</span>
-            <span>{defenseHealth}%</span>
-          </div>
-
-          {/* Casualties / Mistakes */}
-          <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
-              mistakesCount > 0 ? 'bg-red-950/60 border-red-800 text-red-400' : 'bg-stone-900 border-stone-800 text-stone-400'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-            <span className="text-stone-400 text-[10px] font-cairo">الإصابات:</span>
-            <span>{mistakesCount}/{maxAllowedMistakes}</span>
-          </div>
-
-          {/* Digital Timer */}
-          <MissionDigitalTimer timeLeft={timeLeft} totalTime={initialDuration} />
+          <MissionDigitalTimer timeLeft={timeLeft} totalTime={settings.duration} />
         </div>
       </div>
 
-      {/* 2. DYNAMIC BATTLEFIELD SIMULATION CANVAS (Live missile launches & tank battles) */}
-      <div className="relative w-full h-36 sm:h-44 md:h-52 bg-stone-950 border-b border-stone-800 shrink-0 overflow-hidden">
+      <div className="relative flex-1 min-h-0 bg-black">
         <canvas
           ref={canvasRef}
-          width={1100}
-          height={320}
-          className="w-full h-full object-fill block"
-          aria-label="محاكاة معركة الدبابات وحائط الصواريخ"
+          width={1200}
+          height={700}
+          className="combat-canvas w-full h-full block"
+          onPointerMove={updateAimFromPointer}
+          onPointerDown={(event) => {
+            updateAimFromPointer(event);
+            if (event.pointerType === 'mouse') firePlayerShell();
+          }}
+          aria-label="معركة تفاعلية بالدبابات والطائرات"
         />
 
-        {/* Tactical Feedback Strip Overlay */}
-        <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
-          <div
-            className={`px-3 py-1 rounded-lg text-xs font-bold font-cairo border backdrop-blur-md transition-all ${
-              feedbackType === 'success'
-                ? 'bg-emerald-950/85 border-emerald-500 text-emerald-300'
-                : feedbackType === 'danger'
-                ? 'bg-red-950/85 border-red-500 text-red-300 animate-pulse'
-                : 'bg-stone-950/85 border-stone-700 text-amber-300'
-            }`}
+        <div className="absolute top-2 left-2 right-2 flex items-start justify-between pointer-events-none gap-2">
+          <div className="px-3 py-2 rounded-xl bg-stone-950/80 border border-stone-700/70 backdrop-blur-sm text-[11px] sm:text-xs font-cairo text-amber-200 max-w-[70%]">
+            {feedback}
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-stone-950/80 border border-stone-700/70 backdrop-blur-sm text-[11px] font-bold text-stone-200">
+            {progressDone}/{progressTotal}
+          </div>
+        </div>
+
+        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3 pointer-events-none">
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="w-11 h-11 rounded-xl bg-stone-950/90 border border-stone-700 text-stone-200 flex items-center justify-center active:scale-95"
+              title="إعادة المهمة"
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+            <div className="px-3 py-2 rounded-xl bg-stone-950/90 border border-stone-700 text-[11px] sm:text-xs text-stone-300 font-cairo">
+              الدبابة ثابتة — حرّك مؤشر التصويب وأطلق
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={firePlayerShell}
+            disabled={isWon || isDefeated}
+            className="pointer-events-auto w-24 h-16 sm:w-28 sm:h-18 rounded-2xl bg-red-600 hover:bg-red-500 border-2 border-red-300 text-white font-black font-cairo text-base sm:text-lg shadow-[0_0_24px_rgba(239,68,68,0.35)] active:scale-95 flex flex-col items-center justify-center gap-1"
           >
-            <span>{feedbackMessage}</span>
-          </div>
-
-          {/* Controls: Hints & Reset */}
-          <div className="pointer-events-auto flex items-center gap-2">
-            <button
-              onClick={handleUseHint}
-              disabled={hintsAvailable <= 0 || isWon || isDefeated}
-              className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold font-cairo flex items-center gap-1 cursor-pointer disabled:opacity-40"
-              title="تلميح استخباراتي لموضع أحد الأحداث"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>تلميح تكتيكي [{hintsAvailable}]</span>
-            </button>
-
-            <button
-              onClick={handleResetMission}
-              className="p-1.5 rounded-lg bg-stone-900/80 hover:bg-stone-800 text-stone-300 border border-stone-700 cursor-pointer"
-              title="إعادة المحاولة"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. INTERACTIVE CHRONOLOGICAL EVENT TIMELINE DECK */}
-      <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto bg-stone-950 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-2 px-1 text-xs text-stone-400">
-          <div className="flex items-center gap-2">
-            <Compass className="w-4 h-4 text-amber-400" />
-            <span className="font-bold font-cairo text-stone-200">
-              سلسلة العمليات التكتيكية (استخدم أزرار الأسهم أو انقر للتبديل والترتيب من الأقدم للأحدث):
-            </span>
-          </div>
-          <span className="text-[11px] text-amber-400 font-mono">
-            {lockedEvents.size} / {activeEventsRef.current.length} مكتمل
-          </span>
+            <Crosshair className="w-7 h-7" />
+            <span>إطلاق</span>
+          </button>
         </div>
 
-        {/* Events List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-          {orderedEvents.map((evt, idx) => {
-            const isLocked = lockedEvents.has(evt.id);
-            const isSelected = selectedEventId === evt.id;
-            const isHinted = activeHintEventId === evt.id;
-
-            return (
-              <div
-                key={evt.id}
-                onClick={() => handleSelectOrSwap(evt.id)}
-                className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 select-none ${
-                  isLocked
-                    ? 'bg-emerald-950/40 border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.15)] cursor-default'
-                    : isSelected
-                    ? 'bg-amber-950/60 border-amber-400 ring-2 ring-amber-400/50 scale-[1.01]'
-                    : isHinted
-                    ? 'bg-sky-950/70 border-sky-400 animate-pulse'
-                    : 'bg-stone-900/90 hover:bg-stone-900 border-stone-800 hover:border-stone-700'
-                }`}
-              >
-                {/* Slot Number Badge */}
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-black text-sm shrink-0 border ${
-                    isLocked
-                      ? 'bg-emerald-500 text-stone-950 border-emerald-300'
-                      : isSelected
-                      ? 'bg-amber-400 text-stone-950 border-amber-300'
-                      : 'bg-stone-800 text-stone-300 border-stone-700'
-                  }`}
+        {isDefeated && (
+          <div className="absolute inset-0 z-40 bg-stone-950/90 backdrop-blur-sm flex items-center justify-center p-5 text-center">
+            <div className="max-w-md rounded-2xl border border-red-700/70 bg-stone-900 p-6 shadow-2xl">
+              <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+              <h3 className="text-xl sm:text-2xl font-black font-cairo text-red-400 mb-2">فشل الدفاع عن الموقع</h3>
+              <p className="text-sm text-stone-300 leading-relaxed mb-5">
+                {defeatReason === 'health'
+                  ? 'وصلت نيران الدبابات والقنابل إلى الموقع. أعد التصويب بسرعة وركز على الأهداف الأقرب.'
+                  : 'انتهى الوقت قبل إسقاط العدد المطلوب من الدبابات والطائرات.'}
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={handleReset}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 text-stone-950 font-black font-cairo flex items-center gap-2"
                 >
-                  {isLocked ? <Check className="w-4 h-4" /> : idx + 1}
-                </div>
-
-                {/* Event Information */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <span
-                      className={`font-cairo font-bold text-xs sm:text-sm leading-snug ${
-                        isLocked ? 'text-emerald-300' : 'text-stone-100'
-                      }`}
-                    >
-                      {evt.title}
-                    </span>
-                    <span className="text-[10px] font-mono text-amber-400/90 bg-stone-950/80 px-1.5 py-0.5 rounded border border-stone-800 shrink-0">
-                      {evt.timeLabel}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-stone-400 leading-relaxed mb-1.5 line-clamp-2">
-                    {evt.description}
-                  </p>
-
-                  <div className="flex items-center gap-2 text-[10px] text-stone-500 flex-wrap">
-                    <span className="text-emerald-400">🇪🇬 {evt.egyptianForce}</span>
-                    <span>·</span>
-                    <span className="text-red-400">⚔️ {evt.enemyForce}</span>
-                  </div>
-                </div>
-
-                {/* Move Up / Down Buttons */}
-                {!isLocked && (
-                  <div className="flex flex-col gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => moveEventUp(idx)}
-                      disabled={idx === 0}
-                      className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white disabled:opacity-30 cursor-pointer"
-                      title="تحريك لأعلى"
-                    >
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveEventDown(idx)}
-                      disabled={idx === orderedEvents.length - 1}
-                      className="p-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white disabled:opacity-30 cursor-pointer"
-                      title="تحريك لأسفل"
-                    >
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                  <RotateCcw className="w-4 h-4" /> إعادة المحاولة
+                </button>
+                <button
+                  onClick={onExit}
+                  className="px-5 py-2.5 rounded-xl bg-stone-800 text-stone-200 font-bold font-cairo"
+                >
+                  خروج
+                </button>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        )}
+
+        {readyToWin && !isWon && !isDefeated && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+            <div className="px-5 py-3 rounded-2xl bg-emerald-950/90 border border-emerald-400 text-emerald-300 font-black font-cairo">
+              تم صد الهجوم — إعلان النصر...
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 4. BOTTOM ACTION CONTROL DECK */}
-      <div className="p-3 bg-stone-900 border-t border-stone-800 flex items-center justify-between gap-3 shrink-0">
-        <div className="text-xs text-stone-400 flex items-center gap-2">
+      <div className="shrink-0 bg-stone-900 border-t border-stone-800 px-3 py-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs font-cairo text-stone-300">
           <Target className="w-4 h-4 text-amber-400" />
-          <span>
-            {lockedEvents.size === activeEventsRef.current.length
-              ? 'تم ترتيب كافة الأحداث بالكامل! اضغط للتأكيد وحصد النصر.'
-              : 'قم بترتيب كافة الأحداث زمنياً ثم اضغط لتأكيد التسلسل وفحصه.'}
-          </span>
+          <span>الهدف: تدمير {settings.tankTarget} دبابات و{settings.planeTarget} طائرات</span>
         </div>
-
-        <button
-          onClick={handleValidateSequence}
-          disabled={isWon || isDefeated}
-          className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-stone-950 font-black font-cairo text-sm border-2 border-amber-300 shadow-xl flex items-center gap-2 cursor-pointer active:scale-95 transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)]"
-        >
-          <Zap className="w-4 h-4 fill-stone-950" />
-          <span>تأكيد وفحص التسلسل التكتيكي 🎯</span>
-        </button>
+        <div className="hidden sm:flex items-center gap-3 text-[11px] text-stone-400 font-cairo">
+          <span className="flex items-center gap-1"><Flame className="w-3.5 h-3.5 text-red-400" /> دبابات مهاجمة</span>
+          <span className="flex items-center gap-1"><Plane className="w-3.5 h-3.5 text-sky-300" /> طائرات مهاجمة</span>
+          <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-amber-300" /> قذيفة الدبابة</span>
+        </div>
       </div>
 
-      {/* 5. VICTORY OVERLAY MODAL */}
       <VictoryModal
         isOpen={isWon}
         missionId="MISSION_TANK_BATTLE"
-        missionTitle="المرحلة 4: معركة الدبابات الكبرى وحائط الصواريخ"
-        congratulatoryMessage="مبروك النصر العظيم! تم ترتيب أحداث المعركة بدقة وصد هجوم اللواء 190 مدرع المعادي وأسر العقيد عساف ياجوري حياً!"
+        missionTitle="المرحلة 4: معركة الدبابات"
+        congratulatoryMessage="مبروك! دافعت عن الموقع المصري وصدّدت هجوم الدبابات والطائرات بنجاح."
         score={score}
         timeLeft={timeLeft}
-        targetsDestroyed={activeEventsRef.current.length}
-        totalTargets={activeEventsRef.current.length}
+        targetsDestroyed={tanksDestroyed + planesDestroyed}
+        totalTargets={progressTotal}
         customStats={[
-          { label: 'الأحداث التاريخية المرتبة', value: `${activeEventsRef.current.length} أحداث`, highlight: true },
-          { label: 'سلامة النسق الدفاعي', value: `${defenseHealth}%`, highlight: true },
-          { label: 'الإصابات والأخطاء التكتيكية', value: `${mistakesCount}` },
+          { label: 'الدبابات المدمرة', value: String(tanksDestroyed), highlight: true },
+          { label: 'الطائرات المسقطة', value: String(planesDestroyed), highlight: true },
+          { label: 'سلامة الدبابة', value: `${health}%`, highlight: true },
         ]}
         onNextMission={() => onComplete(score)}
         onReturnToBase={onExit}
-        onReplay={handleResetMission}
+        onReplay={handleReset}
       />
-
-      {/* 6. DEFEAT OVERLAY MODAL */}
-      {isDefeated && (
-        <div className="absolute inset-0 bg-stone-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300 z-50">
-          <div className="w-16 h-16 rounded-full bg-red-500/20 border-2 border-red-500/60 flex items-center justify-center text-red-500 mb-3 shadow-[0_0_25px_rgba(239,68,68,0.5)] animate-pulse">
-            <AlertTriangle className="w-9 h-9" />
-          </div>
-
-          <h3 className="text-2xl sm:text-3xl font-black font-cairo text-red-500 mb-2">
-            {defeatReason === 'breach'
-              ? 'فشلت المهمة: اختراق دبابات العدو للنسق الدفاعي!'
-              : 'فشلت المهمة: نفد الوقت المحدد للملحمة!'}
-          </h3>
-
-          <p className="text-xs sm:text-sm text-stone-300 max-w-md mb-6 leading-relaxed">
-            {defeatReason === 'breach'
-              ? 'أدى الترتيب الزمني الخاطئ للعمليات إلى ثغرة تكتيكية مكنت مدرعات العدو من الالتفاف. راجع التسلسل التاريخي لحرب أكتوبر (من الضربة الجوية وحائط الصواريخ وصولاً لكمين الفردان) واستفد من التلميحات!'
-              : 'انتهت المهلة الزمنية قبل استكمال تنظيم النسق التكتيكي لصد الهجوم المضاد. أعد المحاولة فوراً واعتمد على التواريخ وساعات الصفر لسرعة الترتيب!'}
-          </p>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleResetMission}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold font-cairo rounded-xl inline-flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>إعادة المحاولة فوراً</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onExit}
-              className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-stone-300 border border-stone-700 font-bold font-cairo rounded-xl transition-all cursor-pointer"
-            >
-              <span>العودة للقائمة الرئيسية</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
